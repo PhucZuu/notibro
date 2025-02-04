@@ -1,0 +1,36 @@
+<?php
+
+use App\Models\Color;
+use App\Models\User;
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('notes', function (Blueprint $table) {
+            $table->id();
+            $table->foreignIdFor(User::class)->constrained();
+            $table->foreignIdFor(Color::class)->constrained();
+            $table->json('user_ids')->nullable();
+            $table->string('title', 255);
+            $table->text('content');
+            $table->boolean('is_favorite')->default(0);
+            $table->json('notification');
+            $table->timestamps();
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('notes');
+    }
+};
