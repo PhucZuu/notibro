@@ -25,23 +25,10 @@ Route::post('/auth/send-otp', [AuthController::class, 'sendOtp']);
 Route::post('/user/send-reset-password-mail',[AuthController::class, 'sendOtpResetPassword']);
 Route::post('/user/reset-password', [AuthController::class, 'resetPassword']);
 
-Route::get('/test1', function() {
-    return response()->json([
-        'message' => 'This is not middleware route',
-    ]);
-});
-
 Route::middleware('auth:sanctum')->group( function() {
     Route::post('/auth/logout',   [AuthController::class,'logout']);
 
     Route::get('/user',                 [UserController::class,'profile']);
     Route::put('/user/update-profile',  [UserController::class,'updateProfile']);
-    Route::put('/user/change-password', [AuthController::class,'changePassword']);
-
-    Route::get('/test2', function() {
-        return response()->json([
-            'message' => 'This is middleware route',
-        ]);
-    });
-    
+    Route::put('/user/change-password', [AuthController::class,'changePassword']);    
 });
