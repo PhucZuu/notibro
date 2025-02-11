@@ -80,12 +80,12 @@ class AuthController extends Controller
             $user->roles()->attach($role->id);
 
             // Tạo mã OTP
-            // $otp = random_int(100000, 999999);
+            $otp = random_int(100000, 999999);
 
             // Lưu mã OTP vào cache
-            // Cache::put('otp_' . $user->email, $otp, now()->addMinutes(5));
+            Cache::put('otp_' . $user->email, $otp, now()->addMinutes(5));
 
-            // Mail::to($user->email)->send(new OtpMail($otp));
+            Mail::to($user->email)->send(new OtpMail($otp));
 
             DB::commit();
 
