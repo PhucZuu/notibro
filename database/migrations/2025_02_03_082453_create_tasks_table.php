@@ -39,6 +39,7 @@ return new class extends Migration
             $table->integer('repeat_space')->nullable();
             $table->date('end_repeat')->nullable();
             $table->string('day_of_week',255)->nullable()->comment('Monday, Tuesday...');
+            $table->softDeletes();
             $table->timestamps();
         });
     }

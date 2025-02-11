@@ -19,6 +19,7 @@ return new class extends Migration
             $table->foreignIdFor(StoragePackage::class)->constrained();
             $table->date('purchase_at');
             $table->date('expired_at');
+            $table->softDeletes();
             $table->timestamps();
         });
     }
