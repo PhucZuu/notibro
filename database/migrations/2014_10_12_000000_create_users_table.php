@@ -22,6 +22,7 @@ return new class extends Migration
             $table->string('address',255);
             $table->string('phone',10);
             $table->timestamp('email_verified_at')->nullable();
+            $table->softDeletes();
             $table->rememberToken();
             $table->timestamps();
         });

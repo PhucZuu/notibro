@@ -18,6 +18,7 @@ return new class extends Migration
             $table->foreignIdFor(User::class)->constrained();
             $table->foreignIdFor(Task::class)->constrained();
             $table->text('message');
+            $table->softDeletes();
             $table->timestamps();
         });
     }

@@ -21,6 +21,7 @@ return new class extends Migration
             $table->boolean('is_priority')->default(0);
             $table->enum('type', ['event', 'task', 'appointment']);
             $table->dateTime('sent_at');
+            $table->softDeletes();
             $table->timestamps();
         });
     }
