@@ -19,7 +19,7 @@ use Illuminate\Foundation\Auth\EmailVerificationRequest;
 
 Route::post('/auth/login',    [AuthController::class, 'login'])->name('login');
 Route::post('/auth/register', [AuthController::class, 'register']);
-Route::post('/auth/verify',   [AuthController::class, 'verifyOtp']);
+Route::post('/auth/verify',   [AuthController::class, 'verifyEmail']);
 Route::post('/auth/send-otp', [AuthController::class, 'sendOtp']);
 
 Route::post('/user/send-reset-password-mail',[AuthController::class, 'sendOtpResetPassword']);
@@ -30,5 +30,11 @@ Route::middleware('auth:sanctum')->group( function() {
 
     Route::get('/user',                 [UserController::class,'profile']);
     Route::put('/user/update-profile',  [UserController::class,'updateProfile']);
-    Route::put('/user/change-password', [AuthController::class,'changePassword']);    
+    Route::put('/user/change-password', [AuthController::class,'changePassword']);
+    
+    Route::get('/users',                [UserController::class, 'getAllUser']);
+    Route::get('/users/{id}',           [UserController::class, 'show']);
+    Route::put('/users/{id}/permission',[UserController::class, 'changePermission']);
+    Route::delete('/users/{id}/ban',    [UserController::class, 'ban']);
+    Route::post('/users/{id}/unlock',   [UserController::class, 'unlock']);
 });

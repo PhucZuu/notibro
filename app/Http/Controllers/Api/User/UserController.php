@@ -11,6 +11,130 @@ use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
+    public function getAllUser()
+    {
+        $users = User::query()->get();
+
+        if(!$users) {
+            return response()->json([
+                'code'    => 404,
+                "message" =>  'Users not found',
+            ], 404);
+        }
+
+        return response()->json([
+            'code'    => 200,
+            'message' => "Retrieve user list successfully",
+            'data'    => $users,
+        ], 200);
+    }
+
+    public function show($id)
+    {
+        $user = User::find($id);
+
+        if(!$user) {
+            return response()->json([
+                'code'    => 404,
+                "message" =>  'User not found',
+            ], 404);
+        }
+
+        return response()->json([
+            'code' => 200,
+            'message' => "Retrieve user successfully",
+            'data'    => $user,
+        ]);
+    }
+
+    public function ban($id)
+    {
+        $user =  User::find($id);
+
+        if(!$user) {
+            return response()->json([
+                'code'    => 404,
+                'message' => "User not found",
+            ],404);
+        }
+
+        try {
+            $user->delete();
+
+            return response()->json([
+                'code'    => 200,
+                'message' => 'This user account has been locked',
+            ],200);
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+
+            return response()->json([
+                'code' => 500,
+                'message' => "An error occurred",
+            ]);
+        }
+    }
+
+    public function unlock($id)
+    {
+        $user =  User::withTrashed()->find($id);
+
+        if(!$user) {
+            return response()->json([
+                'code'    => 404,
+                'message' => "User not found",
+            ],404);
+        }
+
+        try {
+            $user->restore();
+
+            return response()->json([
+                'code'    => 200,
+                'message' => 'Account unlocked successfully',
+            ],200);
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+
+            return response()->json([
+                'code'    => 500,
+                'message' => "An error occurred",
+            ]);
+        }
+    }
+
+    public function changePermission(Request $request, $id)
+    {
+        $data = $request->validate([
+            'role_id' => ['required',Rule::exists('roles', 'id')],
+        ]);
+
+        $user = User::find($id);
+
+        if(!$user) {
+            return response()->json([
+                'code'    => 404,
+                'message' => "User not found",
+            ]);
+        }
+
+        try {
+            $user->roles()->sync($data['role_id']);
+
+            return response()->json([
+                'code'    => 200,
+                'message' => "User permissions changed successfully",
+            ]);
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+
+            return response()->json([
+                'code'    => 500,
+                'message' => 'An error occurred',
+            ], 500);
+        }
+    }
+
     public function profile()
     {
         $user = User::find(auth()->id());
