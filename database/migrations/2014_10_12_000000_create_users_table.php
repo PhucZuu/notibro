@@ -19,8 +19,8 @@ return new class extends Migration
             $table->string('first_name',255);
             $table->string('last_name',255);
             $table->enum('gender',['male','female']);
-            $table->string('address',255);
-            $table->string('phone',10);
+            $table->string('address',255)->nullable();
+            $table->string('phone',25)->nullable();
             $table->timestamp('email_verified_at')->nullable();
             $table->softDeletes();
             $table->rememberToken();
