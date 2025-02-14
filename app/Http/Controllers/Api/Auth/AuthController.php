@@ -22,7 +22,9 @@ class AuthController extends Controller
     {
         $credentials = $request->only('email','password');
 
-        $user = User::where('email',$credentials['email'])->first();
+        $user = User::with('roles:id,name')
+        ->where('email',$credentials['email'])
+        ->first();
 
         if(!$user || !Hash::check($credentials['password'], $user->password)) {
             return response()->json([
@@ -39,7 +41,15 @@ class AuthController extends Controller
             'message' => 'Login successfully',
             'data'    => [
                 'access_token' => $accessToken,
-                'token_type'   => 'Bearer'
+                'token_type'   => 'Bearer',
+                'user'         => [
+                    "id"         => $user->id,
+                    'email'      => $user->email,
+                    "first_name" => $user->first_name,
+                    "last_name"  => $user->last_name,
+                    "role"       => $user->roles[0]['name'] ?? 'user',
+                    "avatar"     => $user->avatar,
+                ]
             ],
         ],200);
     }
