@@ -14,4 +14,8 @@ class Timezone extends Model
         'name',
         'utc_offset',
     ];
+
+    public function task(){
+        return $this->hasMany(Task::class);
+    }
 }
