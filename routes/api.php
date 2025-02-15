@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\Auth\AuthController;
+use App\Http\Controllers\Api\Role\RoleController;
 use App\Http\Controllers\Api\User\UserController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -37,4 +38,12 @@ Route::middleware('auth:sanctum')->group( function() {
     Route::put('/users/{id}/permission',[UserController::class, 'changePermission']);
     Route::delete('/users/{id}/ban',    [UserController::class, 'ban']);
     Route::post('/users/{id}/unlock',   [UserController::class, 'unlock']);
+
+    Route::get('/roles',        [RoleController::class, 'index']);
+    Route::get('/roles/{id}',   [RoleController::class, 'show']);
+    Route::post('/roles',       [RoleController::class, 'store']);
+    Route::put('/roles/{id}',   [RoleController::class, 'update']);
+    Route::delete('/roles/{id}/delete', [RoleController::class, 'delete']);
+    Route::delete('/roles/{id}/forceDelete', [RoleController::class, 'forceDelete']);
+    Route::put('roles/{id}/restore', [RoleController::class, 'restore']);
 });
