@@ -9,4 +9,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Color extends Model
 {
     use HasFactory, SoftDeletes;
+
+    public function task(){
+        return $this->hasMany(Task::class);
+    }
 }
