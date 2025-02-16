@@ -17,4 +17,9 @@ class Setting extends Model
         'date_format',
         'time_format',
     ];
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
 }

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\Color\ColorController;
 use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\Role\RoleController;
+use App\Http\Controllers\Api\Setting\SettingController;
 use App\Http\Controllers\Api\User\UserController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -33,6 +34,9 @@ Route::middleware('auth:sanctum')->group( function() {
     Route::get('/user',                 [UserController::class,'profile']);
     Route::put('/user/update-profile',  [UserController::class,'updateProfile']);
     Route::put('/user/change-password', [AuthController::class,'changePassword']);
+
+    Route::get('/setting', [SettingController::class, 'setting']);
+    Route::put('/setting/change', [SettingController::class, 'changeSetting']);
 
     Route::middleware(['admin'])->prefix('admin')->group(function () {
         Route::get('/users',                [UserController::class, 'getAllUser']);
