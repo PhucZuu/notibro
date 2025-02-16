@@ -10,6 +10,12 @@ class Color extends Model
 {
     use HasFactory, SoftDeletes;
 
+    protected $table = 'colors'; 
+
+    protected $fillable = ['name', 'code']; 
+
+    public $timestamps = true;
+    
     public function task(){
         return $this->hasMany(Task::class);
     }
