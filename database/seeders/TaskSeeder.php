@@ -23,14 +23,14 @@ class TaskSeeder extends Seeder
                 'description' => 'Complete the project report.',
                 'is_reminder' => true,
                 'reminder' => json_encode([
-                    1 => ['set_time' => 5, 'type' => 'web'],
-                    2 => ['set_time' => 20, 'type' => 'email']
+                    ['set_time' => 5, 'type' => 'web'],
+                    ['set_time' => 20, 'type' => 'email']
                 ]),
                 'start_time' => Carbon::now()->addHours(2),
                 'end_time' => Carbon::now()->addHours(4),
                 'user_ids' => json_encode([
-                    1 => ['user_id' => 2 ,'status' => 1, 'role' => 'editor'],
-                    2 => ['user_id' => 3 ,'status' => 1, 'role' => 'viewer']
+                    ['user_id' => 2 ,'status' => 1, 'role' => 'editor'],
+                    ['user_id' => 3 ,'status' => 1, 'role' => 'viewer']
                 ]),
                 'is_all_day' => false,
                 'is_busy' => false,
@@ -50,15 +50,15 @@ class TaskSeeder extends Seeder
                 'description' => 'Prepare for the meeting.',
                 'is_reminder' => true,
                 'reminder' => json_encode([
-                    1 => ['set_time' => 15, 'type' => 'email'],
-                    2 => ['set_time' => 20, 'type' => 'web']
+                    ['set_time' => 15, 'type' => 'email'],
+                    ['set_time' => 20, 'type' => 'web']
                 ]),
                 'start_time' => Carbon::now()->addHours(1),
                 'end_time' => Carbon::now()->addHours(2),
                 'user_ids' => json_encode([
-                    1 => ['user_id' => 3 ,'status' => 1, 'role' => 'editor'],
-                    2 => ['user_id' => 4 ,'status' => 1, 'role' => 'viewer'],
-                    3 => ['user_id' => 5 ,'status' => 0, 'role' => '']
+                    ['user_id' => 3 ,'status' => 1, 'role' => 'editor'],
+                    ['user_id' => 4 ,'status' => 1, 'role' => 'viewer'],
+                    ['user_id' => 5 ,'status' => 0, 'role' => '']
                 ]),
                 'is_all_day' => true,
                 'is_busy' => true,
