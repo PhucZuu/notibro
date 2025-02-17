@@ -35,6 +35,23 @@ class Task extends Model
         'exclude_time'
     ];
 
+    protected $attributes = [
+        'is_reminder'   => 0,
+        'is_done'       => 0,
+        'is_all_day'    => 0,
+        'is_repeat'     => 0,
+        'is_busy'       => 0,
+    ];
+
+    protected $casts = [
+        'user_ids'  => 'array',
+        'reminder'  => 'array',
+        'day_of_week'  => 'array',
+        'day_of_month'  => 'array',
+        'by_month'  => 'array',
+        'exclude_time'  => 'array',
+    ];
+
     public function user(){
         return $this->belongsTo(User::class);
     }

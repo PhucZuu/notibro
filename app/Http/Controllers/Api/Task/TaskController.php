@@ -60,73 +60,29 @@ class TaskController extends Controller
             $user_id = Auth::user()->id;
         }
 
-        $tasks = Task::where('user_id', $user_id)
-            ->orWhereRaw("
-                EXISTS (
-                    SELECT 1 FROM JSON_TABLE(
-                        user_ids, '$[*]' COLUMNS (
-                            user_id INT PATH '$.user_id',
-                            status INT PATH '$.status'
-                        )
-                    ) AS jt
-                    WHERE jt.user_id = ? AND jt.status = 1
-                )
-            ", [$user_id])
-            ->get();
-        // Lấy các ký tự đầu tiên có nhiều hơn một bản ghi
-        // $firstChars = Task::select(DB::raw('LEFT(path, 1) as first_char'))
-        //     ->groupBy('first_char')
-        //     ->havingRaw('COUNT(*) > 1')
-        //     ->pluck('first_char');
-
-        // // Lấy các task có ký tự đầu tiên chung và sắp xếp theo start_time
-        // $tasks = Task::whereIn(DB::raw('LEFT(path, 1)'), $firstChars)
-        //     ->orderBy('start_time', 'asc')
-        //     ->get();
-
-        // $tasksWithEvents = []; 
-
-        // $maxDate = Carbon::now()->addYear(); // Ngày tối đa là ngày hiện tại + 1 năm
-
-        // foreach ($tasks as $task) {
-        //     // echo($task);
-        //     $startTime = Carbon::parse($task->start_time);
-        //     $endTime = Carbon::parse($task->end_time);
-        //     $endDate = $task->end_date ? Carbon::parse($task->end_date) : null;
-
-        //     // echo'<pre>';
-        //     // echo $startTime, $endTime, $endDate;
-
-        //     // Kiểm tra điều kiện đầu tiên
-        //     if ($endDate && $endDate->isSameDay($endTime)) {
-        //         // Hiển thị 1 lần
-        //         $tasksWithEvents[] = $task;
-        //     } else {
-        //         // Nếu không có end_date hoặc end_date cách start_time > 1 ngày
-        //         if (!$endDate || $endDate->diffInDays($startTime) > 1) {
-        //             $currentDate = $startTime->copy();
-        //             // echo $currentDate;
-
-        //             while ($currentDate->lessThanOrEqualTo($maxDate)) {
-        //                 // Thêm sự kiện vào danh sách
-        //                 $tasksWithEvents[] = $task->replicate(); // Tạo bản sao của task
-        //                 $tasksWithEvents[count($tasksWithEvents) - 1]->start_time = $currentDate->toDateTimeString();
-        //                 $tasksWithEvents[count($tasksWithEvents) - 1]->end_time = $currentDate->copy()->addMinutes($endTime->diffInMinutes($startTime))->toDateTimeString();
-
-        //                 // Tính toán khoảng cách lặp lại
-        //                 if ($task->date_space === 'day') {
-        //                     $currentDate->addDays($task->repeat_space);
-        //                 } elseif ($task->date_space === 'week') {
-        //                     $currentDate->addWeeks($task->repeat_space);
-        //                 } elseif ($task->date_space === 'month') {
-        //                     $currentDate->addMonths($task->repeat_space);
-        //                 } elseif ($task->date_space === 'year') {
-        //                     $currentDate->addYears($task->repeat_space);
-        //                 }
-        //             }
-        //         }
-        //     }
-        // }
+        $tasks = Task::select(
+            'tasks.*', 
+            'colors.code as color_code', 
+            'timezones.name as timezone_code'
+        )
+        ->leftJoin('colors', 'tasks.color_id', '=', 'colors.id')
+        ->leftJoin('timezones', 'tasks.timezone_id', '=', 'timezones.id')
+        ->where(function ($query) use ($user_id) {
+            $query->where('tasks.user_id', $user_id)
+                ->orWhereRaw("
+                    EXISTS (
+                        SELECT 1 FROM JSON_TABLE(
+                            tasks.user_ids, '$[*]' COLUMNS (
+                                user_id INT PATH '$.user_id',
+                                status INT PATH '$.status'
+                            )
+                        ) AS jt
+                        WHERE jt.user_id = ? AND jt.status = 1
+                    )
+                ", [$user_id]);
+        })
+        ->get();
+        
 
         // Trả về view và truyền dữ liệu vào
 
@@ -140,18 +96,17 @@ class TaskController extends Controller
     public function updateTask(Request $request, $id)
     {
         $code = $request->code;
-        $data['user_id'] = Auth::id();
 
         $data = $request->validate([
             'color_id'          => 'required',
             'timezone_id'       => 'required',
-            'title'             => 'required|max_length:255',
+            'title'             => 'required|max:255',
             'description'       => 'nullable',
             'start_time'        => 'required|date_format:Y-m-d H:i:s',
             'end_time'          => 'nullable|date_format:Y-m-d H:i:s',
-            'is_reminder'       => 'required|boolean',
+            'is_reminder'       => 'nullable|boolean',
             'reminder'          => 'nullable', //JSON
-            'is_done'           => 'required|boolean',
+            'is_done'           => 'nullable|boolean',
             'user_ids'          => 'nullable', //JSON
             'location'          => 'nullable|string|max:255',
             'type'              => 'required',
@@ -169,6 +124,8 @@ class TaskController extends Controller
             'exclude_time'      => 'nullable', //JSON
         ]);
 
+        $data['user_id'] = Auth::id();
+
         $task = Task::find($id);
 
         //Kiểm tra xem có tìm được task với id truyền vào không
@@ -181,8 +138,8 @@ class TaskController extends Controller
         }
 
         switch ($code) {
-                //Update when event dont have reapet
-            case 'Edit_N':
+            //Update when event dont have reapet
+            case 'EDIT_N':
                 try {
                     $data = $this->handleJsonStringData($data);
 
@@ -201,7 +158,7 @@ class TaskController extends Controller
                     ], 500);
                 }
 
-            case 'Edit_1':
+            case 'EDIT_1':
                 try {
                     $parent_path =  $task['path'];
 
@@ -227,7 +184,7 @@ class TaskController extends Controller
                     ], 500);
                 }
 
-            case 'Edit_1B':
+            case 'EDIT_1B':
                 try {
                     $data = $this->handleJsonStringData($data);
 
@@ -246,7 +203,7 @@ class TaskController extends Controller
                     ], 500);
                 }
 
-            case 'Edit_A':
+            case 'EDIT_A':
                 try {
                     $data = $this->handleJsonStringData($data);
 
