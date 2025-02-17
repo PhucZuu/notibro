@@ -29,20 +29,24 @@ return new class extends Migration
             $table->boolean('is_done')->default(0);
             $table->json('user_ids')->nullable();
             $table->string('location',255)->nullable();
-            $table->enum('type',['event','task','appointment']);
+            $table->enum('type',['event','task','appointment'])->default('event');
             $table->boolean('is_all_day')->default(0);
             $table->boolean('is_repeat')->default(0);
             $table->boolean('is_busy')->default(0);
             $table->string('path',255)->nullable();
-            $table->enum('frequency',['daily','weekly','monthly','yearly'])->nullable();
-            $table->string('date_space')->nullable();
+            
+            $table->enum('date_space',['daily','weekly','monthly','yearly'])->nullable();
             $table->integer('repeat_space')->nullable();
             $table->date('end_repeat')->nullable();
-            $table->string('day_of_week',255)->nullable()->comment('Monday, Tuesday...');
+            $table->json('day_of_week')->nullable()->comment('Mảng ngày trong tuần ["mo", "we", "fr"]');
+            $table->json('day_of_month')->nullable()->comment('Mảng ngày trong tháng  [1,24,15]');
+            $table->json('by_month')->nullable()->comment('Mảng tháng trong năm [1,12,11]');
             $table->json('exclude_time')->nullable();
             $table->softDeletes();
             $table->timestamps();
         });
+
+        // $table->enum('frequency',['daily','weekly','monthly','yearly'])->nullable();
     }
 
     /**
