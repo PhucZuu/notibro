@@ -34,10 +34,9 @@ return new class extends Migration
             $table->boolean('is_repeat')->default(0);
             $table->boolean('is_busy')->default(0);
             $table->string('path',255)->nullable();
-            
             $table->enum('date_space',['daily','weekly','monthly','yearly'])->nullable();
             $table->integer('repeat_space')->nullable();
-            $table->date('end_repeat')->nullable();
+            $table->dateTime('end_repeat')->nullable();
             $table->integer('total_repeat_time')->nullable();
             $table->json('day_of_week')->nullable()->comment('Mảng ngày trong tuần ["mo", "we", "fr"]');
             $table->json('day_of_month')->nullable()->comment('Mảng ngày trong tháng  [1,24,15]');
