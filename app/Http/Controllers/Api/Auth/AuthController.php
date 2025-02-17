@@ -152,23 +152,32 @@ class AuthController extends Controller
             ], 400);
         }
 
-        if($cachedOtp !== $request->otp) {
+        if($cachedOtp != $request->otp) {
             return response()->json([
                 'code'    => 400,
                 'message' => 'OTP code is incorrect',
             ],400);
         }
 
-        $user->update([
-            'email_verified_at' => Carbon::now(),
-        ]);
+        try {
+            $user->update([
+                'email_verified_at' => Carbon::now(),
+            ]);
+        
+            Cache::forget('otp_' . $request->email);
     
-        Cache::forget('otp_' . $request->email);
+            return response()->json([
+                'code'    => 200,
+                'message' => 'Email verified successfully',
+            ],200);
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
 
-        return response()->json([
-            'code'    => 200,
-            'message' => 'Email verified successfully',
-        ],200);
+            return response()->json([
+                'code'    => 500,
+                'message' => 'An error occurred',
+            ],500);
+        }
     }
 
     public function sendOtp(Request $request)
