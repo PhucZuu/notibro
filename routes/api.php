@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\Color\ColorController;
 use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\Role\RoleController;
 use App\Http\Controllers\Api\Setting\SettingController;
+use App\Http\Controllers\api\Task\TaskController;
 use App\Http\Controllers\Api\User\UserController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -38,6 +39,9 @@ Route::middleware('auth:sanctum')->group( function() {
     Route::get('/setting', [SettingController::class, 'setting']);
     Route::put('/setting/change', [SettingController::class, 'changeSetting']);
 
+    Route::get('/tasks', [TaskController::class, 'index']);
+    Route::put('/tasks/{id}', [TaskController::class, 'updateTask']);
+
     Route::middleware(['admin'])->prefix('admin')->group(function () {
         Route::get('/users',                [UserController::class, 'getAllUser']);
         Route::get('/users/{id}',           [UserController::class, 'show']);
@@ -63,4 +67,6 @@ Route::middleware('auth:sanctum')->group( function() {
         Route::delete('colors/{id}/force', [ColorController::class, 'destroyPermanent'])
             ->name('colors.forceDestroy');
         });
+
+    
 });
