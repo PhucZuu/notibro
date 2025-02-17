@@ -12,7 +12,8 @@ use Illuminate\Support\Facades\DB;
 
 class TaskController extends Controller
 {
-    protected function handleJsonStringData($data){
+    protected function handleJsonStringData($data)
+    {
         // Handling reminder if it's a JSON string
         if (!empty($data['reminder']) && is_string($data['reminder'])) {
             $data['reminder'] = json_decode($data['reminder'], true);
@@ -128,7 +129,7 @@ class TaskController extends Controller
         $task = Task::find($id);
 
         //Kiểm tra xem có tìm được task với id truyền vào không
-        if(!$task){
+        if (!$task) {
             return response()->json([
                 'code'    => 500,
                 'message' => 'Failed to get task',
@@ -141,9 +142,9 @@ class TaskController extends Controller
             case 'EDIT_N':
                 try {
                     $data = $this->handleJsonStringData($data);
-                    
+
                     $task->update($data);
-        
+
                     return response()->json([
                         'code'    => 200,
                         'message' => 'Task updated successfully',
@@ -162,14 +163,14 @@ class TaskController extends Controller
                     $parent_path =  $task['path'];
 
                     $data = $this->handleJsonStringData($data);
-                    
+
                     $new_task = Task::create($data);
 
                     //Save new path for last insert task
                     $new_path = $parent_path . $new_task->id . '/';
                     $new_task->path = $new_path;
                     $new_task->save();
-        
+
                     return response()->json([
                         'code'    => 200,
                         'message' => 'Task updated successfully',
@@ -186,9 +187,9 @@ class TaskController extends Controller
             case 'EDIT_1B':
                 try {
                     $data = $this->handleJsonStringData($data);
-                    
+
                     $task->update($data);
-        
+
                     return response()->json([
                         'code'    => 200,
                         'message' => 'Task updated successfully',
@@ -205,9 +206,9 @@ class TaskController extends Controller
             case 'EDIT_A':
                 try {
                     $data = $this->handleJsonStringData($data);
-                    
+
                     $task->update($data);
-        
+
                     return response()->json([
                         'code'    => 200,
                         'message' => 'Task updated successfully',
@@ -221,13 +222,12 @@ class TaskController extends Controller
                     ], 500);
                 }
 
-            default:    
+            default:
                 return response()->json([
                     'code'      =>  400,
                     'message'   =>  'Invalid code',
                     'data'      =>  ''
                 ]);
-            
         }
     }
 
@@ -285,7 +285,7 @@ class TaskController extends Controller
                 $data['start_time'] = date('Y-m-d 00:00:00', strtotime($data['start_time']));
                 $data['end_time'] = date('Y-m-d 23:59:59', strtotime($data['end_time']));
             }
-    
+
             $task = Task::create($data);
 
             return response()->json([
@@ -304,43 +304,126 @@ class TaskController extends Controller
 
     public function update(Request $request, $id) {}
 
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
-        try {
-            $task = Task::findOrFail($id);
+        // try {
+        //     $task = Task::findOrFail($id);
 
-            // Lấy danh sách user_ids hiện tại
-            $userIds = $task->user_ids ?? [];
+        //     // Lấy danh sách user_ids hiện tại
+        //     $userIds = $task->user_ids ?? [];
 
-            // Kiểm tra nếu người dùng hiện tại có tham gia
-            if (!in_array(Auth::id(), $userIds)) {
-                return response()->json([
-                    'code'    => 404,
-                    'message' => 'You are not a participant of this task.',
-                ], 404);
-            }
+        //     // Kiểm tra nếu người dùng hiện tại có tham gia
+        //     if (!in_array(Auth::id(), $userIds)) {
+        //         return response()->json([
+        //             'code'    => 404,
+        //             'message' => 'You are not a participant of this task.',
+        //         ], 404);
+        //     }
 
-            // Xóa user khỏi danh sách
-            $userIds = array_filter($userIds, function ($userId) {
-                return $userId !== Auth::id();
-            });
+        //     // Xóa user khỏi danh sách
+        //     $userIds = array_filter($userIds, function ($userId) {
+        //         return $userId !== Auth::id();
+        //     });
 
-            // Cập nhật lại danh sách user_ids
-            $task->user_ids = array_values($userIds);
-            $task->save();
+        //     // Cập nhật lại danh sách user_ids
+        //     $task->user_ids = array_values($userIds);
+        //     $task->save();
 
-            return response()->json([
-                'code'    => 200,
-                'message' => 'You have left the task.',
-            ], 200);
-        } catch (\Exception $e) {
+        //     return response()->json([
+        //         'code'    => 200,
+        //         'message' => 'You have left the task.',
+        //     ], 200);
+        // } catch (\Exception $e) {
+        //     return response()->json([
+        //         'code'    => 500,
+        //         'message' => 'Failed to leave the task.',
+        //         'data'    => $e->getMessage(),
+        //     ], 500);
+        // }
+        $code = $request->code;
+
+        $task = Task::findOrFail($id);
+
+        if (!$task) {
             return response()->json([
                 'code'    => 500,
-                'message' => 'Failed to leave the task.',
-                'data'    => $e->getMessage(),
+                'message' => 'Failed to get task',
+                'error'   => 'Cannot get task',
             ], 500);
         }
-    }
 
-    
+        if ($task->user_id  === Auth::id()) {
+            switch ($code) {
+                case 'DEL_N':
+                    try {
+                        $task->delete();
+                        return response()->json([
+                            'code'    => 200,
+                            'message' => 'Delete task successfully',
+                            'data'    => $task,
+                        ], 200);
+                    } catch (\Exception $e) {
+                        return response()->json([
+                            'code'    => 500,
+                            'message' => 'Failed to delete task',
+                            'error'   => $e->getMessage(),
+                        ], 500);
+                    }
+                case 'DEL_1':
+                case 'DEL_1B':
+                    try {
+                        $path = $task->path;
+                        // select all tasks that the same Path with the path to delete
+                        $tasks = Task::where('path', 'like', $path . '%')->get();
+                        // check if no task to delete
+                        if (empty($tasks)) {
+                            return response()->json(['message' => 'No tasks found to delete.']);
+                        }
+                        // delete tasks
+                        foreach ($tasks as $taskDeleta) {
+                            $taskDeleta->delete();
+                        }
+
+                        return response()->json(['message' => 'Delete all tasks successfully'], 200);
+                    } catch (\Exception $e) {
+                        return response()->json([
+                            'code'    => 500,
+                            'message' => 'Failed to delete task',
+                            'error'   => $e->getMessage(),
+                        ], 500);
+                    }
+                case 'DEL_A':
+                    // select all task with path first char is the same as the first char of the task to delete
+                    try {
+                        $firstChars = Task::select(DB::raw('LEFT(path, 1) as first_char'))
+                            ->groupBy('first_char')
+                            ->havingRaw('COUNT(*) > 1')
+                            ->pluck('first_char');
+
+                        // check if there is no task to delete
+                        if ($firstChars->isEmpty()) {
+                            return response()->json(['message' => 'No tasks found to delete.']);
+                        }
+
+                        // delete all tasks
+                        Task::whereIn(DB::raw('LEFT(path, 1)'), $firstChars)
+                            ->delete();
+
+                        return response()->json(['message' => 'Delete all tasks successfully'], 200);
+                    } catch (\Exception $e) {
+                        return response()->json([
+                            'code'    => 500,
+                            'message' => 'Failed to delete all task',
+                            'error'   => $e->getMessage(),
+                        ], 500);
+                    }
+                default:
+                    return response()->json([
+                        'code'      =>  400,
+                        'message'   =>  'Invalid code',
+                        'data'      =>  ''
+                    ]);
+            }
+        }
+    }
 }
