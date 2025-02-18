@@ -131,6 +131,10 @@ class TaskController extends Controller
 
         $data['user_id'] = Auth::id();
 
+        $data = $this->handleJsonStringData($data);
+
+        $data = $this->handleLogicData($data);
+
         $task = Task::find($id);
 
         //Kiểm tra xem có tìm được task với id truyền vào không
@@ -146,8 +150,6 @@ class TaskController extends Controller
                 //Update when event dont have reapet
             case 'EDIT_N':
                 try {
-                    $data = $this->handleJsonStringData($data);
-
                     $task->update($data);
 
                     return response()->json([
@@ -166,7 +168,6 @@ class TaskController extends Controller
             case 'EDIT_1':
                 try {
                     //Add new task for 1 day change
-                    $data = $this->handleJsonStringData($data);
                     $data->parent_id = $id;
                     $new_task = Task::create($data);
 
@@ -191,11 +192,18 @@ class TaskController extends Controller
             case 'EDIT_1B':
                 try {
                     //Add new task for following change
-                    $data = $this->handleJsonStringData($data);
                     $new_task = Task::create($data);
 
-                    $task->end_date = Carbon::parse($new_task->start_time)->subDay()->endOfDay();
+                    $task->end_repeat = Carbon::parse($new_task->start_time)->subDay()->endOfDay();
                     $task->save();
+
+                    //Delete all task that have parent_id = $task->id and start_time > $ta
+                    $relatedTasks = Task::where('parent_id', $task->id)
+                        ->where('start_time', '>=', $task->end_repeat)
+                        ->get();
+                    foreach ($relatedTasks as $relatedTask) {
+                        $relatedTask->update($data);
+                    }
 
                     return response()->json([
                         'code'    => 200,
@@ -212,18 +220,19 @@ class TaskController extends Controller
 
             case 'EDIT_A':
                 try {
-                    $data = $this->handleJsonStringData($data);
-
+                    //Update current Task
                     $task->update($data);
 
                     // Update all child Task
-                    $relatedTasks = Task::where('parent_id', $task->id)->get();
+                    $relatedTasks = Task::where('parent_id', $task->id)
+                        ->orWhere('parent_id', $task->parent_id)
+                        ->get();
                     foreach ($relatedTasks as $relatedTask) {
                         $relatedTask->update($data);
                     }
 
                     // Update all parent task
-                    $parentTask = Task::find($task->parent_id);
+                    $parentTask = Task::find(id: $task->parent_id);
                     if ($parentTask) {
                         $parentTask->update($data);
                     }
