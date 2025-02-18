@@ -18,4 +18,8 @@ class Timezone extends Model
     public function task(){
         return $this->hasMany(Task::class);
     }
+
+    public function setting(){
+        return $this->hasMany(Setting::class);
+    }
 }

@@ -22,4 +22,8 @@ class Setting extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    public function timezone(){
+        return $this->belongsTo(Setting::class);
+    }
 }
