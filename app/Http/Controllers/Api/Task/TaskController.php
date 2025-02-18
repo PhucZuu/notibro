@@ -190,8 +190,16 @@ class TaskController extends Controller
                     $data = $this->handleJsonStringData($data);
                     $new_task = Task::create($data);
 
-                    $task->end_date = Carbon::parse($new_task->start_time)->subDay()->endOfDay();
+                    $task->end_repeat = Carbon::parse($new_task->start_time)->subDay()->endOfDay();
                     $task->save();
+
+                    //Delete all task that have parent_id = $task->id and start_time > $ta
+                    $relatedTasks = Task::where('parent_id', $task->id)
+                        ->where('start_time', '>=', $task->end_repeat)
+                        ->get();
+                    foreach ($relatedTasks as $relatedTask) {
+                        $relatedTask->delete();
+                    }
 
                     return response()->json([
                         'code'    => 200,
@@ -208,18 +216,20 @@ class TaskController extends Controller
 
             case 'EDIT_A':
                 try {
+                    //Update current Task
                     $data = $this->handleJsonStringData($data);
-
                     $task->update($data);
 
                     // Update all child Task
-                    $relatedTasks = Task::where('parent_id', $task->id)->get();
+                    $relatedTasks = Task::where('parent_id', $task->id)
+                        ->orWhere('parent_id', $task->parent_id)
+                        ->get();
                     foreach ($relatedTasks as $relatedTask) {
                         $relatedTask->update($data);
                     }
 
                     // Update all parent task
-                    $parentTask = Task::find($task->parent_id);
+                    $parentTask = Task::find(id: $task->parent_id);
                     if ($parentTask) {
                         $parentTask->update($data);
                     }
