@@ -40,8 +40,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/setting', [SettingController::class, 'setting']);
     Route::put('/setting/change', [SettingController::class, 'changeSetting']);
 
+    // TASK
     Route::get('/tasks', [TaskController::class, 'index']);
     Route::put('/tasks/{id}', [TaskController::class, 'updateTask']);
+    Route::post('/tasks', [TaskController::class, 'store']);
+    Route::delete('/tasks/{id}', [TaskController::class, 'destroy']);
 
     //List and get timezone
     Route::get('/timezones',        [TimezoneController::class, 'index']);

@@ -43,7 +43,11 @@ class TaskController extends Controller
         if (!empty($data['by_month']) && is_string($data['by_month'])) {
             $data['by_month'] = json_decode($data['by_month'], true);
         }
+        return $data;
+    }
 
+    protected function handleLogicData($data)
+    {
         // if is_all_day = 1, set start_time to 00:00:00 and end_time to 23:59:59
         if (!empty($data['is_all_day'] && $data['is_all_day'] == 1)) {
             $data['start_time'] = date('Y-m-d 00:00:00', strtotime($data['start_time']));
@@ -127,6 +131,10 @@ class TaskController extends Controller
 
         $data['user_id'] = Auth::id();
 
+        $data = $this->handleJsonStringData($data);
+
+        $data = $this->handleLogicData($data);
+
         $task = Task::find($id);
 
         //Kiểm tra xem có tìm được task với id truyền vào không
@@ -142,8 +150,6 @@ class TaskController extends Controller
                 //Update when event dont have reapet
             case 'EDIT_N':
                 try {
-                    $data = $this->handleJsonStringData($data);
-
                     $task->update($data);
 
                     return response()->json([
@@ -162,7 +168,6 @@ class TaskController extends Controller
             case 'EDIT_1':
                 try {
                     //Add new task for 1 day change
-                    $data = $this->handleJsonStringData($data);
                     $data->parent_id = $id;
                     $new_task = Task::create($data);
 
@@ -187,7 +192,6 @@ class TaskController extends Controller
             case 'EDIT_1B':
                 try {
                     //Add new task for following change
-                    $data = $this->handleJsonStringData($data);
                     $new_task = Task::create($data);
 
                     $task->end_repeat = Carbon::parse($new_task->start_time)->subDay()->endOfDay();
@@ -198,7 +202,7 @@ class TaskController extends Controller
                         ->where('start_time', '>=', $task->end_repeat)
                         ->get();
                     foreach ($relatedTasks as $relatedTask) {
-                        $relatedTask->delete();
+                        $relatedTask->update($data);
                     }
 
                     return response()->json([
@@ -217,7 +221,6 @@ class TaskController extends Controller
             case 'EDIT_A':
                 try {
                     //Update current Task
-                    $data = $this->handleJsonStringData($data);
                     $task->update($data);
 
                     // Update all child Task
@@ -263,53 +266,39 @@ class TaskController extends Controller
 
         //validate request
         $data = $request->validate([
-            'color_id'     => 'required',
-            'timezone_id'  => 'required',
-            'title'        => 'required|max_length:255',
-            'description'  => 'nullable',
-            'start_time'   => 'required|date_format:Y-m-d H:i:s',
-            'end_time'     => 'nullable|date_format:Y-m-d H:i:s',
-            'is_reminder'  => 'required|boolean',
-            'reminder'     => 'nullable',
-            'is_done'      => 'required',
-            'user_ids'     => 'nullable',
-            'location'     => 'nullable|string|max:255',
-            'type'         => 'required',
-            'is_all_day'   => 'required|boolean',
-            'is_repeat'    => 'required|boolean',
-            'is_busy'      => 'required|boolean',
-            'path'         => 'nullable',
-            'frequency'    => 'nullable',
-            'date_space'   => 'nullable',
-            'repeat_space' => 'nullable',
-            'end_repeat'   => 'nullable|date_format:Y-m-d H:i:s',
-            'day_of_week'  => 'nullable',
-            'exclude_time' => 'nullable',
+            'color_id'          => 'required',
+            'timezone_id'       => 'required',
+            'title'             => 'required|max:255',
+            'description'       => 'nullable',
+            'start_time'        => 'required|date_format:Y-m-d H:i:s',
+            'end_time'          => 'nullable|date_format:Y-m-d H:i:s',
+            'is_reminder'       => 'nullable|boolean',
+            'reminder'          => 'nullable', //JSON
+            'is_done'           => 'nullable|boolean',
+            'user_ids'          => 'nullable', //JSON
+            'location'          => 'nullable|string|max:255',
+            'type'              => 'required',
+            'is_all_day'        => 'nullable|boolean',
+            'is_repeat'         => 'nullable|boolean',
+            'is_busy'           => 'nullable|boolean',
+            'path'              => 'nullable',
+            'date_space'        => ['nullable', Rule::in('su', 'mo', 'tu', 'we', 'th', 'fr', 'sa')],
+            'repeat_space'      => 'nullable|numeric',
+            'end_repeat'        => 'nullable|date_format:Y-m-d H:i:s',
+            'total_repeat_time' => 'nullable|numeric',
+            'day_of_week'       => 'nullable', //JSON
+            'day_of_month'      => 'nullable', //JSON
+            'by_month'          => 'nullable', //JSON
+            'exclude_time'      => 'nullable', //JSON
+            'parent_id'         => 'nullable',
         ]);
 
         try {
             $data['user_id'] = Auth::id();
 
-            // Handling reminder if it's a JSON string
-            if (!empty($data['reminder']) && is_string($data['reminder'])) {
-                $data['reminder'] = json_decode($data['reminder'], true);
-            }
+            $data = $this->handleJsonStringData($data);
 
-            // Handling user_id if it's a JSON string
-            // if (!empty($data['user_ids']) && is_string($data['user_ids'])) {
-            //     $data['user_ids'] = json_decode($data['user_ids'], true);
-            // }
-
-            // Handling exclude_time if it's a JSON string
-            if (!empty($data['exclude_time']) && is_string($data['exclude_time'])) {
-                $data['exclude_time'] = json_decode($data['exclude_time'], true);
-            }
-
-            // if is_all_day = 1, set start_time to 00:00:00 and end_time to 23:59:59
-            if (!empty($data['is_all_day'] && $data['is_all_day'] == 1)) {
-                $data['start_time'] = date('Y-m-d 00:00:00', strtotime($data['start_time']));
-                $data['end_time'] = date('Y-m-d 23:59:59', strtotime($data['end_time']));
-            }
+            $data = $this->handleLogicData($data);
 
             $task = Task::create($data);
 
@@ -327,44 +316,8 @@ class TaskController extends Controller
         }
     }
 
-    public function update(Request $request, $id) {}
-
     public function destroy(Request $request, $id)
     {
-        // try {
-        //     $task = Task::findOrFail($id);
-
-        //     // Lấy danh sách user_ids hiện tại
-        //     $userIds = $task->user_ids ?? [];
-
-        //     // Kiểm tra nếu người dùng hiện tại có tham gia
-        //     if (!in_array(Auth::id(), $userIds)) {
-        //         return response()->json([
-        //             'code'    => 404,
-        //             'message' => 'You are not a participant of this task.',
-        //         ], 404);
-        //     }
-
-        //     // Xóa user khỏi danh sách
-        //     $userIds = array_filter($userIds, function ($userId) {
-        //         return $userId !== Auth::id();
-        //     });
-
-        //     // Cập nhật lại danh sách user_ids
-        //     $task->user_ids = array_values($userIds);
-        //     $task->save();
-
-        //     return response()->json([
-        //         'code'    => 200,
-        //         'message' => 'You have left the task.',
-        //     ], 200);
-        // } catch (\Exception $e) {
-        //     return response()->json([
-        //         'code'    => 500,
-        //         'message' => 'Failed to leave the task.',
-        //         'data'    => $e->getMessage(),
-        //     ], 500);
-        // }
         $code = $request->code;
 
         $task = Task::findOrFail($id);
@@ -395,21 +348,25 @@ class TaskController extends Controller
                         ], 500);
                     }
                 case 'DEL_1':
-                case 'DEL_1B':
                     try {
-                        $path = $task->path;
-                        // select all tasks that the same Path with the path to delete
-                        $tasks = Task::where('path', 'like', $path . '%')->get();
-                        // check if no task to delete
-                        if (empty($tasks)) {
-                            return response()->json(['message' => 'No tasks found to delete.']);
-                        }
-                        // delete tasks
-                        foreach ($tasks as $taskDeleta) {
-                            $taskDeleta->delete();
+                        // select day deleted task
+                        $currentDate = Carbon::now()->format('d-m-Y');
+
+                        if ($task) {
+                            // select exclude_time of task
+                            $excludeTime = json_decode($task->exclude_time, true);
+
+                            // add current date to exclude_time
+                            if (!in_array($currentDate, $excludeTime)) {
+                                $excludeTime[] = $currentDate;
+                            }
+
+                            // Encode back to JSON before saving
+                            $task->exclude_time = json_encode($excludeTime);
+                            $task->save();
                         }
 
-                        return response()->json(['message' => 'Delete all tasks successfully'], 200);
+                        return response()->json(['message' => 'Delete task successfully'], 200);
                     } catch (\Exception $e) {
                         return response()->json([
                             'code'    => 500,
@@ -417,21 +374,37 @@ class TaskController extends Controller
                             'error'   => $e->getMessage(),
                         ], 500);
                     }
+                case 'DEL_1B':
+                    try {
+                        $taskStartTime = Task::where('id', $task->id)->value('start_time');
+
+                        if ($taskStartTime) {
+                            // swich datatime -> date
+                            $taskStartDate = Carbon::parse($taskStartTime)->toDateString();
+
+                            // delete task where id = $task->id
+                            Task::where('id', 2)->delete();
+
+                            // delete all task with parent_id = $task->id and start_time > $taskStartDate
+                            Task::where('parent_id', $task->parent_id)
+                                ->whereDate('start_time', '>', $taskStartDate)
+                                ->delete();
+                        }
+
+                        return response()->json(['message' => 'Delete tasks and following tasks successfully'], 200);
+                    } catch (\Exception $e) {
+                        return response()->json([
+                            'code'    => 500,
+                            'message' => 'Failed to delete task and following tasks',
+                            'error'   => $e->getMessage(),
+                        ], 500);
+                    }
                 case 'DEL_A':
                     // select all task with path first char is the same as the first char of the task to delete
                     try {
-                        $firstChars = Task::select(DB::raw('LEFT(path, 1) as first_char'))
-                            ->groupBy('first_char')
-                            ->havingRaw('COUNT(*) > 1')
-                            ->pluck('first_char');
-
-                        // check if there is no task to delete
-                        if ($firstChars->isEmpty()) {
-                            return response()->json(['message' => 'No tasks found to delete.']);
-                        }
-
                         // delete all tasks
-                        Task::whereIn(DB::raw('LEFT(path, 1)'), $firstChars)
+                        Task::where('id', $task->id)
+                            ->where('parent_id',   $task->parent_id)
                             ->delete();
 
                         return response()->json(['message' => 'Delete all tasks successfully'], 200);
@@ -442,6 +415,7 @@ class TaskController extends Controller
                             'error'   => $e->getMessage(),
                         ], 500);
                     }
+
                 default:
                     return response()->json([
                         'code'      =>  400,
