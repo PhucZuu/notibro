@@ -61,15 +61,15 @@ class TaskController extends Controller
         }
 
         $tasks = Task::select(
-            'tasks.*', 
-            'colors.code as color_code', 
+            'tasks.*',
+            'colors.code as color_code',
             'timezones.name as timezone_code'
         )
-        ->leftJoin('colors', 'tasks.color_id', '=', 'colors.id')
-        ->leftJoin('timezones', 'tasks.timezone_id', '=', 'timezones.id')
-        ->where(function ($query) use ($user_id) {
-            $query->where('tasks.user_id', $user_id)
-                ->orWhereRaw("
+            ->leftJoin('colors', 'tasks.color_id', '=', 'colors.id')
+            ->leftJoin('timezones', 'tasks.timezone_id', '=', 'timezones.id')
+            ->where(function ($query) use ($user_id) {
+                $query->where('tasks.user_id', $user_id)
+                    ->orWhereRaw("
                     EXISTS (
                         SELECT 1 FROM JSON_TABLE(
                             tasks.user_ids, '$[*]' COLUMNS (
@@ -80,9 +80,9 @@ class TaskController extends Controller
                         WHERE jt.user_id = ? AND jt.status = 1
                     )
                 ", [$user_id]);
-        })
-        ->get();
-        
+            })
+            ->get();
+
 
         // Trả về view và truyền dữ liệu vào
 
@@ -122,6 +122,7 @@ class TaskController extends Controller
             'day_of_month'      => 'nullable', //JSON
             'by_month'          => 'nullable', //JSON
             'exclude_time'      => 'nullable', //JSON
+            'parent_id'         => 'nullable',
         ]);
 
         $data['user_id'] = Auth::id();
@@ -138,7 +139,7 @@ class TaskController extends Controller
         }
 
         switch ($code) {
-            //Update when event dont have reapet
+                //Update when event dont have reapet
             case 'EDIT_N':
                 try {
                     $data = $this->handleJsonStringData($data);
@@ -160,16 +161,15 @@ class TaskController extends Controller
 
             case 'EDIT_1':
                 try {
-                    $parent_path =  $task['path'];
-
+                    //Add new task for 1 day change
                     $data = $this->handleJsonStringData($data);
-
+                    $data->parent_id = $id;
                     $new_task = Task::create($data);
 
-                    //Save new path for last insert task
-                    $new_path = $parent_path . $new_task->id . '/';
-                    $new_task->path = $new_path;
-                    $new_task->save();
+                    //Push enddate to exclude_time array of task
+                    $endDate = Carbon::parse($new_task->start_time)->subDay()->endOfDay();
+                    $task->exclude_time[] = $endDate;
+                    $task->save();
 
                     return response()->json([
                         'code'    => 200,
@@ -186,9 +186,12 @@ class TaskController extends Controller
 
             case 'EDIT_1B':
                 try {
+                    //Add new task for following change
                     $data = $this->handleJsonStringData($data);
+                    $new_task = Task::create($data);
 
-                    $task->update($data);
+                    $task->end_date = Carbon::parse($new_task->start_time)->subDay()->endOfDay();
+                    $task->save();
 
                     return response()->json([
                         'code'    => 200,
@@ -208,6 +211,18 @@ class TaskController extends Controller
                     $data = $this->handleJsonStringData($data);
 
                     $task->update($data);
+
+                    // Update all child Task
+                    $relatedTasks = Task::where('parent_id', $task->id)->get();
+                    foreach ($relatedTasks as $relatedTask) {
+                        $relatedTask->update($data);
+                    }
+
+                    // Update all parent task
+                    $parentTask = Task::find($task->parent_id);
+                    if ($parentTask) {
+                        $parentTask->update($data);
+                    }
 
                     return response()->json([
                         'code'    => 200,

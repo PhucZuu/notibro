@@ -32,7 +32,8 @@ class Task extends Model
         'repeat_space',
         'end_repeat',
         'day_of_week',
-        'exclude_time'
+        'exclude_time',
+        'parent_id'
     ];
 
     protected $attributes = [

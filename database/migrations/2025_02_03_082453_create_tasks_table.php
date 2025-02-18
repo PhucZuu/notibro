@@ -42,6 +42,7 @@ return new class extends Migration
             $table->json('day_of_month')->nullable()->comment('Mảng ngày trong tháng  [1,24,15]');
             $table->json('by_month')->nullable()->comment('Mảng tháng trong năm [1,12,11]');
             $table->json('exclude_time')->nullable();
+            $table->integer('parent_id')->nullable();
             $table->softDeletes();
             $table->timestamps();
         });
