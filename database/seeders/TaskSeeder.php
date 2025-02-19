@@ -22,7 +22,7 @@ class TaskSeeder extends Seeder
                 'title' => 'Complete the project report.',
                 'description' => 'This task involves completing the project report by the end of the week.',
                 'start_time' => Carbon::now()->addHours(1),
-                    'end_time' => Carbon::now()->addHours(2),
+                'end_time' => Carbon::now()->addHours(2),
                 'is_reminder' => 1,
                 'reminder' => json_encode([['set_time' => 5, 'type' => 'email']]),
                 'is_done' => 0,
@@ -43,6 +43,7 @@ class TaskSeeder extends Seeder
                 'day_of_month' => null,
                 'by_month' => null,
                 'exclude_time' => json_encode(['2025-02-17']),
+                'total_repeat_time' => 30,
             ],
             [
                 'user_id' => 2,
@@ -51,7 +52,7 @@ class TaskSeeder extends Seeder
                 'title' => 'Complete the project report.',
                 'description' => 'This task involves completing the project report by the end of the week.',
                 'start_time' => Carbon::now()->addHours(2),
-                    'end_time' => Carbon::now()->addHours(3),
+                'end_time' => Carbon::now()->addHours(3),
                 'is_reminder' => 1,
                 'reminder' => json_encode([
                     ['set_time' => 5, 'type' => 'email'],
@@ -76,6 +77,7 @@ class TaskSeeder extends Seeder
                 'day_of_month' => null,
                 'by_month' => null,
                 'exclude_time' => json_encode(['2025-02-22']),
+                'total_repeat_time' => 30,
             ],
             [
                 'user_id' => 2,
@@ -84,7 +86,7 @@ class TaskSeeder extends Seeder
                 'title' => 'Complete the project report.',
                 'description' => 'This task involves completing the project report by the end of the week.',
                 'start_time' => Carbon::now()->addHours(2),
-                    'end_time' => Carbon::now()->addHours(3),
+                'end_time' => Carbon::now()->addHours(3),
                 'is_reminder' => 1,
                 'reminder' => json_encode([
                     ['set_time' => 5, 'type' => 'email'],
@@ -102,13 +104,14 @@ class TaskSeeder extends Seeder
                 'is_repeat' => true,
                 'is_busy' => 0,
                 'path' => null,
-                'date_space' => 'null',
+                'date_space' => null,
                 'repeat_space' => 1,
                 'end_repeat' => now()->addMonths(3),
                 'day_of_week' => null,
                 'day_of_month' => json_encode([1, 15, 24]),
                 'by_month' => null,
                 'exclude_time' => json_encode(['2025-02-20']),
+                'total_repeat_time' => 30,
             ],
             [
                 'user_id' => 2,
@@ -117,7 +120,7 @@ class TaskSeeder extends Seeder
                 'title' => 'Complete the project report.',
                 'description' => 'This task involves completing the project report by the end of the week.',
                 'start_time' => Carbon::now()->addHours(2),
-                    'end_time' => Carbon::now()->addHours(3),
+                'end_time' => Carbon::now()->addHours(3),
                 'is_reminder' => 1,
                 'reminder' => json_encode([
                     ['set_time' => 5, 'type' => 'email'],
@@ -142,6 +145,7 @@ class TaskSeeder extends Seeder
                 'day_of_month' => null,
                 'by_month' => json_encode([1, 6, 12]),
                 'exclude_time' => json_encode(['2025-02-20']),
+                'total_repeat_time' => 30,
             ],
             [
                 'user_id' => 2,
@@ -150,7 +154,7 @@ class TaskSeeder extends Seeder
                 'title' => 'Complete the project report.',
                 'description' => 'This task involves completing the project report by the end of the week.',
                 'start_time' => Carbon::now()->addHours(2),
-                    'end_time' => Carbon::now()->addHours(3),
+                'end_time' => Carbon::now()->addHours(3),
                 'is_reminder' => 1,
                 'reminder' => json_encode([
                     ['set_time' => 5, 'type' => 'email'],
