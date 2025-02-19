@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\Role\RoleController;
 use App\Http\Controllers\Api\Setting\SettingController;
 use App\Http\Controllers\api\Task\TaskController;
+use App\Http\Controllers\Api\Timezone\AdminTimezone\AdminTimezoneController;
 use App\Http\Controllers\api\Timezone\TimezoneController;
 use App\Http\Controllers\Api\User\UserController;
 use Illuminate\Http\Request;
@@ -65,7 +66,23 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/roles/{id}/forceDelete', [RoleController::class, 'forceDelete']);
         Route::put('roles/{id}/restore', [RoleController::class, 'restore']);
 
+        
         //Timezone for admin
+        Route::get('/timezones', [AdminTimezoneController::class, 'index']);
+        Route::get('/timezones/{id}', [AdminTimezoneController::class, 'show']);
+        Route::post('/timezones', [AdminTimezoneController::class, 'store']);
+        Route::put('/timezones/{id}', [AdminTimezoneController::class, 'update']);
+        Route::delete('/timezones/{id}/delete', [AdminTimezoneController::class, 'delete']);
+        Route::put('/timezones/{id}/restore', [AdminTimezoneController::class, 'restore']);
+        Route::delete('/timezones/{id}/force-delete', [AdminTimezoneController::class, 'forceDelete']);
+
+
+
+
+
+
+
+
         Route::post('/timezones',       [TimezoneController::class, 'store']);
         Route::put('/timezones/{id}',   [TimezoneController::class, 'update']);
         Route::delete('/timezones/{id}/delete', [TimezoneController::class, 'delete']);
