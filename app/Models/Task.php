@@ -31,7 +31,10 @@ class Task extends Model
         'date_space',
         'repeat_space',
         'end_repeat',
+        'total_repeat_time',
         'day_of_week',
+        'day_of_month',
+        'by_month',
         'exclude_time',
         'parent_id'
     ];

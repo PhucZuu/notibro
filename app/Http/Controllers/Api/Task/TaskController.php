@@ -86,7 +86,22 @@ class TaskController extends Controller
                 ", [$user_id]);
             })
             ->get();
+        
+            foreach ($tasks as $task) {
+                $task->rrule = [
+                    'date_space' => $task->date_space,
+                    'repeat_space' => $task->repeat_space,
+                    'end_repeat' => $task->end_repeat,
+                    'total_repeat_time' => $task->total_repeat_time,
+                    'day_of_week' => $task->day_of_week,
+                    'day_of_month' => $task->day_of_month,
+                    'by_month' => $task->by_month,
+                ];
 
+                unset($task->date_space, $task->repeat_space, $task->end_repeat, 
+                $task->total_repeat_time, $task->day_of_week, 
+                $task->day_of_month, $task->by_month);
+            }
 
         // Trả về view và truyền dữ liệu vào
 
