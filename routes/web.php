@@ -1,6 +1,8 @@
 <?php
 
+use App\Http\Controllers\Admin\ColorController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\AdminAuthController;
 
 /*
 |--------------------------------------------------------------------------
@@ -16,8 +18,20 @@ use Illuminate\Support\Facades\Route;
 // Route::get('/', function () {
 //     return view('welcome');
 // });
+
 Route::prefix('admin')->group(function () {
-    Route::view('/colors', 'admin.colors.index')->name('admin.colors');
-    Route::view('/colors/create', 'admin.colors.create')->name('admin.createcolors');
-    Route::view('/dashboard', 'admin.index')->name('admin.dashboard');
+    Route::get('/login', [AdminAuthController::class, 'showLoginForm'])->name('admin.login');
+    Route::post('/login', [AdminAuthController::class, 'login']);
+    Route::post('/logout', [AdminAuthController::class, 'logout'])->name('admin.logout');
+
+    Route::middleware(['admin'])->group(function () {
+        Route::get('/dashboard', function () {
+            return view('admin.index');
+        })->name('admin.dashboard');
+
+        Route::resource('colors', ColorController::class);
+        Route::patch('colors/{color}/restore', [ColorController::class, 'restore'])->name('colors.restore');
+        Route::delete('colors/{color}/force-delete', [ColorController::class, 'forceDelete'])->name('colors.forceDelete');
+    });
+
 });
