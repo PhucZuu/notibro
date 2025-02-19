@@ -81,7 +81,7 @@
     </div>
 
     @include('admin.layouts.partials.js')
-
+    @yield(section: 'scripts')
 </body>
 
 </html>

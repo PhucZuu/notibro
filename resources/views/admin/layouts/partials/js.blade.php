@@ -12,8 +12,7 @@
 <script src="/admin/vendor/chart.js/Chart.min.js"></script>
 
 <!-- Page level custom scripts -->
-<script src="/admin/js/demo/chart-area-demo.js"></script>
-<script src="/admin/js/demo/chart-pie-demo.js"></script>
+
 
 <script src="https://code.jquery.com/jquery-3.7.1.js" integrity="sha256-eKhayi8LEQwp4NKxN+CfCh+3qOVUtJn3QNZ0TciWLP4=" crossorigin="anonymous"></script>
 <script src="https://cdn.datatables.net/2.2.2/js/dataTables.js"></script>

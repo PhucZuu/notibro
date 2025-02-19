@@ -180,7 +180,7 @@
             
                 <div class="dropdown-divider"></div>
                
-                <form id="logout-form"  action="" method="POST">
+                <form id="logout-form"  action="{{ route('admin.logout') }}" method="POST">
                     @csrf
                     <button type="submit" class=" dropdown-item">
                         <i class="fas fa-sign-out-alt fa-sm fa-fw mr-2 text-gray-400"></i> Log out

@@ -2,102 +2,113 @@
 
 @section('content')
     <div class="container-fluid">
-
-        <!-- Page Heading -->
-
-
-        <!-- DataTales Example -->
         <div class="card shadow mb-4">
             <div class="card-header py-3 d-flex align-items-center">
-                <h6 class="m-0 font-weight-bold text-primary"> Color List</h6>
-                <a href="" class="btn btn-primary ml-2">
+                <h6 class="m-0 font-weight-bold text-primary">Color List</h6>
+                <a href="{{ route('colors.create') }}" class="btn btn-primary ml-2">
                     <i class="fas fa-plus"></i>
                 </a>
             </div>
+            
+            @if (session('success'))
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    {{ session('success') }}
+                    <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+            @endif
+
+            @if (session('error'))
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    {{ session('error') }}
+                    <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+            @endif
+
             <div class="card-body">
                 <div class="table-responsive">
                     <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
                         <thead>
                             <tr>
                                 <th>No</th>
-                                <th> Color Name</th>
+                                <th>Color Name</th>
+                                <th>Code</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
-
-                        <tfoot>
-                            <tr>
-                                <th>No</th>
-                                <th> Color Name</th>
-                                <th>Actions</th>
-                            </tr>
-                        </tfoot>
-
                         <tbody>
-                        
+                            @foreach ($colors as $key => $color)
                                 <tr>
-                                    <td>id</td>
-                                    <td>name</td>
+                                    <td>{{ $key + 1 }}</td>
+                                    <td>{{ $color->name }}</td>
                                     <td>
-                                        <a href=""
-                                            class="btn btn-primary">
-                                            <i class="fas fa-info-circle"></i> <!-- Icon for 'Details' -->
+                                        <span class="color-box" 
+                                              style="display:inline-block; width:30px; height:30px; border-radius:5px; 
+                                              background-color: {{ $color->code }}; border: 1px solid #ddd;"></span>
+                                        <span class="ml-2">{{ $color->code }}</span>
+                                    </td>
+                                    <td>
+                                        <!-- Nút Chi tiết -->
+                                        <a href="{{ route('colors.show', $color->id) }}" class="btn btn-primary">
+                                            <i class="fas fa-info-circle"></i> <!-- Icon Chi tiết -->
                                         </a>
 
-                                        <a href=""
-                                            class="btn btn-warning">
-                                            <i class="fas fa-edit"></i> <!-- Icon for 'Edit' -->
+                                        <!-- Nút Chỉnh sửa -->
+                                        <a href="{{ route('colors.edit', $color->id) }}" class="btn btn-warning">
+                                            <i class="fas fa-edit"></i> <!-- Icon Sửa -->
                                         </a>
 
-                                        {{-- @if ($Color->trashed()) --}}
-                                    
-                                            <form action=""
-                                                method="POST" style="display:inline-block;"
-                                                onsubmit="return confirm('Are you sure you want to restore this  Color ❓');">
+                                        @if ($color->trashed())
+                                            <!-- Nếu màu đã bị xóa mềm, hiển thị nút khôi phục -->
+                                            <form action="{{ route('colors.restore', $color->id) }}" method="POST" style="display:inline-block;"
+                                                  onsubmit="return confirm('Are you sure you want to restore this Color?');">
                                                 @csrf
-                                                @method('PATCH') <!-- Use PATCH for restore -->
-                                                <button class="btn btn-danger" type="submit"
-                                                style="border:none; background-color:#ffcccc; padding:7px; border-radius:5px;">
-                                                <i class="fas fa-eye-slash" style="color:brown; font-size:20px;"></i>
-                                                <!-- Icon for hiding  Color -->
-                                            </button>
-                                            </form>
-                                        {{-- @else --}}
-                                   
-                                            <form action=""
-                                                method="POST" style="display:inline-block;"
-                                                onsubmit="return confirm('Are you sure you want to hide this  Color ❓');">
-                                                @csrf
-                                                @method('DELETE') <!-- Use DELETE -->
-                                                <button class="btn btn-success" type="submit"
-                                                    style="border:none; background-color:#ccffcc; padding:7px; border-radius:5px;">
-                                                    <i class="fas fa-eye" style="color:green; font-size:20px;"></i>
-                                                    <!-- Icon for restoring  Color -->
+                                                @method('PATCH')
+                                                <button class="btn btn-success" type="submit">
+                                                    <i class="fas fa-undo"></i> <!-- Icon Khôi phục -->
                                                 </button>
                                             </form>
-                                        {{-- @endif --}}
 
-                                        <form action=""
-                                            method="POST" style="display:inline-block;"
-                                            onsubmit="return confirm('Are you sure you want to delete this  Color ❓');">
-                                            @csrf
-                                            @method('DELETE') <!-- Use DELETE -->
-                                            <button class="btn btn-danger" type="submit"
-                                                style="border:none; background-color:red; padding:7px; border-radius:5px;">
-                                                <i class="fas fa-trash" style="color:black; font-size:20px;"></i>
-                                                <!-- Icon for deleting -->
-                                            </button>
-                                        </form>
+                                        @else
+                                            <!-- Nếu màu chưa bị xóa mềm, hiển thị nút xóa mềm -->
+                                            <form action="{{ route('colors.destroy', $color->id) }}" method="POST" style="display:inline-block;"
+                                                  onsubmit="return confirm('Are you sure you want to hide this Color?');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button class="btn btn-warning" type="submit">
+                                                    <i class="fas fa-eye-slash"></i> <!-- Icon Xóa mềm -->
+                                                </button>
+                                            </form>
+                                        @endif
+
+                                         <!-- Nút Xóa cứng -->
+                                         <form action="{{ route('colors.forceDelete', $color->id) }}" method="POST" style="display:inline-block;"
+                                            onsubmit="return confirm('Are you sure you want to delete this Color?');">
+                                          @csrf
+                                          @method('DELETE')
+                                          <button class="btn btn-danger" type="submit"
+                                                  style="border:none; background-color:red; padding:7px; border-radius:5px;">
+                                              <i class="fas fa-trash" style="color:black; font-size:20px;"></i> <!-- Icon Xóa Cứng -->
+                                          </button>
+                                      </form>
                                     </td>
                                 </tr>
-
+                            @endforeach
                         </tbody>
                     </table>
-                    {{-- Pagination --}}
-                    
                 </div>
             </div>
         </div>
-
     </div>
+@endsection
+
+@section('scripts')
+    <script>
+        $(document).ready(function() {
+            $('#dataTable').DataTable();
+        });
+    </script>
 @endsection
