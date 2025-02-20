@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\Setting\SettingController;
 use App\Http\Controllers\api\Task\TaskController;
 use App\Http\Controllers\Api\Timezone\AdminTimezone\AdminTimezoneController;
 use App\Http\Controllers\api\Timezone\TimezoneController;
+use App\Http\Controllers\Api\User\AdminUser\AdminUserController;
 use App\Http\Controllers\Api\User\UserController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -50,7 +51,21 @@ Route::middleware('auth:sanctum')->group(function () {
    
 
     Route::middleware(['admin'])->prefix('admin')->group(function () {
-        //User
+        //User for admin
+        Route::get('/users', [AdminUserController::class, 'index']);
+        Route::get('/users/{id}', [AdminUserController::class, 'show']);
+        Route::post('/users', [AdminUserController::class, 'store']);
+        Route::put('/users/{id}', [AdminUserController::class, 'update']);
+        Route::delete('/users/{id}/ban', [AdminUserController::class, 'ban']);
+        Route::put('/users/{id}/restore', [AdminUserController::class, 'restore']);
+        Route::delete('/users/{id}/force-delete', [AdminUserController::class, 'forceDelete']);
+        Route::put('/users/{id}/permission', [AdminUserController::class, 'changePermission']); 
+        Route::post('/users/{id}/unlock', [AdminUserController::class, 'unlock']);
+
+
+
+
+
         Route::get('/users',                [UserController::class, 'getAllUser']);
         Route::get('/users/{id}',           [UserController::class, 'show']);
         Route::put('/users/{id}/permission', [UserController::class, 'changePermission']);
@@ -64,9 +79,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/roles/{id}',   [RoleController::class, 'update']);
         Route::delete('/roles/{id}/delete', [RoleController::class, 'delete']);
         Route::delete('/roles/{id}/forceDelete', [RoleController::class, 'forceDelete']);
-        Route::put('roles/{id}/restore', [RoleController::class, 'restore']);
+        Route::put('/roles/{id}/restore', [RoleController::class, 'restore']);
 
-        
+
         //Timezone for admin
         Route::get('/timezones', [AdminTimezoneController::class, 'index']);
         Route::get('/timezones/{id}', [AdminTimezoneController::class, 'show']);
@@ -75,10 +90,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/timezones/{id}/delete', [AdminTimezoneController::class, 'delete']);
         Route::put('/timezones/{id}/restore', [AdminTimezoneController::class, 'restore']);
         Route::delete('/timezones/{id}/force-delete', [AdminTimezoneController::class, 'forceDelete']);
-
-
-
-
 
 
 
