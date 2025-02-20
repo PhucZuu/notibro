@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\ColorController;
+use App\Http\Controllers\Admin\RoleController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AdminAuthController;
 
@@ -32,6 +33,10 @@ Route::prefix('admin')->group(function () {
         Route::resource('colors', ColorController::class);
         Route::patch('colors/{color}/restore', [ColorController::class, 'restore'])->name('colors.restore');
         Route::delete('colors/{color}/force-delete', [ColorController::class, 'forceDelete'])->name('colors.forceDelete');
+
+        Route::resource('roles', RoleController::class);
+        Route::patch('roles/{role}/restore', [RoleController::class, 'restore'])->name('roles.restore');
+        Route::delete('roles/{role}/force-delete', [RoleController::class, 'forceDelete'])->name('roles.forceDelete');
     });
 
 });
