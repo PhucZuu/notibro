@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\api\Timezone;
+namespace App\Http\Controllers\Api\Timezone;
 
 use App\Http\Controllers\Controller;
 use App\Models\Setting;

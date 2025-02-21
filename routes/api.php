@@ -2,10 +2,11 @@
 
 use App\Http\Controllers\Api\Color\ColorController;
 use App\Http\Controllers\Api\Auth\AuthController;
+use App\Http\Controllers\Api\Auth\AuthGoogleController;
 use App\Http\Controllers\Api\Role\RoleController;
 use App\Http\Controllers\Api\Setting\SettingController;
-use App\Http\Controllers\api\Task\TaskController;
-use App\Http\Controllers\api\Timezone\TimezoneController;
+use App\Http\Controllers\Api\Task\TaskController;
+use App\Http\Controllers\Api\Timezone\TimezoneController;
 use App\Http\Controllers\Api\User\UserController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -26,6 +27,12 @@ Route::post('/auth/login',    [AuthController::class, 'login'])->name('login');
 Route::post('/auth/register', [AuthController::class, 'register']);
 Route::post('/auth/verify',   [AuthController::class, 'verifyEmail']);
 Route::post('/auth/send-otp', [AuthController::class, 'sendOtp']);
+
+Route::prefix('/auth/google')->group(function () {
+    Route::get('/redirect', [AuthGoogleController::class, 'redirect']);
+    Route::get('/callback', [AuthGoogleController::class, 'callback']);
+    Route::get('/get-google-user', [AuthGoogleController::class, 'getGoogleUser'])->middleware('auth:sanctum');
+});
 
 Route::post('/user/send-reset-password-mail', [AuthController::class, 'sendOtpResetPassword']);
 Route::post('/user/reset-password', [AuthController::class, 'resetPassword']);
