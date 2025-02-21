@@ -11,45 +11,71 @@
         <!-- Content Row -->
         <div class="row">
 
-            <!-- Earnings (Monthly) Card Example -->
-            <div class="col-xl-3 col-md-6 mb-4">
-                <div class="card border-left-primary shadow h-100 py-2">
-                    <div class="card-body">
-                        <div class="row no-gutters align-items-center">
-                            <div class="col mr-2">
-                                <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
-                                    Earnings (Monthly)</div>
-                                <div class="h5 mb-0 font-weight-bold text-gray-800">$40,000</div>
-                            </div>
-                            <div class="col-auto">
-                                <i class="fas fa-calendar fa-2x text-gray-300"></i>
-                            </div>
+            <div class="col-xl-7 col-lg-6">
+                <h2 class="my-4">User Registration Statistics</h2>
+            
+                <!-- Filter: Select Month and Year -->
+                <form method="GET" action="{{ route('admin.dashboard') }}" class="mb-4">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <label for="month">Select Month:</label>
+                            <select name="month" id="month" class="form-control">
+                                <option value="">By Year</option>
+                                @for($m = 1; $m <= 12; $m++)
+                                    <option value="{{ $m }}" {{ $m == $selectedMonth ? 'selected' : '' }}>
+                                        {{ date("F", mktime(0, 0, 0, $m, 1)) }}
+                                    </option>
+                                @endfor
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="year">Select Year:</label>
+                            <select name="year" id="year" class="form-control">
+                                @for($y = date('Y'); $y >= date('Y') - 5; $y--)
+                                    <option value="{{ $y }}" {{ $y == $selectedYear ? 'selected' : '' }}>{{ $y }}</option>
+                                @endfor
+                            </select>
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary">View</button>
                         </div>
                     </div>
+                </form>
+
+              <!-- Display total number of registered users -->
+                <div class="alert alert-info">
+                    <strong>Total Registered Users: {{ $totalUsers }}</strong>
                 </div>
-            </div>
-
-            <!-- Earnings (Monthly) Card Example -->
-            <div class="col-xl-3 col-md-6 mb-4">
-                <div class="card border-left-success shadow h-100 py-2">
-                    <div class="card-body">
-                        <div class="row no-gutters align-items-center">
-                            <div class="col mr-2">
-                                <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                                    Earnings (Annual)</div>
-                                <div class="h5 mb-0 font-weight-bold text-gray-800">$215,000</div>
-                            </div>
-                            <div class="col-auto">
-                                <i class="fas fa-dollar-sign fa-2x text-gray-300"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-
-        </script>
-        
-
+                
+                <!-- Chart -->
+                <canvas id="userChart"></canvas>
     </div>
+@endsection
+
+@section('scripts')
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    var ctx = document.getElementById('userChart').getContext('2d');
+    var userChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: {!! json_encode($labels) !!}, // Month or Day
+            datasets: [{
+                label: 'Number of Users',
+                data: {!! json_encode($data) !!},
+                backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+</script>
 @endsection
