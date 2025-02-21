@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\ColorController;
 use App\Http\Controllers\Admin\RoleController;
+use App\Http\Controllers\Admin\DashboardController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AdminAuthController;
 
@@ -26,9 +27,7 @@ Route::prefix('admin')->group(function () {
     Route::post('/logout', [AdminAuthController::class, 'logout'])->name('admin.logout');
 
     Route::middleware(['admin'])->group(function () {
-        Route::get('/dashboard', function () {
-            return view('admin.index');
-        })->name('admin.dashboard');
+        Route::get('/dashboard', [DashboardController::class, 'userStatistics'])->name('admin.dashboard');
 
         Route::resource('colors', ColorController::class);
         Route::patch('colors/{color}/restore', [ColorController::class, 'restore'])->name('colors.restore');
