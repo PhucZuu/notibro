@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\api\Task;
+namespace App\Http\Controllers\Api\Task;
 
 use App\Http\Controllers\Controller;
 use App\Models\Setting;
