@@ -42,7 +42,7 @@ class TaskSeeder extends Seeder
                 'day_of_week' => null,
                 'day_of_month' => null,
                 'by_month' => null,
-                'exclude_time' => json_encode(['2025-02-17']),
+                'exclude_time' => json_encode(['2025-02-21 24:00:00', '2025-02-23 24:00:00', '2025-02-28 24:00:00']),
                 'total_repeat_time' => 30,
             ],
             [
@@ -76,7 +76,7 @@ class TaskSeeder extends Seeder
                 'day_of_week' => json_encode(['mo', 'fr']),
                 'day_of_month' => null,
                 'by_month' => null,
-                'exclude_time' => json_encode(['2025-02-22']),
+                'exclude_time' => json_encode(['2025-02-22 24:00:00']),
                 'total_repeat_time' => 30,
             ],
             [
@@ -110,7 +110,7 @@ class TaskSeeder extends Seeder
                 'day_of_week' => null,
                 'day_of_month' => json_encode([1, 15, 24]),
                 'by_month' => null,
-                'exclude_time' => json_encode(['2025-02-20']),
+                'exclude_time' => json_encode(['2025-02-20 24:00:00']),
                 'total_repeat_time' => 30,
             ],
             [
@@ -144,7 +144,7 @@ class TaskSeeder extends Seeder
                 'day_of_week' => null,
                 'day_of_month' => null,
                 'by_month' => json_encode([1, 6, 12]),
-                'exclude_time' => json_encode(['2025-02-20']),
+                'exclude_time' => json_encode(['2025-02-21 24:00:00']),
                 'total_repeat_time' => 30,
             ],
             [
@@ -179,7 +179,7 @@ class TaskSeeder extends Seeder
                 'day_of_month' => null,
                 'by_month' => null,
                 'total_repeat_time' => 30,
-                'exclude_time' => json_encode(['2025-02-28']),
+                'exclude_time' => json_encode(['2025-02-28 24:00:00']),
             ],
             // Bạn có thể thêm nhiều bản ghi hơn ở đây
         ]);

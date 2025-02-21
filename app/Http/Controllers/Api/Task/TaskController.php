@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\api\Task;
 
 use App\Http\Controllers\Controller;
+use App\Models\Setting;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use App\Models\Task;
+use App\Models\Timezone;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -59,10 +61,16 @@ class TaskController extends Controller
 
     public function index()
     {
+
         //Check is user logged in
         if (Auth::check()) {
             $user_id = Auth::user()->id;
         }
+
+        $setting = Setting::join('timezones', 'settings.timezone_id', '=', 'timezones.id')
+            ->select('timezones.name')
+            ->where('settings.user_id', '=', $user_id)
+            ->first();
 
         $tasks = Task::select(
             'tasks.*',
@@ -86,29 +94,51 @@ class TaskController extends Controller
                 ", [$user_id]);
             })
             ->get();
-        
-            foreach ($tasks as $task) {
-                $task->rrule = [
-                    'date_space' => $task->date_space,
-                    'repeat_space' => $task->repeat_space,
-                    'end_repeat' => $task->end_repeat,
-                    'total_repeat_time' => $task->total_repeat_time,
-                    'day_of_week' => $task->day_of_week,
-                    'day_of_month' => $task->day_of_month,
-                    'by_month' => $task->by_month,
-                ];
 
-                unset($task->date_space, $task->repeat_space, $task->end_repeat, 
-                $task->total_repeat_time, $task->day_of_week, 
-                $task->day_of_month, $task->by_month);
-            }
+        foreach ($tasks as $task) {
+            $timezone_code = $task->timezone_code; 
+
+            $task->rrule = [
+                'date_space'        => $task->date_space,
+                'repeat_space'      => $task->repeat_space,
+                'end_repeat'        => Carbon::parse($task->end_repeat)->setTimezone($task->timezone_code)->toDateTimeString(),
+                'set_end_repeat'    => Carbon::parse($task->end_repeat)->setTimezone($setting->name)->toDateTimeString(),
+                'total_repeat_time' => $task->total_repeat_time,
+                'day_of_week'       => $task->day_of_week,
+                'day_of_month'      => $task->day_of_month,
+                'by_month'          => $task->by_month,
+            ];
+
+            $task->start_time   = Carbon::parse($task->start_time)->setTimezone($task->timezone_code)->toDateTimeString();
+            $task->end_time     = Carbon::parse($task->end_time)->setTimezone($task->timezone_code)->toDateTimeString();
+
+            $task->set_start_time   = Carbon::parse($task->start_time)->setTimezone($setting->name)->toDateTimeString();
+            $task->set_end_time     = Carbon::parse($task->end_time)->setTimezone($setting->name)->toDateTimeString();
+
+            $cal_exclude_time = array_map(function ($date) use($timezone_code) {
+                return Carbon::parse($date)->setTimezone($timezone_code)->toDateTimeString();
+            }, $task->exclude_time);
+            
+            $task->exclude_time = $cal_exclude_time;
+
+            unset(
+                $task->date_space,
+                $task->repeat_space,
+                $task->end_repeat,
+                $task->total_repeat_time,
+                $task->day_of_week,
+                $task->day_of_month,
+                $task->by_month
+            );
+        }
+
 
         // Trả về view và truyền dữ liệu vào
 
         return response()->json([
             'code'      =>  200,
             'message'   =>  'Fetching Data successfully',
-            'data'      =>  $tasks
+            'data'      =>  $tasks,
         ], 200);
     }
 
