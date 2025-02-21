@@ -54,7 +54,21 @@
                 <a class="collapse-item" href="{{ route('roles.create') }}">Create</a>
             </div>
         </div>
+    </li>  
+    
+    <li class="nav-item">
+        <a class="nav-link collapsed" data-toggle="collapse" data-target="#collapseRoles"
+            aria-expanded="true" aria-controls="collapseRoles">
+            <i class="fas fa-fw fa-user-shield"></i>
+            <span>User</span>
+        </a>
+        <div id="collapseRoles" class="collapse" aria-labelledby="headingRoles" data-parent="#accordionSidebar">
+            <div class="bg-white py-2 collapse-inner rounded">
+                <a class="collapse-item" href="{{ route('admin.users.index') }}">List</a>
+            </div>
+        </div>
     </li>    
+
 
     <!-- Nav Item - Utilities Collapse Menu -->
 

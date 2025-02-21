@@ -1,4 +1,4 @@
-<?php
+<!-- 
 
 namespace App\Http\Controllers\Api\User;
 
@@ -191,4 +191,4 @@ class UserController extends Controller
             ]);
         }
     }
-}
+} -->

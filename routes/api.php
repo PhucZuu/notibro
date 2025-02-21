@@ -5,8 +5,9 @@ use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\Role\RoleController;
 use App\Http\Controllers\Api\Setting\SettingController;
 use App\Http\Controllers\api\Task\TaskController;
+use App\Http\Controllers\Api\Timezone\AdminTimezone\AdminTimezoneController;
 use App\Http\Controllers\api\Timezone\TimezoneController;
-use App\Http\Controllers\Api\User\UserController;
+use App\Http\Controllers\Admin\UserController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
@@ -52,12 +53,21 @@ Route::middleware('auth:sanctum')->group(function () {
    
 
     Route::middleware(['admin'])->prefix('admin')->group(function () {
-        //User
-        Route::get('/users',                [UserController::class, 'getAllUser']);
-        Route::get('/users/{id}',           [UserController::class, 'show']);
-        Route::put('/users/{id}/permission', [UserController::class, 'changePermission']);
-        Route::delete('/users/{id}/ban',    [UserController::class, 'ban']);
-        Route::post('/users/{id}/unlock',   [UserController::class, 'unlock']);
+        //User for admin
+        // Route::get('/users', [UserController::class, 'index'])->name('admin.users');
+        // Route::get('/users/{id}', [UserController::class, 'show']);
+        // Route::delete('/users/{id}/ban', [UserController::class, 'ban']);
+        // Route::put('/users/{id}/restore', [UserController::class, 'restore']);
+        // Route::delete('/users/{id}/force-delete', [UserController::class, 'forceDelete']);
+        // Route::put('/users/{id}/permission', [UserController::class, 'changePermission']); 
+        // Route::post('/users/{id}/unlock', [UserController::class, 'unlock']);
+
+
+        // Route::get('/users',                [UserController::class, 'getAllUser']);
+        // Route::get('/users/{id}',           [UserController::class, 'show']);
+        // Route::put('/users/{id}/permission', [UserController::class, 'changePermission']);
+        // Route::delete('/users/{id}/ban',    [UserController::class, 'ban']);
+        // Route::post('/users/{id}/unlock',   [UserController::class, 'unlock']);
 
         //Roles
         Route::get('/roles',        [RoleController::class, 'index']);
@@ -66,9 +76,21 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/roles/{id}',   [RoleController::class, 'update']);
         Route::delete('/roles/{id}/delete', [RoleController::class, 'delete']);
         Route::delete('/roles/{id}/forceDelete', [RoleController::class, 'forceDelete']);
-        Route::put('roles/{id}/restore', [RoleController::class, 'restore']);
+        Route::put('/roles/{id}/restore', [RoleController::class, 'restore']);
+
 
         //Timezone for admin
+        Route::get('/timezones', [AdminTimezoneController::class, 'index']);
+        Route::get('/timezones/{id}', [AdminTimezoneController::class, 'show']);
+        Route::post('/timezones', [AdminTimezoneController::class, 'store']);
+        Route::put('/timezones/{id}', [AdminTimezoneController::class, 'update']);
+        Route::delete('/timezones/{id}/delete', [AdminTimezoneController::class, 'delete']);
+        Route::put('/timezones/{id}/restore', [AdminTimezoneController::class, 'restore']);
+        Route::delete('/timezones/{id}/force-delete', [AdminTimezoneController::class, 'forceDelete']);
+
+
+
+
         Route::post('/timezones',       [TimezoneController::class, 'store']);
         Route::put('/timezones/{id}',   [TimezoneController::class, 'update']);
         Route::delete('/timezones/{id}/delete', [TimezoneController::class, 'delete']);
