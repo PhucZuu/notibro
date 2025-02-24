@@ -11,8 +11,9 @@ class Task extends Model
 
     protected $fillable = [
         'user_id',
-        'color_id',
-        'timezone_id',
+        'tag_id',
+        'color_code',
+        'timezone_code',
         'title',
         'description',
         'start_time',
@@ -20,21 +21,21 @@ class Task extends Model
         'is_reminder',
         'reminder',
         'is_done',
-        'user_ids',
+        'attendees',
         'location',
         'type',
         'is_all_day',
         'is_repeat',
         'is_busy',
         'path',
-        'frequency',
-        'date_space',
-        'repeat_space',
-        'end_repeat',
-        'total_repeat_time',
-        'day_of_week',
-        'day_of_month',
-        'by_month',
+        'freq',
+        'interval',
+        'until',
+        'count',
+        'byweekday',
+        'bymonthday',
+        'bymonth',
+        'bysetpos',
         'exclude_time',
         'parent_id'
     ];
@@ -48,11 +49,12 @@ class Task extends Model
     ];
 
     protected $casts = [
-        'user_ids'  => 'array',
+        'attendees'  => 'array',
         'reminder'  => 'array',
-        'day_of_week'  => 'array',
-        'day_of_month'  => 'array',
-        'by_month'  => 'array',
+        'byweekday'  => 'array',
+        'bymonthday'  => 'array',
+        'bymonth'  => 'array',
+        'bysetpos'  => 'array',
         'exclude_time'  => 'array',
     ];
 
@@ -60,11 +62,7 @@ class Task extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function color(){
-        return $this->belongsTo(Color::class);
-    }
-
-    public function timezone() {
-        return $this->belongsTo(Timezone::class);
+    public function tag(){
+        return $this->belongsTo(Tag::class);
     }
 }
