@@ -16,8 +16,8 @@ return new class extends Migration
         Schema::create('settings', function (Blueprint $table) {
             $table->id();
             $table->foreignIdFor(User::class)->constrained();
-            $table->foreignIdFor(Timezone::class)->nullable()->constrained();
-            $table->enum('language', ['en','vi'])->default('en');
+            $table->string('timezone_code', 200)->default('Asia/Ho_Chi_Minh');
+            $table->enum('language', ['en','vi', 'fr', 'cn', 'kr', 'jp'])->default('en');
             $table->enum('theme', ['light', 'dark'])->default('light');
             $table->enum('date_format',['d/m/Y','m/d/Y','Y-m-d'])->default('d/m/Y');
             $table->enum('time_format', ['h:mmA','HH:mm'])->default('h:mmA');

@@ -21,9 +21,9 @@ class TaskController extends Controller
             $data['reminder'] = json_decode($data['reminder'], true);
         }
 
-        // Handling user_ids if it's a JSON string
-        if (!empty($data['user_ids']) && is_string($data['user_ids'])) {
-            $data['user_ids'] = json_decode($data['user_ids'], true);
+        // Handling attendees if it's a JSON string
+        if (!empty($data['attendees']) && is_string($data['attendees'])) {
+            $data['attendees'] = json_decode($data['attendees'], true);
         }
 
         // Handling exclude_time if it's a JSON string
@@ -31,19 +31,24 @@ class TaskController extends Controller
             $data['exclude_time'] = json_decode($data['exclude_time'], true);
         }
 
-        // Handling day_of_week if it's a JSON string
-        if (!empty($data['day_of_week']) && is_string($data['day_of_week'])) {
-            $data['day_of_week'] = json_decode($data['day_of_week'], true);
+        // Handling byweekday if it's a JSON string
+        if (!empty($data['byweekday']) && is_string($data['byweekday'])) {
+            $data['byweekday'] = json_decode($data['byweekday'], true);
         }
 
-        // Handling day_of_month if it's a JSON string
-        if (!empty($data['day_of_month']) && is_string($data['day_of_month'])) {
-            $data['day_of_month'] = json_decode($data['day_of_month'], true);
+        // Handling bymonthday if it's a JSON string
+        if (!empty($data['bymonthday']) && is_string($data['bymonthday'])) {
+            $data['bymonthday'] = json_decode($data['bymonthday'], true);
         }
 
-        // Handling by_month if it's a JSON string
-        if (!empty($data['by_month']) && is_string($data['by_month'])) {
-            $data['by_month'] = json_decode($data['by_month'], true);
+        // Handling bymonth if it's a JSON string
+        if (!empty($data['bymonth']) && is_string($data['bymonth'])) {
+            $data['bymonth'] = json_decode($data['bymonth'], true);
+        }
+
+        // Handling bysetpos if it's a JSON string
+        if (!empty($data['bysetpos']) && is_string($data['bysetpos'])) {
+            $data['bysetpos'] = json_decode($data['bysetpos'], true);
         }
         return $data;
     }
@@ -67,24 +72,17 @@ class TaskController extends Controller
             $user_id = Auth::user()->id;
         }
 
-        $setting = Setting::join('timezones', 'settings.timezone_id', '=', 'timezones.id')
-            ->select('timezones.name')
-            ->where('settings.user_id', '=', $user_id)
+        $setting = Setting::select('timezone_code')
+            ->where('user_id', '=', $user_id)
             ->first();
 
-        $tasks = Task::select(
-            'tasks.*',
-            'colors.code as color_code',
-            'timezones.name as timezone_code'
-        )
-            ->leftJoin('colors', 'tasks.color_id', '=', 'colors.id')
-            ->leftJoin('timezones', 'tasks.timezone_id', '=', 'timezones.id')
+        $tasks = Task::select('*')
             ->where(function ($query) use ($user_id) {
-                $query->where('tasks.user_id', $user_id)
+                $query->where('user_id', $user_id)
                     ->orWhereRaw("
                     EXISTS (
                         SELECT 1 FROM JSON_TABLE(
-                            tasks.user_ids, '$[*]' COLUMNS (
+                            attendees, '$[*]' COLUMNS (
                                 user_id INT PATH '$.user_id',
                                 status INT PATH '$.status'
                             )
@@ -99,21 +97,22 @@ class TaskController extends Controller
             $timezone_code = $task->timezone_code; 
 
             $task->rrule = [
-                'date_space'        => $task->date_space,
-                'repeat_space'      => $task->repeat_space,
-                'end_repeat'        => Carbon::parse($task->end_repeat)->setTimezone($task->timezone_code)->toDateTimeString(),
-                'set_end_repeat'    => Carbon::parse($task->end_repeat)->setTimezone($setting->name)->toDateTimeString(),
-                'total_repeat_time' => $task->total_repeat_time,
-                'day_of_week'       => $task->day_of_week,
-                'day_of_month'      => $task->day_of_month,
-                'by_month'          => $task->by_month,
+                'freq'              => $task->freq,
+                'interval'          => $task->interval,
+                'until'             => Carbon::parse($task->until)->setTimezone($task->timezone_code)->toDateTimeString(),
+                'set_until'         => Carbon::parse($task->until)->setTimezone($setting->timezone_code)->toDateTimeString(),
+                'count'             => $task->count,
+                'byweekday'         => $task->byweekday,
+                'bymonthday'        => $task->bymonthday,
+                'bymonth'           => $task->bymonth,
+                'bysetpos'          => $task->bysetpos,
             ];
 
             $task->start_time   = Carbon::parse($task->start_time)->setTimezone($task->timezone_code)->toDateTimeString();
             $task->end_time     = Carbon::parse($task->end_time)->setTimezone($task->timezone_code)->toDateTimeString();
 
-            $task->set_start_time   = Carbon::parse($task->start_time)->setTimezone($setting->name)->toDateTimeString();
-            $task->set_end_time     = Carbon::parse($task->end_time)->setTimezone($setting->name)->toDateTimeString();
+            $task->set_start_time   = Carbon::parse($task->start_time)->setTimezone($setting->timezone_code)->toDateTimeString();
+            $task->set_end_time     = Carbon::parse($task->end_time)->setTimezone($setting->timezone_code)->toDateTimeString();
 
             $cal_exclude_time = array_map(function ($date) use($timezone_code) {
                 return Carbon::parse($date)->setTimezone($timezone_code)->toDateTimeString();
@@ -122,13 +121,14 @@ class TaskController extends Controller
             $task->exclude_time = $cal_exclude_time;
 
             unset(
-                $task->date_space,
-                $task->repeat_space,
-                $task->end_repeat,
-                $task->total_repeat_time,
-                $task->day_of_week,
-                $task->day_of_month,
-                $task->by_month
+                $task->freq,
+                $task->interval,
+                $task->until,
+                $task->count,
+                $task->byweekday,
+                $task->bymonthday,
+                $task->bymonth,
+                $task->bysetpos
             );
         }
 
@@ -147,8 +147,8 @@ class TaskController extends Controller
         $code = $request->code;
 
         $data = $request->validate([
-            'color_id'          => 'required',
-            'timezone_id'       => 'required',
+            'color_code'        => 'required',
+            'timezone_code'     => 'required',
             'title'             => 'required|max:255',
             'description'       => 'nullable',
             'start_time'        => 'required|date_format:Y-m-d H:i:s',
@@ -156,20 +156,21 @@ class TaskController extends Controller
             'is_reminder'       => 'nullable|boolean',
             'reminder'          => 'nullable', //JSON
             'is_done'           => 'nullable|boolean',
-            'user_ids'          => 'nullable', //JSON
+            'attendees'         => 'nullable', //JSON
             'location'          => 'nullable|string|max:255',
             'type'              => 'required',
             'is_all_day'        => 'nullable|boolean',
             'is_repeat'         => 'nullable|boolean',
             'is_busy'           => 'nullable|boolean',
             'path'              => 'nullable',
-            'date_space'        => ['nullable', Rule::in('su', 'mo', 'tu', 'we', 'th', 'fr', 'sa')],
-            'repeat_space'      => 'nullable|numeric',
-            'end_repeat'        => 'nullable|date_format:Y-m-d H:i:s',
-            'total_repeat_time' => 'nullable|numeric',
-            'day_of_week'       => 'nullable', //JSON
-            'day_of_month'      => 'nullable', //JSON
-            'by_month'          => 'nullable', //JSON
+            'freq'              => ['nullable', Rule::in('su', 'mo', 'tu', 'we', 'th', 'fr', 'sa')],
+            'interval'          => 'nullable|numeric',
+            'until'             => 'nullable|date_format:Y-m-d H:i:s',
+            'count'             => 'nullable|numeric',
+            'byweekday'         => 'nullable', //JSON
+            'bymonthday'        => 'nullable', //JSON
+            'bymonth'           => 'nullable', //JSON
+            'bysetpos'           => 'nullable', //JSON
             'exclude_time'      => 'nullable', //JSON
             'parent_id'         => 'nullable',
         ]);
@@ -192,7 +193,7 @@ class TaskController extends Controller
         }
 
         switch ($code) {
-                //Update when event dont have reapet
+            //Update when event dont have reapet
             case 'EDIT_N':
                 try {
                     $task->update($data);
@@ -239,12 +240,12 @@ class TaskController extends Controller
                     //Add new task for following change
                     $new_task = Task::create($data);
 
-                    $task->end_repeat = Carbon::parse($new_task->start_time)->subDay()->endOfDay();
+                    $task->until = Carbon::parse($new_task->start_time)->subDay()->endOfDay();
                     $task->save();
 
                     //Delete all task that have parent_id = $task->id and start_time > $ta
                     $relatedTasks = Task::where('parent_id', $task->id)
-                        ->where('start_time', '>=', $task->end_repeat)
+                        ->where('start_time', '>=', $task->until)
                         ->get();
                     foreach ($relatedTasks as $relatedTask) {
                         $relatedTask->update($data);
@@ -311,8 +312,8 @@ class TaskController extends Controller
 
         //validate request
         $data = $request->validate([
-            'color_id'          => 'required',
-            'timezone_id'       => 'required',
+            'color_code'        => 'required',
+            'timezone_code'     => 'required',
             'title'             => 'required|max:255',
             'description'       => 'nullable',
             'start_time'        => 'required|date_format:Y-m-d H:i:s',
@@ -320,20 +321,21 @@ class TaskController extends Controller
             'is_reminder'       => 'nullable|boolean',
             'reminder'          => 'nullable', //JSON
             'is_done'           => 'nullable|boolean',
-            'user_ids'          => 'nullable', //JSON
+            'attendees'         => 'nullable', //JSON
             'location'          => 'nullable|string|max:255',
             'type'              => 'required',
             'is_all_day'        => 'nullable|boolean',
             'is_repeat'         => 'nullable|boolean',
             'is_busy'           => 'nullable|boolean',
             'path'              => 'nullable',
-            'date_space'        => ['nullable', Rule::in('su', 'mo', 'tu', 'we', 'th', 'fr', 'sa')],
-            'repeat_space'      => 'nullable|numeric',
-            'end_repeat'        => 'nullable|date_format:Y-m-d H:i:s',
-            'total_repeat_time' => 'nullable|numeric',
-            'day_of_week'       => 'nullable', //JSON
-            'day_of_month'      => 'nullable', //JSON
-            'by_month'          => 'nullable', //JSON
+            'freq'              => ['nullable', Rule::in('su', 'mo', 'tu', 'we', 'th', 'fr', 'sa')],
+            'interval'          => 'nullable|numeric',
+            'until'             => 'nullable|date_format:Y-m-d H:i:s',
+            'count'             => 'nullable|numeric',
+            'byweekday'         => 'nullable', //JSON
+            'bymonthday'        => 'nullable', //JSON
+            'bymonth'           => 'nullable', //JSON
+            'bysetpos'           => 'nullable', //JSON
             'exclude_time'      => 'nullable', //JSON
             'parent_id'         => 'nullable',
         ]);

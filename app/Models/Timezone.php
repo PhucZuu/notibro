@@ -15,11 +15,11 @@ class Timezone extends Model
         'utc_offset',
     ];
 
-    public function task(){
-        return $this->hasMany(Task::class);
-    }
+    // public function task(){
+    //     return $this->hasMany(Task::class);
+    // }
 
-    public function setting(){
-        return $this->hasMany(Setting::class);
-    }
+    // public function setting(){
+    //     return $this->hasMany(Setting::class);
+    // }
 }
