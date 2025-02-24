@@ -17,7 +17,7 @@ class SettingSeeder extends Seeder
         $settings = [
             [
                 'user_id' => 1,
-                'timezone_id' => 1, // Giả sử bạn đã có bản ghi timezone với id 1
+                'timezone_code' => 'Asia/Ho_Chi_Minh', // Giả sử bạn đã có bản ghi timezone với id 1
                 'language' => 'en',
                 'theme' => 'light',
                 'date_format' => 'd/m/Y',
@@ -27,7 +27,7 @@ class SettingSeeder extends Seeder
             ],
             [
                 'user_id' => 2,
-                'timezone_id' => 2, // Giả sử bạn đã có bản ghi timezone với id 2
+                'timezone_code' => 'America/Chicago', // Giả sử bạn đã có bản ghi timezone với id 2
                 'language' => 'en',
                 'theme' => 'dark',
                 'date_format' => 'd/m/Y',
@@ -37,7 +37,7 @@ class SettingSeeder extends Seeder
             ],
             [
                 'user_id' => 3,
-                'timezone_id' => 3, // Giả sử bạn đã có bản ghi timezone với id 3
+                'timezone_code' => 'Europe/London', // Giả sử bạn đã có bản ghi timezone với id 3
                 'language' => 'vi',
                 'theme' => 'light',
                 'date_format' => 'd/m/Y',
@@ -47,7 +47,7 @@ class SettingSeeder extends Seeder
             ],
             [
                 'user_id' => 4,
-                'timezone_id' => 4, // Giả sử bạn đã có bản ghi timezone với id 4
+                'timezone_code' => 'Pacific/Midway', // Giả sử bạn đã có bản ghi timezone với id 4
                 'language' => 'en',
                 'theme' => 'dark',
                 'date_format' => 'd/m/Y',
@@ -57,7 +57,7 @@ class SettingSeeder extends Seeder
             ],
             [
                 'user_id' => 5,
-                'timezone_id' => 5, // Giả sử bạn đã có bản ghi timezone với id 5
+                'timezone_code' => 'Asia/Ho_Chi_Minh', // Giả sử bạn đã có bản ghi timezone với id 5
                 'language' => 'vi',
                 'theme' => 'light',
                 'date_format' => 'd/m/Y',

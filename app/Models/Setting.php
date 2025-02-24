@@ -11,7 +11,7 @@ class Setting extends Model
 
     protected $fillable = [
         'user_id',
-        'timezone_id',
+        'timezone_code',
         'language',
         'theme',
         'date_format',
@@ -21,9 +21,5 @@ class Setting extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
-    }
-
-    public function timezone(){
-        return $this->belongsTo(Setting::class);
     }
 }

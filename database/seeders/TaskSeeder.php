@@ -17,8 +17,8 @@ class TaskSeeder extends Seeder
         DB::table('tasks')->insert([
             [
                 'user_id' => 1,
-                'color_code' => 2,
-                'timezone_code' => 1,
+                'color_code' => '#FF0000',
+                'timezone_code' => 'Asia/Ho_Chi_Minh',
                 'tag_id' => 1,
                 'title' => 'Complete the project report.',
                 'description' => 'This task involves completing the project report by the end of the week.',
@@ -49,8 +49,8 @@ class TaskSeeder extends Seeder
             ],
             [
                 'user_id' => 2,
-                'color_code' => 1,
-                'timezone_code' => 1,
+                'color_code' => '#FF0000',
+                'timezone_code' => 'Asia/Ho_Chi_Minh',
                 'tag_id' => 2,
                 'title' => 'Complete the project report.',
                 'description' => 'This task involves completing the project report by the end of the week.',
@@ -85,8 +85,8 @@ class TaskSeeder extends Seeder
             ],
             [
                 'user_id' => 2,
-                'color_code' => 1,
-                'timezone_code' => 1,
+                'color_code' => '#FF0000',
+                'timezone_code' => 'Europe/London',
                 'tag_id' => 2,
                 'title' => 'Complete the project report.',
                 'description' => 'This task involves completing the project report by the end of the week.',
@@ -121,8 +121,8 @@ class TaskSeeder extends Seeder
             ],
             [
                 'user_id' => 2,
-                'color_code' => 1,
-                'timezone_code' => 1,
+                'color_code' => '#FF0000',
+                'timezone_code' => 'Asia/Ho_Chi_Minh',
                 'tag_id' => 2,
                 'title' => 'Complete the project report.',
                 'description' => 'This task involves completing the project report by the end of the week.',
@@ -157,8 +157,8 @@ class TaskSeeder extends Seeder
             ],
             [
                 'user_id' => 2,
-                'color_code' => 1,
-                'timezone_code' => 1,
+                'color_code' => '#FF0000',
+                'timezone_code' => 'Europe/London',
                 'tag_id' => 2,
                 'title' => 'Complete the project report.',
                 'description' => 'This task involves completing the project report by the end of the week.',

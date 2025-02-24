@@ -33,7 +33,7 @@ class SettingController extends Controller
     public function changeSetting(Request $request)
     {
         $setting = $request->validate([
-            "timezone_id"   => ['required',Rule::exists('timezones','id')],
+            "timezone_code"   => ['required',Rule::exists('timezones','id')],
             "language"      => ['required',Rule::in(['en','vi'])],
             "theme"         => ['required',Rule::in(['light','dark'])],
             "date_format"   => ['required',Rule::in(['d/m/Y', 'm/d/Y', 'Y-m-d'])],
