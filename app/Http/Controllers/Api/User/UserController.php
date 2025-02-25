@@ -13,9 +13,34 @@ class UserController extends Controller
 {
     public function getAllUser()
     {
-        $users = User::query()->get();
+        $users = User::with(['roles' => function($query) {  
+            $query->select('roles.id', 'roles.name');  
+        }])->paginate(10)->map(function ($user) {  
+            return [  
+                'email' => $user->email,
+                'avatar' => $user->avatar,  
+                'first_name' => $user->first_name,
+                'last_name' => $user->last_name,
+                'gender' => $user->gender,
+                'address' => $user->address,
+                'phone' => $user->phone,
+                'email_verified_at' => $user->email_verified_at,
+                'deleted_at' => $user->deleted_at,
+                'created_at' => $user->created_at,
+                'updated_at' => $user->updated_at,
+                'google_id' => $user->google_id,
+                'roles' => $user->roles->map(function ($role) {  
+                    return [  
+                        'role_id' => $role->id,  
+                        'role_name' => $role->name,  
+                    ];  
+                })->toArray(),  
+            ];  
+        });  
 
-        if(!$users) {
+        
+
+        if (!$users) {
             return response()->json([
                 'code'    => 404,
                 "message" =>  'Users not found',
@@ -33,7 +58,7 @@ class UserController extends Controller
     {
         $user = User::find($id);
 
-        if(!$user) {
+        if (!$user) {
             return response()->json([
                 'code'    => 404,
                 "message" =>  'User not found',
@@ -51,11 +76,11 @@ class UserController extends Controller
     {
         $user =  User::find($id);
 
-        if(!$user) {
+        if (!$user) {
             return response()->json([
                 'code'    => 404,
                 'message' => "User not found",
-            ],404);
+            ], 404);
         }
 
         try {
@@ -64,7 +89,7 @@ class UserController extends Controller
             return response()->json([
                 'code'    => 200,
                 'message' => 'This user account has been locked',
-            ],200);
+            ], 200);
         } catch (\Exception $e) {
             Log::error($e->getMessage());
 
@@ -79,11 +104,11 @@ class UserController extends Controller
     {
         $user =  User::withTrashed()->find($id);
 
-        if(!$user) {
+        if (!$user) {
             return response()->json([
                 'code'    => 404,
                 'message' => "User not found",
-            ],404);
+            ], 404);
         }
 
         try {
@@ -92,7 +117,7 @@ class UserController extends Controller
             return response()->json([
                 'code'    => 200,
                 'message' => 'Account unlocked successfully',
-            ],200);
+            ], 200);
         } catch (\Exception $e) {
             Log::error($e->getMessage());
 
@@ -106,12 +131,12 @@ class UserController extends Controller
     public function changePermission(Request $request, $id)
     {
         $data = $request->validate([
-            'role_id' => ['required',Rule::exists('roles', 'id')],
+            'role_id' => ['required', Rule::exists('roles', 'id')],
         ]);
 
         $user = User::find($id);
 
-        if(!$user) {
+        if (!$user) {
             return response()->json([
                 'code'    => 404,
                 'message' => "User not found",
@@ -139,13 +164,13 @@ class UserController extends Controller
     {
         $user = User::find(auth()->id());
 
-        if(!$user) {
+        if (!$user) {
             return response()->json([
                 'code'    => 404,
                 'message' => 'User not found',
-            ],404);
+            ], 404);
         }
-        
+
         return response()->json([
             'code'    => 200,
             'message' => 'Retrieve user successfully',
@@ -156,27 +181,27 @@ class UserController extends Controller
     public function updateProfile(Request $request)
     {
         $info = $request->validate([
-            'avatar'     => ['nullable','image','mimes:jpg,jpeg,png','max:2048'],
-            'first_name' => ['required','max:255'],
-            'last_name'  => ['required','max:255'],
-            'gender'     => ['required',Rule::in(['male','female'])],
-            'address'    => ['required','max:255'],
-            'phone'      => ['required','regex:/^0[0-9]{9}$/'],
+            'avatar'     => ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:2048'],
+            'first_name' => ['required', 'max:255'],
+            'last_name'  => ['required', 'max:255'],
+            'gender'     => ['required', Rule::in(['male', 'female'])],
+            'address'    => ['required', 'max:255'],
+            'phone'      => ['required', 'regex:/^0[0-9]{9}$/'],
         ]);
 
         $user = User::find(auth()->id());
 
         try {
-            if($request->hasFile('avatar')) {
-                $info['avatar'] = Storage::put('images',$request->file('avatar'));
+            if ($request->hasFile('avatar')) {
+                $info['avatar'] = Storage::put('images', $request->file('avatar'));
             }
 
             $user->update($info);
 
-            if($request->hasFile('avatar') && $user->avatar && Storage::exists($user->avatar)) {
+            if ($request->hasFile('avatar') && $user->avatar && Storage::exists($user->avatar)) {
                 Storage::delete($user->avatar);
             }
-            
+
             return response()->json([
                 'code'    => 200,
                 'message' => 'Updated information successfully',
