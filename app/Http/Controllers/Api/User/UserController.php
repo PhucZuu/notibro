@@ -216,4 +216,43 @@ class UserController extends Controller
             ]);
         }
     }
+
+    public function editAccount(Request $request, $id)
+    {
+        $info = $request->validate([
+            'avatar'     => ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:2048'],
+            'first_name' => ['required', 'max:255'],
+            'last_name'  => ['required', 'max:255'],
+            'gender'     => ['required', Rule::in(['male', 'female'])],
+            'address'    => ['required', 'max:255'],
+            'phone'      => ['required', 'regex:/^0[0-9]{9}$/'],
+        ]);
+
+        $user = User::find($id);
+
+        try {
+            if ($request->hasFile('avatar')) {
+                $info['avatar'] = Storage::put('images', $request->file('avatar'));
+            }
+
+            $user->update($info);
+
+            if ($request->hasFile('avatar') && $user->avatar && Storage::exists($user->avatar)) {
+                Storage::delete($user->avatar);
+            }
+
+            return response()->json([
+                'code'    => 200,
+                'message' => 'Updated information successfully',
+                'data'    => $user,
+            ]);
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+
+            return response()->json([
+                'code' => 500,
+                'message' => 'An error occurred',
+            ]);
+        }
+    }
 }
