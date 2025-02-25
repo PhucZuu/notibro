@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\Auth\AuthGoogleController;
 use App\Http\Controllers\Api\Role\RoleController;
 use App\Http\Controllers\Api\Setting\SettingController;
+use App\Http\Controllers\Api\Tag\TagController;
 use App\Http\Controllers\Api\Task\TaskController;
 use App\Http\Controllers\Api\Timezone\TimezoneController;
 use App\Http\Controllers\Api\User\UserController;
@@ -57,7 +58,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/timezones',        [TimezoneController::class, 'index']);
     Route::get('/timezones/{id}',   [TimezoneController::class, 'show']);
    
-
+    //Tag
+    Route::get('/tags', [TagController::class, 'index']);
+    Route::post('/tags', [TagController::class, 'store']);
+    Route::get('/tags/{id}', [TagController::class, 'show']);
+    Route::put('/tags/{id}', [TagController::class, 'update']);
+    Route::delete('/tags/{id}', [TagController::class, 'destroy']);
+    
     Route::middleware(['admin'])->prefix('admin')->group(function () {
         //User
         Route::get('/users',                [UserController::class, 'getAllUser']);
