@@ -13,12 +13,12 @@ class UserController extends Controller
 {
     public function getAllUser()
     {
-        $users = User::with(['roles' => function($query) {  
-            $query->select('roles.id', 'roles.name');  
-        }])->paginate(10)->map(function ($user) {  
-            return [  
+        $users = User::with(['roles' => function ($query) {
+            $query->select('roles.id', 'roles.name');
+        }])->paginate(10)->map(function ($user) {
+            return [
                 'email' => $user->email,
-                'avatar' => $user->avatar,  
+                'avatar' => $user->avatar,
                 'first_name' => $user->first_name,
                 'last_name' => $user->last_name,
                 'gender' => $user->gender,
@@ -29,16 +29,16 @@ class UserController extends Controller
                 'created_at' => $user->created_at,
                 'updated_at' => $user->updated_at,
                 'google_id' => $user->google_id,
-                'roles' => $user->roles->map(function ($role) {  
-                    return [  
-                        'role_id' => $role->id,  
-                        'role_name' => $role->name,  
-                    ];  
-                })->toArray(),  
-            ];  
-        });  
+                'roles' => $user->roles->map(function ($role) {
+                    return [
+                        'role_id' => $role->id,
+                        'role_name' => $role->name,
+                    ];
+                })->toArray(),
+            ];
+        });
 
-        
+
 
         if (!$users) {
             return response()->json([
@@ -253,6 +253,49 @@ class UserController extends Controller
                 'code' => 500,
                 'message' => 'An error occurred',
             ]);
+        }
+    }
+
+    public function infoAccount($id)
+    {
+        $user = User::with(['roles' => function ($query) {
+            $query->select('roles.id', 'roles.name');
+        }])
+            ->where('id', $id) 
+            ->first();
+
+        if ($user) {
+            $userData = [
+                'email' => $user->email,
+                'avatar' => $user->avatar,
+                'first_name' => $user->first_name,
+                'last_name' => $user->last_name,
+                'gender' => $user->gender,
+                'address' => $user->address,
+                'phone' => $user->phone,
+                'email_verified_at' => $user->email_verified_at,
+                'deleted_at' => $user->deleted_at,
+                'created_at' => $user->created_at,
+                'updated_at' => $user->updated_at,
+                'google_id' => $user->google_id,
+                'roles' => $user->roles->map(function ($role) {
+                    return [
+                        'role_id' => $role->id,
+                        'role_name' => $role->name,
+                    ];
+                })->toArray(),
+            ];
+
+            return response()->json([
+                'code'    => 200,
+                'message' => 'Retrieve user successfully',
+                'data'    => $userData
+            ]); // Trả về dữ liệu người dùng  
+        } else {
+            return response()->json([
+                'code'    => 404,
+                'message' => 'User not found',
+            ], 404);  // Nếu không tìm thấy người dùng  
         }
     }
 }

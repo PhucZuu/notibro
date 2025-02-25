@@ -65,4 +65,9 @@ class Task extends Model
     public function tag(){
         return $this->belongsTo(Tag::class);
     }
+
+    public function getAttendees()
+    {
+        return array_merge([$this->user_id], $this->attendees ?? []);
+    }
 }
