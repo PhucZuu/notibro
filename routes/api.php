@@ -66,6 +66,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/users/{id}/ban',    [UserController::class, 'ban']);
         Route::post('/users/{id}/unlock',   [UserController::class, 'unlock']);
         Route::post('/users/{id}/editAccount',   [UserController::class, 'editAccount']);
+        Route::get('/users/{id}/infoAccount',   [UserController::class, 'infoAccount']);
 
         //Roles
         Route::get('/roles',        [RoleController::class, 'index']);

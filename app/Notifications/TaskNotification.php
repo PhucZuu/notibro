@@ -7,16 +7,17 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-class TaskNotification extends Notification
+class TaskNotification extends Notification implements ShouldQueue
 {
     use Queueable;
+    protected $task;
 
     /**
      * Create a new notification instance.
      */
-    public function __construct()
+    public function __construct($task)
     {
-        //
+        $this->task = $task;
     }
 
     /**
@@ -26,7 +27,7 @@ class TaskNotification extends Notification
      */
     public function via(object $notifiable): array
     {
-        return ['mail'];
+        return ['broadcast'];
     }
 
     /**
@@ -49,6 +50,15 @@ class TaskNotification extends Notification
     {
         return [
             //
+        ];
+    }
+
+    public function toBroadcast(object $notifiable): array
+    {
+        return [
+            'message'       => "Event' {$this->task->title}.' is coming up in",
+            'task_id'       => $this->task->id,
+            'start_time'    => $this->task->start_time,
         ];
     }
 }
