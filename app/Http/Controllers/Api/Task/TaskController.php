@@ -87,10 +87,10 @@ class TaskController extends Controller
                         SELECT 1 FROM JSON_TABLE(
                             attendees, '$[*]' COLUMNS (
                                 user_id INT PATH '$.user_id',
-                                status INT PATH '$.status'
+                                status VARCHAR(20) PATH '$.status'
                             )
                         ) AS jt
-                        WHERE jt.user_id = ? AND jt.status = 1
+                        WHERE jt.user_id = ? AND jt.status = 'yes'
                     )
                 ", [$user_id]);
             })
