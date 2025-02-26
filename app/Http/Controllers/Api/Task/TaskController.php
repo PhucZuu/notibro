@@ -3,14 +3,17 @@
 namespace App\Http\Controllers\Api\Task;
 
 use App\Http\Controllers\Controller;
+use App\Models\Reminder;
 use App\Models\Setting;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use App\Models\Task;
 use App\Models\Timezone;
+use App\Models\User;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class TaskController extends Controller
 {
@@ -187,10 +190,10 @@ class TaskController extends Controller
         //Kiểm tra xem có tìm được task với id truyền vào không
         if (!$task) {
             return response()->json([
-                'code'    => 500,
+                'code'    => 404,
                 'message' => 'Failed to get task',
                 'error'   => 'Cannot get task',
-            ], 500);
+            ], 404);
         }
 
         switch ($code) {
@@ -205,10 +208,11 @@ class TaskController extends Controller
                         'data'    => $task,
                     ], 200);
                 } catch (\Exception $e) {
+                    Log::error($e->getMessage());
+
                     return response()->json([
                         'code'    => 500,
                         'message' => 'Failed to updated task',
-                        'error'   => $e->getMessage(),
                     ], 500);
                 }
 
@@ -229,10 +233,11 @@ class TaskController extends Controller
                         'data'    => $new_task,
                     ], 200);
                 } catch (\Exception $e) {
+                    Log::error($e->getMessage());
+
                     return response()->json([
                         'code'    => 500,
                         'message' => 'Failed to updated task',
-                        'error'   => $e->getMessage(),
                     ], 500);
                 }
 
@@ -258,10 +263,11 @@ class TaskController extends Controller
                         'data'    => $task,
                     ], 200);
                 } catch (\Exception $e) {
+                    Log::error($e->getMessage());
+
                     return response()->json([
                         'code'    => 500,
                         'message' => 'Failed to updated task',
-                        'error'   => $e->getMessage(),
                     ], 500);
                 }
 
@@ -290,10 +296,11 @@ class TaskController extends Controller
                         'data'    => $task,
                     ], 200);
                 } catch (\Exception $e) {
+                    Log::error($e->getMessage());
+
                     return response()->json([
                         'code'    => 500,
                         'message' => 'Failed to updated task',
-                        'error'   => $e->getMessage(),
                     ], 500);
                 }
 
@@ -306,7 +313,51 @@ class TaskController extends Controller
         }
     }
 
-    public function show($id) {}
+    public function show($id) {
+        $task = Task::with('user')
+            ->select('id', 'user_id', 'title', 'description', 'start_time', 'end_time', 'location', 'timezone_code', 'attendees')
+            ->where('type', 'event')
+            ->where(function ($query) use ($id) {
+                    $query->where('id', $id)
+                        ->orWhere('parent_id', $id);
+                    })
+            ->first();
+
+        if (!$task) {
+            return response()->json([
+                'code'=> 404,
+                'message'=> 'The event owner may have been removed',
+            ]);
+        }
+
+        $attendees = collect($task->attendees);
+
+        $userIds = $attendees->pluck('user_id')->toArray();
+
+        $users = User::whereIn('id', $userIds)->get();
+
+        if($users) {
+            $attendeesInfo = $attendees->map(function ($attendee) use ($users) {
+                $user = $users->firstWhere('id', $attendee['user_id']);
+                return [
+                    'user_id'=> $attendee['user_id'],
+                    'name'  => $user->first_name . ' ' . $user->last_name,
+                    'email' => $user->email,
+                    'avatar' => $user->avatar ?? null,
+                ];
+            });
+        }
+
+        return response()->json([
+            'code'   => 200,
+            'message'=> 'Success',
+            'data'   => [
+                'task' => $task,
+                'attendees' => $attendeesInfo,
+                'quantityAttendee' => 1 + count($attendeesInfo),
+            ]
+        ]);
+    }
 
     public function store(Request $request)
     {
@@ -368,7 +419,7 @@ class TaskController extends Controller
     {
         $code = $request->code;
 
-        $task = Task::findOrFail($id);
+        $task = Task::find($id);
 
         if (!$task) {
             return response()->json([
@@ -386,13 +437,13 @@ class TaskController extends Controller
                         return response()->json([
                             'code'    => 200,
                             'message' => 'Delete task successfully',
-                            'data'    => $task,
                         ], 200);
                     } catch (\Exception $e) {
+                        Log::error($e->getMessage());
+
                         return response()->json([
                             'code'    => 500,
                             'message' => 'Failed to delete task',
-                            'error'   => $e->getMessage(),
                         ], 500);
                     }
                 case 'DEL_1':
@@ -416,10 +467,11 @@ class TaskController extends Controller
 
                         return response()->json(['message' => 'Delete task successfully'], 200);
                     } catch (\Exception $e) {
+                        Log::error($e->getMessage());
+
                         return response()->json([
                             'code'    => 500,
                             'message' => 'Failed to delete task',
-                            'error'   => $e->getMessage(),
                         ], 500);
                     }
                 case 'DEL_1B':
@@ -441,10 +493,11 @@ class TaskController extends Controller
 
                         return response()->json(['message' => 'Delete tasks and following tasks successfully'], 200);
                     } catch (\Exception $e) {
+                        Log::error($e->getMessage());
+
                         return response()->json([
                             'code'    => 500,
                             'message' => 'Failed to delete task and following tasks',
-                            'error'   => $e->getMessage(),
                         ], 500);
                     }
                 case 'DEL_A':
@@ -457,10 +510,11 @@ class TaskController extends Controller
 
                         return response()->json(['message' => 'Delete all tasks successfully'], 200);
                     } catch (\Exception $e) {
+                        Log::error($e->getMessage());
+
                         return response()->json([
                             'code'    => 500,
                             'message' => 'Failed to delete all task',
-                            'error'   => $e->getMessage(),
                         ], 500);
                     }
 
@@ -471,6 +525,128 @@ class TaskController extends Controller
                         'data'      =>  ''
                     ]);
             }
+        }
+    }
+
+    public function acceptInvite(Request $request, $id)
+    {
+        $user = auth()->user();
+
+        $task = Task::with('user.setting')
+        ->where('type', 'event')
+        ->where(function ($query) use ($id) {
+                $query->where('id', $id)
+                    ->orWhere('parent_id', $id);
+                })
+        ->first();
+
+        if (!$task) {
+            return response()->json([
+                'code'=> 404,
+                'message'=> 'The event owner may have been removed',
+            ]);
+        }
+
+        if($user->id == $task->user_id) {
+            return response()->json([
+                'code'=> 400,
+                'message'=> 'Can not invite yourself',
+            ]);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            // Kiểm tra người dùng đã tồn tại trong attendees chưa
+            if (in_array($user->id, array_column($task->attendees, 'user_id')) ) {
+                return response()->json([
+                    'code'    => 409,
+                    'message' => 'You have already accepted this event',
+                ]);
+            } else {
+                $attendee = ['role' => 'viewer',
+                             'status' => 'yes',
+                             'user_id' => $user->id
+                            ];
+                $attendees = $task->attendees; 
+                array_push($attendees, $attendee);
+                $task->attendees = $attendees;
+
+                Reminder::insert([
+                    'title'   => 'Event notification',
+                    'user_id' => $task->user_id,
+                    'message' => 'User '. $user->first_name . ' ' . $user->last_name .' has accepted to participate in your event: ' . $task->title,
+                    'type'    => 'event',
+                    'sent_at' => Carbon::now($task->user->setting->timezone_code),
+                ]);
+            } 
+
+            $task->save();
+
+            DB::commit();
+
+            return response()->json([
+                'code' => 200,
+                'message' => 'Participate in the event successfully',
+            ],200);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            Log::error($e->getMessage());
+
+            return response()->json([
+                'code'    => 500,
+                'message' => 'An error occurred', 
+            ],500);
+        }
+    }
+
+    public function refuseInvite(Request $request, $id)
+    {
+        $user = auth()->user();
+
+        $task = Task::with('user.setting')
+                ->where('type', 'event')
+                ->where(function ($query) use ($id) {
+                        $query->where('id', $id)
+                            ->orWhere('parent_id', $id);
+                        })
+                ->first();
+
+        if (!$task) {
+            return response()->json([
+                'code'    => 404,
+                'message' => 'Event not found',
+            ],404);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            // Kiểm tra người dùng đã tồn tại trong attendees chưa
+            if (in_array($user->id, array_column($task->attendees, 'user_id')) ) {
+                $task->attendees = array_filter($task->attendees, function($attendee) use ($user) {
+                    return $attendee['user_id'] !== $user->id;
+                }); 
+
+                $task->save();
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'code' => 200,
+                'message' => 'You have refused to participate in this event',
+            ],200);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            Log::error($e->getMessage());
+
+            return response()->json([
+                'code'    => 500,
+                'message' => 'An error occurred', 
+            ]);
         }
     }
 }

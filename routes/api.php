@@ -48,6 +48,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/setting', [SettingController::class, 'setting']);
     Route::put('/setting/change', [SettingController::class, 'changeSetting']);
 
+    // invite link
+    Route::post('/event/{id}/accept', [TaskController::class,'acceptInvite']);
+    Route::post('/event/{id}/refuse', [TaskController::class,'refuseInvite']);
+    Route::get('/event/{id}/invite', [TaskController::class,'show']);
+
     // TASK
     Route::get('/tasks', [TaskController::class, 'index']);
     Route::put('/tasks/{id}', [TaskController::class, 'updateTask']);
