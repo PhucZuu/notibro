@@ -99,8 +99,8 @@ class TaskController extends Controller
             $task->rrule = [
                 'freq'              => $task->freq,
                 'interval'          => $task->interval,
-                'until'             => Carbon::parse($task->until)->setTimezone($task->timezone_code)->toDateTimeString(),
-                'set_until'         => Carbon::parse($task->until)->setTimezone($setting->timezone_code)->toDateTimeString(),
+                'until'             => Carbon::parse($task->until, 'UTC'),
+                // 'set_until'         => Carbon::parse($task->until, 'UTC')->setTimezone($setting->timezone_code),
                 'count'             => $task->count,
                 'byweekday'         => $task->byweekday,
                 'bymonthday'        => $task->bymonthday,
@@ -108,14 +108,15 @@ class TaskController extends Controller
                 'bysetpos'          => $task->bysetpos,
             ];
 
-            $task->start_time   = Carbon::parse($task->start_time)->setTimezone($task->timezone_code)->toDateTimeString();
-            $task->end_time     = Carbon::parse($task->end_time)->setTimezone($task->timezone_code)->toDateTimeString();
+            $task->start_time   = Carbon::parse($task->start_time, 'UTC');
+            $task->end_time     = Carbon::parse($task->end_time, 'UTC');
 
-            $task->set_start_time   = Carbon::parse($task->start_time)->setTimezone($setting->timezone_code)->toDateTimeString();
-            $task->set_end_time     = Carbon::parse($task->end_time)->setTimezone($setting->timezone_code)->toDateTimeString();
+            // $task->set_start_time   = Carbon::parse($task->start_time, 'UTC')->setTimezone($setting->timezone_code);
+            // $task->set_end_time     = Carbon::parse($task->end_time, 'UTC')->setTimezone($setting->timezone_code);
 
             $cal_exclude_time = array_map(function ($date) use($timezone_code) {
-                return Carbon::parse($date)->setTimezone($timezone_code)->toDateTimeString();
+                return Carbon::parse($date, 'UTC');
+                // ->setTimezone($timezone_code);
             }, $task->exclude_time);
             
             $task->exclude_time = $cal_exclude_time;
