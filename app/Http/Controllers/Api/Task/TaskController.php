@@ -115,12 +115,14 @@ class TaskController extends Controller
             // $task->set_start_time   = Carbon::parse($task->start_time, 'UTC')->setTimezone($setting->timezone_code);
             // $task->set_end_time     = Carbon::parse($task->end_time, 'UTC')->setTimezone($setting->timezone_code);
 
-            $cal_exclude_time = array_map(function ($date) use ($timezone_code) {
-                return Carbon::parse($date, 'UTC');
-                // ->setTimezone($timezone_code);
-            }, $task->exclude_time);
-
-            $task->exclude_time = $cal_exclude_time;
+            if ($task->exclude_time && count($task->exclude_time) > 0) {
+                $cal_exclude_time = array_map(function ($date) use($timezone_code) {
+                    return Carbon::parse($date, 'UTC');
+                    // ->setTimezone($timezone_code);
+                }, $task->exclude_time);
+                
+                $task->exclude_time = $cal_exclude_time;
+            }
 
             if ($task->attendees) {  
                 foreach ($task->attendees as $attendee) {  
@@ -143,6 +145,8 @@ class TaskController extends Controller
             }
             
             $task->attendees = $attendeesDetails;
+
+            $attendeesDetails = [];
 
             unset(
                 $task->freq,
@@ -442,13 +446,15 @@ class TaskController extends Controller
 
         if (!$task) {
             return response()->json([
-                'code'    => 500,
-                'message' => 'Failed to get task',
-                'error'   => 'Cannot get task',
-            ], 500);
+                'code'    => 404,
+                'message' => 'Task not found',
+            ], 404);
         }
 
-        if ($task->user_id  === Auth::id()) {
+        $attendees = collect($task->attendees);
+        $attendee = $attendees->firstWhere('user_id', Auth::id());
+
+        if ($task->user_id  === Auth::id() || ($attendee && $attendee['role'] === 'edit')) {
             switch ($code) {
                 case 'DEL_N':
                     try {
@@ -468,23 +474,24 @@ class TaskController extends Controller
                 case 'DEL_1':
                     try {
                         // select day deleted task
-                        $currentDate = Carbon::now()->format('d-m-Y');
+                        $currentDate = $request->date;
 
-                        if ($task) {
-                            // select exclude_time of task
-                            $excludeTime = json_decode($task->exclude_time, true);
+                        // select exclude_time of task
+                        $excludeTime = $task->exclude_time;
 
-                            // add current date to exclude_time
-                            if (!in_array($currentDate, $excludeTime)) {
-                                $excludeTime[] = $currentDate;
-                            }
-
-                            // Encode back to JSON before saving
-                            $task->exclude_time = json_encode($excludeTime);
-                            $task->save();
+                        // add current date to exclude_time
+                        if (!in_array($currentDate, $excludeTime)) {
+                            $excludeTime[] = $currentDate;
                         }
 
-                        return response()->json(['message' => 'Delete task successfully'], 200);
+                        // Encode back to JSON before saving
+                        $task->exclude_time = $excludeTime;
+                        $task->save();
+
+                        return response()->json([
+                            'code'=> 200,
+                            'message' => 'Delete task successfully 1'
+                        ], 200);
                     } catch (\Exception $e) {
                         Log::error($e->getMessage());
 
@@ -495,22 +502,28 @@ class TaskController extends Controller
                     }
                 case 'DEL_1B':
                     try {
-                        $taskStartTime = Task::where('id', $task->id)->value('start_time');
+                        $currentDate = $request->date;
 
-                        if ($taskStartTime) {
-                            // swich datatime -> date
-                            $taskStartDate = Carbon::parse($taskStartTime)->toDateString();
+                        $task->until = $currentDate;
+                        
+                        $task->save();
 
-                            // delete task where id = $task->id
-                            Task::where('id', 2)->delete();
+                        // Xoá các task liên quan về sau
+                        $tasksChild = Task::where('start_time', '>', $currentDate)
+                                            ->where('id', $task->id)
+                                            ->orWhere('parent_id', $task->id)
+                                            ->get(); 
 
-                            // delete all task with parent_id = $task->id and start_time > $taskStartDate
-                            Task::where('parent_id', $task->parent_id)
-                                ->whereDate('start_time', '>', $taskStartDate)
-                                ->delete();
+                        if(!$tasksChild->isEmpty()) {
+                            foreach($tasksChild as $task) {
+                                $task->delete();
+                            }
                         }
 
-                        return response()->json(['message' => 'Delete tasks and following tasks successfully'], 200);
+                        return response()->json([
+                            'code'=> 200,
+                            'message' => 'Delete tasks and following tasks successfully'
+                        ], 200);
                     } catch (\Exception $e) {
                         Log::error($e->getMessage());
 
@@ -524,10 +537,13 @@ class TaskController extends Controller
                     try {
                         // delete all tasks
                         Task::where('id', $task->id)
-                            ->where('parent_id',   $task->parent_id)
+                            ->orWhere('parent_id',   $task->id)
                             ->delete();
 
-                        return response()->json(['message' => 'Delete all tasks successfully'], 200);
+                        return response()->json([
+                            'code'=> 200,
+                            'message' => 'Delete all tasks successfully'
+                        ], 200);
                     } catch (\Exception $e) {
                         Log::error($e->getMessage());
 
@@ -544,6 +560,11 @@ class TaskController extends Controller
                         'data'      =>  ''
                     ]);
             }
+        } else {
+            return response()->json([
+                'code'=> 401,
+                'message'=> 'You do not have permission to edit this event',
+            ]);
         }
     }
 
