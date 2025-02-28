@@ -69,8 +69,6 @@ class TaskController extends Controller
 
     public function index()
     {
-
-        //Check is user logged in
         if (Auth::check()) {
             $user_id = Auth::user()->id;
         }
@@ -97,7 +95,7 @@ class TaskController extends Controller
             ->get();
 
         foreach ($tasks as $task) {
-            $timezone_code = $task->timezone_code; 
+            $timezone_code = $task->timezone_code;
 
             $task->rrule = [
                 'freq'              => $task->freq,
@@ -117,12 +115,34 @@ class TaskController extends Controller
             // $task->set_start_time   = Carbon::parse($task->start_time, 'UTC')->setTimezone($setting->timezone_code);
             // $task->set_end_time     = Carbon::parse($task->end_time, 'UTC')->setTimezone($setting->timezone_code);
 
-            $cal_exclude_time = array_map(function ($date) use($timezone_code) {
+            $cal_exclude_time = array_map(function ($date) use ($timezone_code) {
                 return Carbon::parse($date, 'UTC');
                 // ->setTimezone($timezone_code);
             }, $task->exclude_time);
-            
+
             $task->exclude_time = $cal_exclude_time;
+
+            if ($task->attendees) {  
+                foreach ($task->attendees as $attendee) {  
+                    $user = User::select('first_name', 'last_name', 'email', 'avatar')  
+                        ->where('id', $attendee['user_id'])  
+                        ->first();  
+    
+                    if ($user) {  
+                        $attendeesDetails[] = [  
+                            'user_id'    => $attendee['user_id'],  
+                            'first_name' => $user->first_name,  
+                            'last_name'  => $user->last_name,  
+                            'email'      => $user->email,  
+                            'avatar'     => $user->avatar,  
+                            'status'     => $attendee['status'],  
+                            'role'       => $attendee['role'], 
+                        ];  
+                    }  
+                }  
+            }
+            
+            $task->attendees = $attendeesDetails;
 
             unset(
                 $task->freq,
@@ -136,9 +156,7 @@ class TaskController extends Controller
             );
         }
 
-
         // Trả về view và truyền dữ liệu vào
-
         return response()->json([
             'code'      =>  200,
             'message'   =>  'Fetching Data successfully',
@@ -197,7 +215,7 @@ class TaskController extends Controller
         }
 
         switch ($code) {
-            //Update when event dont have reapet
+                //Update when event dont have reapet
             case 'EDIT_N':
                 try {
                     $task->update($data);
@@ -313,20 +331,21 @@ class TaskController extends Controller
         }
     }
 
-    public function show($id) {
+    public function show($id)
+    {
         $task = Task::with('user')
             ->select('id', 'user_id', 'title', 'description', 'start_time', 'end_time', 'location', 'timezone_code', 'attendees')
             ->where('type', 'event')
             ->where(function ($query) use ($id) {
-                    $query->where('id', $id)
-                        ->orWhere('parent_id', $id);
-                    })
+                $query->where('id', $id)
+                    ->orWhere('parent_id', $id);
+            })
             ->first();
 
         if (!$task) {
             return response()->json([
-                'code'=> 404,
-                'message'=> 'The event owner may have been removed',
+                'code' => 404,
+                'message' => 'The event owner may have been removed',
             ]);
         }
 
@@ -336,11 +355,11 @@ class TaskController extends Controller
 
         $users = User::whereIn('id', $userIds)->get();
 
-        if($users) {
+        if ($users) {
             $attendeesInfo = $attendees->map(function ($attendee) use ($users) {
                 $user = $users->firstWhere('id', $attendee['user_id']);
                 return [
-                    'user_id'=> $attendee['user_id'],
+                    'user_id' => $attendee['user_id'],
                     'name'  => $user->first_name . ' ' . $user->last_name,
                     'email' => $user->email,
                     'avatar' => $user->avatar ?? null,
@@ -350,7 +369,7 @@ class TaskController extends Controller
 
         return response()->json([
             'code'   => 200,
-            'message'=> 'Success',
+            'message' => 'Success',
             'data'   => [
                 'task' => $task,
                 'attendees' => $attendeesInfo,
@@ -533,24 +552,24 @@ class TaskController extends Controller
         $user = auth()->user();
 
         $task = Task::with('user.setting')
-        ->where('type', 'event')
-        ->where(function ($query) use ($id) {
+            ->where('type', 'event')
+            ->where(function ($query) use ($id) {
                 $query->where('id', $id)
                     ->orWhere('parent_id', $id);
-                })
-        ->first();
+            })
+            ->first();
 
         if (!$task) {
             return response()->json([
-                'code'=> 404,
-                'message'=> 'The event owner may have been removed',
+                'code' => 404,
+                'message' => 'The event owner may have been removed',
             ]);
         }
 
-        if($user->id == $task->user_id) {
+        if ($user->id == $task->user_id) {
             return response()->json([
-                'code'=> 400,
-                'message'=> 'Can not invite yourself',
+                'code' => 400,
+                'message' => 'Can not invite yourself',
             ]);
         }
 
@@ -558,28 +577,29 @@ class TaskController extends Controller
 
         try {
             // Kiểm tra người dùng đã tồn tại trong attendees chưa
-            if (in_array($user->id, array_column($task->attendees, 'user_id')) ) {
+            if (in_array($user->id, array_column($task->attendees, 'user_id'))) {
                 return response()->json([
                     'code'    => 409,
                     'message' => 'You have already accepted this event',
                 ]);
             } else {
-                $attendee = ['role' => 'viewer',
-                             'status' => 'yes',
-                             'user_id' => $user->id
-                            ];
-                $attendees = $task->attendees; 
+                $attendee = [
+                    'role' => 'viewer',
+                    'status' => 'yes',
+                    'user_id' => $user->id
+                ];
+                $attendees = $task->attendees;
                 array_push($attendees, $attendee);
                 $task->attendees = $attendees;
 
                 Reminder::insert([
                     'title'   => 'Event notification',
                     'user_id' => $task->user_id,
-                    'message' => 'User '. $user->first_name . ' ' . $user->last_name .' has accepted to participate in your event: ' . $task->title,
+                    'message' => 'User ' . $user->first_name . ' ' . $user->last_name . ' has accepted to participate in your event: ' . $task->title,
                     'type'    => 'event',
                     'sent_at' => Carbon::now($task->user->setting->timezone_code),
                 ]);
-            } 
+            }
 
             $task->save();
 
@@ -588,7 +608,7 @@ class TaskController extends Controller
             return response()->json([
                 'code' => 200,
                 'message' => 'Participate in the event successfully',
-            ],200);
+            ], 200);
         } catch (\Exception $e) {
             DB::rollBack();
 
@@ -596,8 +616,8 @@ class TaskController extends Controller
 
             return response()->json([
                 'code'    => 500,
-                'message' => 'An error occurred', 
-            ],500);
+                'message' => 'An error occurred',
+            ], 500);
         }
     }
 
@@ -606,28 +626,28 @@ class TaskController extends Controller
         $user = auth()->user();
 
         $task = Task::with('user.setting')
-                ->where('type', 'event')
-                ->where(function ($query) use ($id) {
-                        $query->where('id', $id)
-                            ->orWhere('parent_id', $id);
-                        })
-                ->first();
+            ->where('type', 'event')
+            ->where(function ($query) use ($id) {
+                $query->where('id', $id)
+                    ->orWhere('parent_id', $id);
+            })
+            ->first();
 
         if (!$task) {
             return response()->json([
                 'code'    => 404,
                 'message' => 'Event not found',
-            ],404);
+            ], 404);
         }
 
         DB::beginTransaction();
 
         try {
             // Kiểm tra người dùng đã tồn tại trong attendees chưa
-            if (in_array($user->id, array_column($task->attendees, 'user_id')) ) {
-                $task->attendees = array_filter($task->attendees, function($attendee) use ($user) {
+            if (in_array($user->id, array_column($task->attendees, 'user_id'))) {
+                $task->attendees = array_filter($task->attendees, function ($attendee) use ($user) {
                     return $attendee['user_id'] !== $user->id;
-                }); 
+                });
 
                 $task->save();
             }
@@ -637,7 +657,7 @@ class TaskController extends Controller
             return response()->json([
                 'code' => 200,
                 'message' => 'You have refused to participate in this event',
-            ],200);
+            ], 200);
         } catch (\Exception $e) {
             DB::rollBack();
 
@@ -645,7 +665,7 @@ class TaskController extends Controller
 
             return response()->json([
                 'code'    => 500,
-                'message' => 'An error occurred', 
+                'message' => 'An error occurred',
             ]);
         }
     }
