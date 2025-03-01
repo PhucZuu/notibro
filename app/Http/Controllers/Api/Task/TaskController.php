@@ -477,7 +477,11 @@ class TaskController extends Controller
                         $currentDate = $request->date;
 
                         // select exclude_time of task
-                        $excludeTime = $task->exclude_time;
+                        if($task->exclude_time) {
+                            $excludeTime = $task->exclude_time;
+                        } else {
+                            $excludeTime = [];
+                        }
 
                         // add current date to exclude_time
                         if (!in_array($currentDate, $excludeTime)) {
