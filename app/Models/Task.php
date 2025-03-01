@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Log;
 
 class Task extends Model
 {
@@ -68,6 +69,8 @@ class Task extends Model
 
     public function getAttendees()
     {
-        return array_merge([$this->user_id], $this->attendees ?? []);
+        $data = array_merge([$this->user_id], array_column($this->attendees ?? [], 'user_id'));
+        
+        return $data;
     }
 }
