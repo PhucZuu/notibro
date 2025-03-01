@@ -189,11 +189,11 @@ class TaskController extends Controller
             'is_repeat'         => 'nullable|boolean',
             'is_busy'           => 'nullable|boolean',
             'path'              => 'nullable',
-            'freq'              => ['nullable', Rule::in('SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA')],
+            'freq'              => ['nullable', Rule::in('daily', 'weekly', 'monthly', 'yearly')],
             'interval'          => 'nullable|numeric',
             'until'             => 'nullable|date_format:Y-m-d H:i:s',
             'count'             => 'nullable|numeric',
-            'byweekday'         => 'nullable', //JSON
+            'byweekday'         => ['nullable', Rule::in('SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA')],
             'bymonthday'        => 'nullable', //JSON
             'bymonth'           => 'nullable', //JSON
             'bysetpos'           => 'nullable', //JSON
@@ -403,11 +403,11 @@ class TaskController extends Controller
             'is_repeat'         => 'nullable|boolean',
             'is_busy'           => 'nullable|boolean',
             'path'              => 'nullable',
-            'freq'              => ['nullable', Rule::in('su', 'mo', 'tu', 'we', 'th', 'fr', 'sa')],
+            'freq'              => ['nullable', Rule::in('daily', 'weekly', 'monthly', 'yearly')],
             'interval'          => 'nullable|numeric',
             'until'             => 'nullable|date_format:Y-m-d H:i:s',
             'count'             => 'nullable|numeric',
-            'byweekday'         => 'nullable', //JSON
+            'byweekday'         => ['nullable', Rule::in('SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA')],
             'bymonthday'        => 'nullable', //JSON
             'bymonth'           => 'nullable', //JSON
             'bysetpos'           => 'nullable', //JSON
@@ -494,7 +494,7 @@ class TaskController extends Controller
 
                         return response()->json([
                             'code'=> 200,
-                            'message' => 'Delete task successfully 1'
+                            'message' => 'Delete task successfully'
                         ], 200);
                     } catch (\Exception $e) {
                         Log::error($e->getMessage());
