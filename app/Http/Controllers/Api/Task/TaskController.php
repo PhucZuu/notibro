@@ -193,7 +193,8 @@ class TaskController extends Controller
             'interval'          => 'nullable|numeric',
             'until'             => 'nullable|date_format:Y-m-d H:i:s',
             'count'             => 'nullable|numeric',
-            'byweekday'         => ['nullable', Rule::in('SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA')],
+            'byweekday'         => ['nullable', 'array'],
+            'byweekday.*'       => [Rule::in(['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'])],
             'bymonthday'        => 'nullable', //JSON
             'bymonth'           => 'nullable', //JSON
             'bysetpos'           => 'nullable', //JSON
@@ -407,7 +408,8 @@ class TaskController extends Controller
             'interval'          => 'nullable|numeric',
             'until'             => 'nullable|date_format:Y-m-d H:i:s',
             'count'             => 'nullable|numeric',
-            'byweekday'         => ['nullable', Rule::in('SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA')],
+            'byweekday'         => ['nullable', 'array'],
+            'byweekday.*'       => [Rule::in(['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'])],
             'bymonthday'        => 'nullable', //JSON
             'bymonth'           => 'nullable', //JSON
             'bysetpos'           => 'nullable', //JSON
