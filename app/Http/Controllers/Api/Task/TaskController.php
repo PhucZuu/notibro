@@ -142,12 +142,12 @@ class TaskController extends Controller
                         ];  
                     }  
                 }  
+
+                $task->attendees = $attendeesDetails;
+    
+                $attendeesDetails = [];
             }
             
-            $task->attendees = $attendeesDetails;
-
-            $attendeesDetails = [];
-
             unset(
                 $task->freq,
                 $task->interval,
@@ -189,7 +189,7 @@ class TaskController extends Controller
             'is_repeat'         => 'nullable|boolean',
             'is_busy'           => 'nullable|boolean',
             'path'              => 'nullable',
-            'freq'              => ['nullable', Rule::in('su', 'mo', 'tu', 'we', 'th', 'fr', 'sa')],
+            'freq'              => ['nullable', Rule::in('SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA')],
             'interval'          => 'nullable|numeric',
             'until'             => 'nullable|date_format:Y-m-d H:i:s',
             'count'             => 'nullable|numeric',
@@ -377,7 +377,7 @@ class TaskController extends Controller
             'data'   => [
                 'task' => $task,
                 'attendees' => $attendeesInfo,
-                'quantityAttendee' => 1 + count($attendeesInfo),
+                'quantityAttendee' => count($attendeesInfo),
             ]
         ]);
     }
@@ -602,7 +602,7 @@ class TaskController extends Controller
 
         try {
             // Kiểm tra người dùng đã tồn tại trong attendees chưa
-            if (in_array($user->id, array_column($task->attendees, 'user_id'))) {
+            if (is_array($task->attendees) && in_array($user->id, array_column($task->attendees, 'user_id'))) {
                 return response()->json([
                     'code'    => 409,
                     'message' => 'You have already accepted this event',
@@ -613,7 +613,12 @@ class TaskController extends Controller
                     'status' => 'yes',
                     'user_id' => $user->id
                 ];
-                $attendees = $task->attendees;
+
+                if(!is_array($task->attendees)) {
+                    $attendees = [];    
+                } else {
+                    $attendees = $task->attendees;
+                }
                 array_push($attendees, $attendee);
                 $task->attendees = $attendees;
 
