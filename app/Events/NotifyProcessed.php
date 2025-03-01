@@ -18,7 +18,7 @@ class NotifyProcessed implements ShouldBroadcast
     public $user;
     public $message;
 
-    public function __construct(User $user)
+    public function __construct(User $user, $message)
     {
         $this->user = $user;
         $this->message = $message;

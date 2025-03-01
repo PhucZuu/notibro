@@ -76,33 +76,4 @@ class Kernel extends HttpKernel
         'admin' => \App\Http\Middleware\AdminMiddleware::class,
     ];
 
-    protected function schedule(Schedule $schedule)
-    {
-        $this->taskWebSchedule($schedule);
-    }
-
-    protected function taskWebSchedule (Schedule $schedule) 
-    {
-        $schedule->call(function () {
-            $tasks = Task::whereNotNull('reminder')->get();
-            $now = Carbon::now();
-
-            foreach ($tasks as $task) {
-                foreach ($task->reminder as $reminder){
-                    if ($reminder['tyoe'] == 'web') {
-                        $reminderTime = Carbon::parse($task->start_time)->subMinutes($reminder['set_time']);
-
-                        if ($now->equalTo($reminderTime)) {
-                            foreach($task->getAttendees() as $userID){
-                                $user = User::find($userID);
-                                if ($user) {
-                                    $user->notify(new TaskNotification($task));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        })->everyMinute();
-    }
 }
