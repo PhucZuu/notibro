@@ -10,5 +10,10 @@ class StoragePackage extends Model
 {
     use HasFactory, SoftDeletes;
 
-    protected $table = 'storage_packages';
+    protected $fillable = [
+        'name',
+        'size',
+        'price',
+        'duration',
+    ];
 }

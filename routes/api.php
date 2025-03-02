@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\Color\ColorController;
 use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\Auth\AuthGoogleController;
+use App\Http\Controllers\Api\Package\StoragePackageController;
 use App\Http\Controllers\Api\Role\RoleController;
 use App\Http\Controllers\Api\Setting\SettingController;
 use App\Http\Controllers\Api\Task\TaskController;
@@ -46,6 +47,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/setting', [SettingController::class, 'setting']);
     Route::put('/setting/change', [SettingController::class, 'changeSetting']);
+
+    //PACKAGE
+    Route::apiResource('/packages', StoragePackageController::class);
+    Route::get('packages/search', [StoragePackageController::class, 'search']);
 
     // TASK
     Route::get('/tasks', [TaskController::class, 'index']);
@@ -91,5 +96,14 @@ Route::middleware('auth:sanctum')->group(function () {
             ->name('colors.restore');
         Route::delete('colors/{id}/force', [ColorController::class, 'destroyPermanent'])
             ->name('colors.forceDestroy');
+
+        //PACKAGE
+
+        Route::apiResource('/packages', StoragePackageController::class);
+        Route::get('packages/search', [StoragePackageController::class, 'search']);
+        Route::put('packages/{id}', [StoragePackageController::class, 'update']);
+        Route::delete('packages/{id}', [StoragePackageController::class, 'destroy']); 
+        Route::delete('packages/{id}/force', [StoragePackageController::class, 'forceDelete']);
+
     });
 });
