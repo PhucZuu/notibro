@@ -5,12 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class Task extends Model
 {
     use HasFactory;
 
     protected $fillable = [
+        'uuid',
         'user_id',
         'tag_id',
         'color_code',
@@ -58,6 +60,16 @@ class Task extends Model
         'bysetpos'  => 'array',
         'exclude_time'  => 'array',
     ];
+
+    protected static function boot()
+    {
+        parent::boot();
+        static::creating(function ($task) {
+            if (!$task->uuid) {
+                $task->uuid = Str::uuid();
+            }
+        });
+    }
 
     public function user(){
         return $this->belongsTo(User::class);
