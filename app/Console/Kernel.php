@@ -13,6 +13,7 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule): void
     {
         $schedule->command('task:send-web-reminder')->everyMinute();
+        $schedule->command('task:send-reminder-emails')->everyMinute();
     }
 
     /**
