@@ -241,8 +241,11 @@ class TaskController extends Controller
 
             case 'EDIT_1':
                 try {
+                    if (!$task->parent_id) {
+                        $data['parent_id'] = $task->parent_id;
+                    }
+
                     //Add new task for 1 day change
-                    $data->parent_id = $id;
                     $new_task = Task::create($data);
 
                     //Push enddate to exclude_time array of task
@@ -277,7 +280,7 @@ class TaskController extends Controller
                         ->where('start_time', '>=', $task->until)
                         ->get();
                     foreach ($relatedTasks as $relatedTask) {
-                        $relatedTask->update($data);
+                        $relatedTask->delete();
                     }
 
                     return response()->json([
@@ -307,8 +310,8 @@ class TaskController extends Controller
                         $relatedTask->update($data);
                     }
 
-                    // Update all parent task
-                    $parentTask = Task::find(id: $task->parent_id);
+                    // Update parent task
+                    $parentTask = Task::find( $task->parent_id);
                     if ($parentTask) {
                         $parentTask->update($data);
                     }
@@ -317,6 +320,123 @@ class TaskController extends Controller
                         'code'    => 200,
                         'message' => 'Task updated successfully',
                         'data'    => $task,
+                    ], 200);
+                } catch (\Exception $e) {
+                    Log::error($e->getMessage());
+
+                    return response()->json([
+                        'code'    => 500,
+                        'message' => 'Failed to updated task',
+                    ], 500);
+                }
+
+            default:
+                return response()->json([
+                    'code'      =>  400,
+                    'message'   =>  'Invalid code',
+                    'data'      =>  ''
+                ]);
+        }
+    }
+
+    public function updateTaskOnDrag(Request $request, $id)
+    {
+        $code = $request->code;
+
+        $data = $request->validate([
+            'start_time'        => 'required|date_format:Y-m-d H:i:s',
+            'end_time'          => 'nullable|date_format:Y-m-d H:i:s',
+        ]);
+
+        $data['user_id'] = Auth::id();
+
+        $task = Task::find($id);
+
+        //Kiểm tra xem có tìm được task với id truyền vào không
+        if (!$task) {
+            return response()->json([
+                'code'    => 404,
+                'message' => 'Failed to get task',
+                'error'   => 'Cannot get task',
+            ], 404);
+        }
+
+        switch ($code) {
+                //Update when event dont have reapet
+            case 'EDIT_N':
+                try {
+                    $task->update($data);
+
+                    return response()->json([
+                        'code'    => 200,
+                        'message' => 'Task updated successfully',
+                        'data'    => $task,
+                    ], 200);
+                } catch (\Exception $e) {
+                    Log::error($e->getMessage());
+
+                    return response()->json([
+                        'code'    => 500,
+                        'message' => 'Failed to updated task',
+                    ], 500);
+                }
+
+            case 'EDIT_1':
+                try {
+                    //Add new task for 1 day change
+                    if (!$task->parent_id) {
+                        $task->parent_id = $id;
+                    }
+
+                    $task->start_time = $data['start_time'];
+                    $task->end_time = $data['end_time'];
+                    
+                    $new_task = Task::create($task);
+
+                    //Push enddate to exclude_time array of task
+                    $endDate = Carbon::parse($new_task->start_time)->subDay()->endOfDay();
+                    $task->exclude_time[] = $endDate;
+                    $task->save();
+
+                    return response()->json([
+                        'code'    => 200,
+                        'message' => 'Task updated successfully',
+                        'data'    => $new_task,
+                    ], 200);
+                } catch (\Exception $e) {
+                    Log::error($e->getMessage());
+
+                    return response()->json([
+                        'code'    => 500,
+                        'message' => 'Failed to updated task',
+                    ], 500);
+                }
+
+            case 'EDIT_1B':
+                try {
+                    $preNewTask = $task;
+
+                    $preNewTask->start_time = $data['start_time'];
+                    $preNewTask->end_time = $data['end_time'];
+
+                    //Add new task for following change
+                    $new_task = Task::create($preNewTask);
+
+                    $task->until = Carbon::parse($new_task->start_time)->subDay()->endOfDay();
+                    $task->save();
+
+                    //Delete all task that have parent_id = $task->id and start_time > $ta
+                    $relatedTasks = Task::where('parent_id', $task->id)
+                        ->where('start_time', '>=', $task->until)
+                        ->get();
+                    foreach ($relatedTasks as $relatedTask) {
+                        $relatedTask->delete();
+                    }
+
+                    return response()->json([
+                        'code'    => 200,
+                        'message' => 'Task updated successfully',
+                        'data'    => $new_task,
                     ], 200);
                 } catch (\Exception $e) {
                     Log::error($e->getMessage());
