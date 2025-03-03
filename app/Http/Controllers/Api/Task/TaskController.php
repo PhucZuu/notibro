@@ -64,6 +64,32 @@ class TaskController extends Controller
             $data['end_time'] = date('Y-m-d 23:59:59', strtotime($data['end_time']));
         }
 
+        if (!empty($data['start_time']) && !empty($data['timezone_code'])) {
+            $data['start_time'] = Carbon::createFromFormat('Y-m-d H:i:s', $data['start_time'], $data['timezone_code'])->setTimezone('UTC');
+        }
+
+        if (!empty($data['end_time']) && !empty($data['timezone_code'])) {
+            $data['start_time'] = Carbon::createFromFormat('Y-m-d H:i:s', $data['start_time'], $data['timezone_code'])->setTimezone('UTC');
+        }
+
+        if (!empty($data['until']) && !empty($data['timezone_code'])) {
+            $data['until'] = Carbon::createFromFormat('Y-m-d H:i:s', $data['until'], $data['timezone_code'])->setTimezone('UTC');
+        }
+
+        if (!empty($data['exclude_time']) && !empty($data['timezone_code'])) {
+            $startHour = $data['start_time']->hour;
+            $startMinute = $data['start_time']->minute;
+
+            $data['exclude_time'] = array_map(function ($date) use ($data, $startHour, $startMinute) {
+                $excludeCarbon = Carbon::createFromFormat('Y-m-d H:i:s', $date, $data['timezone_code'])->setTimezone('UTC');
+
+                $excludeCarbon->hour = $startHour;
+                $excludeCarbon->minute = $startMinute;
+
+                return $excludeCarbon
+            }, $data['exclude_time']);
+        }
+
         return $data;
     }
 
@@ -250,6 +276,10 @@ class TaskController extends Controller
 
                     //Push enddate to exclude_time array of task
                     $endDate = Carbon::parse($new_task->start_time)->subDay()->endOfDay();
+
+                    $endDate->hour = $task->start_time->hour;
+                    $endDate->minute = $task->start_time->minute;
+
                     $task->exclude_time[] = $endDate;
                     $task->save();
 
@@ -344,11 +374,14 @@ class TaskController extends Controller
         $code = $request->code;
 
         $data = $request->validate([
+            'timezone_code'     => 'required',
             'start_time'        => 'required|date_format:Y-m-d H:i:s',
             'end_time'          => 'nullable|date_format:Y-m-d H:i:s',
         ]);
 
         $data['user_id'] = Auth::id();
+
+        $data = $this->handleLogicData($data);
 
         $task = Task::find($id);
 
@@ -395,6 +428,10 @@ class TaskController extends Controller
 
                     //Push enddate to exclude_time array of task
                     $endDate = Carbon::parse($new_task->start_time)->subDay()->endOfDay();
+
+                    $endDate->hour = $task->start_time->hour;
+                    $endDate->minute = $task->start_time->minute;
+
                     $task->exclude_time[] = $endDate;
                     $task->save();
 
@@ -598,6 +635,10 @@ class TaskController extends Controller
                         // select day deleted task
                         $currentDate = $request->date;
 
+                        // set hour and minute of current date to start_time of task
+                        $currentDate->hour = $task->start_time->hour;
+                        $currentDate->minute = $task->start_time->minute;
+
                         // select exclude_time of task
                         if($task->exclude_time) {
                             $excludeTime = $task->exclude_time;
@@ -628,7 +669,7 @@ class TaskController extends Controller
                     }
                 case 'DEL_1B':
                     try {
-                        $currentDate = $request->date;
+                        $currentDate = Carbon::createFromFormat('Y-m-d H:i:s', $request->date, $task->timezone_code)->setTimezone('UTC');;
 
                         $task->until = $currentDate;
                         
