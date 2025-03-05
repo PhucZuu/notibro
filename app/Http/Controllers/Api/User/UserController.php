@@ -298,4 +298,23 @@ class UserController extends Controller
             ], 404);  // Nếu không tìm thấy người dùng  
         }
     }
+
+    public function guest(Request $request)
+    {
+        $search = $request->query('search');
+
+        $query = User::select('id','email')->where('id', '!=', auth()->id());
+
+        if ($search) {
+            $query->where('email','like','%'. $search .'%');
+        }
+
+        $users = $query->get();
+
+        return response()->json([
+            'code'    => 200,
+            'message' => 'Retrieve user list successfully',
+            'data'    => $users,
+        ], 200);
+    }
 }

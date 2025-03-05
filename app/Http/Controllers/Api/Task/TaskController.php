@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Task;
 
 use App\Http\Controllers\Controller;
+use App\Mail\InviteGuestMail;
 use App\Models\Reminder;
 use App\Models\Setting;
 use Carbon\Carbon;
@@ -14,6 +15,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class TaskController extends Controller
 {
@@ -86,7 +88,7 @@ class TaskController extends Controller
                 $excludeCarbon->hour = $startHour;
                 $excludeCarbon->minute = $startMinute;
 
-                return $excludeCarbon
+                return $excludeCarbon;
             }, $data['exclude_time']);
         }
 
@@ -493,15 +495,12 @@ class TaskController extends Controller
         }
     }
 
-    public function show($id)
+    public function show($uuid)
     {
         $task = Task::with('user')
             ->select('id', 'user_id', 'title', 'description', 'start_time', 'end_time', 'location', 'timezone_code', 'attendees')
             ->where('type', 'event')
-            ->where(function ($query) use ($id) {
-                $query->where('id', $id)
-                    ->orWhere('parent_id', $id);
-            })
+            ->where('uuid',$uuid)
             ->first();
 
         if (!$task) {
@@ -569,9 +568,10 @@ class TaskController extends Controller
             'byweekday.*'       => [Rule::in(['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'])],
             'bymonthday'        => 'nullable', //JSON
             'bymonth'           => 'nullable', //JSON
-            'bysetpos'           => 'nullable', //JSON
+            'bysetpos'          => 'nullable', //JSON
             'exclude_time'      => 'nullable', //JSON
             'parent_id'         => 'nullable',
+            'sendMail'          => 'nullable',
         ]);
 
         try {
@@ -582,6 +582,13 @@ class TaskController extends Controller
             $data = $this->handleLogicData($data);
 
             $task = Task::create($data);
+
+
+            if(isset($data['sendMail']) && $data['sendMail'] == 'yes'){
+                $userIds = collect($task->attendees)->pluck('user_id');
+                $emailGuests = User::select('email')->whereIn('id', $userIds)->get();
+                $this->sendMail(Auth::user()->email, $emailGuests, $task);
+            }
 
             return response()->json([
                 'code'    => 200,
@@ -735,16 +742,13 @@ class TaskController extends Controller
         }
     }
 
-    public function acceptInvite(Request $request, $id)
+    public function acceptInvite(Request $request, $uuid)
     {
         $user = auth()->user();
 
         $task = Task::with('user.setting')
             ->where('type', 'event')
-            ->where(function ($query) use ($id) {
-                $query->where('id', $id)
-                    ->orWhere('parent_id', $id);
-            })
+            ->where('uuid', $uuid)
             ->first();
 
         if (!$task) {
@@ -764,44 +768,51 @@ class TaskController extends Controller
         DB::beginTransaction();
 
         try {
+            // Kiểm tra nếu attendees là mảng
+            $attendees = is_array($task->attendees) ? $task->attendees : [];
+
             // Kiểm tra người dùng đã tồn tại trong attendees chưa
-            if (is_array($task->attendees) && in_array($user->id, array_column($task->attendees, 'user_id'))) {
-                return response()->json([
-                    'code'    => 409,
-                    'message' => 'You have already accepted this event',
-                ]);
+            $attendeeIndex = array_search($user->id, array_column($attendees, 'user_id'));
+
+            if ($attendeeIndex !== false) {
+                if ($attendees[$attendeeIndex]['status'] === 'yes') {
+                    return response()->json([
+                        'code'    => 409,
+                        'message' => 'You have already accepted this event',
+                    ]);
+                } else {
+                    // Cập nhật trạng thái trong biến tạm
+                    $attendees[$attendeeIndex]['status'] = 'yes';
+                }
             } else {
-                $attendee = [
-                    'role' => 'viewer',
-                    'status' => 'yes',
+                // Nếu chưa có, thêm mới người dùng vào danh sách attendees
+                $attendees[] = [
+                    'role'    => 'viewer',
+                    'status'  => 'yes',
                     'user_id' => $user->id
                 ];
-
-                if(!is_array($task->attendees)) {
-                    $attendees = [];    
-                } else {
-                    $attendees = $task->attendees;
-                }
-                array_push($attendees, $attendee);
-                $task->attendees = $attendees;
-
-                Reminder::insert([
-                    'title'   => 'Event notification',
-                    'user_id' => $task->user_id,
-                    'message' => 'User ' . $user->first_name . ' ' . $user->last_name . ' has accepted to participate in your event: ' . $task->title,
-                    'type'    => 'event',
-                    'sent_at' => Carbon::now($task->user->setting->timezone_code),
-                ]);
             }
 
-            $task->save();
+            // Gán lại danh sách attendees vào model
+            $task->attendees = $attendees;
+            $task->save(); // Lưu thay đổi vào database
+
+            // Thêm thông báo
+            Reminder::insert([
+                'title'   => 'Event notification',
+                'user_id' => $task->user_id,
+                'message' => 'User ' . $user->first_name . ' ' . $user->last_name . ' has accepted to participate in your event: ' . $task->title,
+                'type'    => 'event',
+                'sent_at' => Carbon::now($task->user->setting->timezone_code),
+            ]);
 
             DB::commit();
-
+            
             return response()->json([
-                'code' => 200,
-                'message' => 'Participate in the event successfully',
-            ], 200);
+                'code'    => 200,
+                'message' => 'You have successfully accepted the event',
+            ]);
+
         } catch (\Exception $e) {
             DB::rollBack();
 
@@ -814,16 +825,13 @@ class TaskController extends Controller
         }
     }
 
-    public function refuseInvite(Request $request, $id)
+    public function refuseInvite(Request $request, $uuid)
     {
         $user = auth()->user();
 
         $task = Task::with('user.setting')
             ->where('type', 'event')
-            ->where(function ($query) use ($id) {
-                $query->where('id', $id)
-                    ->orWhere('parent_id', $id);
-            })
+            ->where('uuid', $uuid)
             ->first();
 
         if (!$task) {
@@ -860,6 +868,14 @@ class TaskController extends Controller
                 'code'    => 500,
                 'message' => 'An error occurred',
             ]);
+        }
+    }
+
+    protected function sendMail($mailOwner , $emails, $data) 
+    {
+        $nameOwner = Auth::user()->first_name . ' ' . Auth::user()->last_name;
+        foreach( $emails as $email ) {
+            Mail::to($email)->queue(new InviteGuestMail($mailOwner, $nameOwner, $data));
         }
     }
 }

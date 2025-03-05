@@ -50,13 +50,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/setting/change', [SettingController::class, 'changeSetting']);
 
     // invite link
-    Route::post('/event/{id}/accept', [TaskController::class,'acceptInvite']);
-    Route::post('/event/{id}/refuse', [TaskController::class,'refuseInvite']);
-    Route::get('/event/{id}/invite', [TaskController::class,'show']);
-
-    //PACKAGE
-    Route::apiResource('/packages', StoragePackageController::class);
-    Route::get('packages/search', [StoragePackageController::class, 'search']);
+    Route::post('/event/{uuid}/accept', [TaskController::class,'acceptInvite']);
+    Route::post('/event/{uuid}/refuse', [TaskController::class,'refuseInvite']);
+    Route::get('/event/{uuid}/invite', [TaskController::class,'show']);
 
     // TASK
     Route::get('/tasks', [TaskController::class, 'index']);
@@ -75,6 +71,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/tags/{id}', [TagController::class, 'show']);
     Route::put('/tags/{id}', [TagController::class, 'update']);
     Route::delete('/tags/{id}', [TagController::class, 'destroy']);
+
+    // Get list guest
+    Route::get('/guest', [UserController::class,'guest']);
     
     Route::middleware(['admin'])->prefix('admin')->group(function () {
         //User
