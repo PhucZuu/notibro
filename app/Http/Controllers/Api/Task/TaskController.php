@@ -71,7 +71,8 @@ class TaskController extends Controller
         }
 
         if (!empty($data['end_time']) && !empty($data['timezone_code'])) {
-            $data['start_time'] = Carbon::createFromFormat('Y-m-d H:i:s', $data['start_time'], $data['timezone_code'])->setTimezone('UTC');
+            $data['end_time'] = Carbon::createFromFormat('Y-m-d H:i:s', $data['end_time'], $data['timezone_code'])->setTimezone('UTC');
+            Log::info("Start time: {$data['end_time']}");
         }
 
         if (!empty($data['until']) && !empty($data['timezone_code'])) {
@@ -129,7 +130,6 @@ class TaskController extends Controller
                 'freq'              => $task->freq,
                 'interval'          => $task->interval,
                 'until'             => Carbon::parse($task->until, 'UTC'),
-                // 'set_until'         => Carbon::parse($task->until, 'UTC')->setTimezone($setting->timezone_code),
                 'count'             => $task->count,
                 'byweekday'         => $task->byweekday,
                 'bymonthday'        => $task->bymonthday,
@@ -140,13 +140,9 @@ class TaskController extends Controller
             $task->start_time   = Carbon::parse($task->start_time, 'UTC');
             $task->end_time     = Carbon::parse($task->end_time, 'UTC');
 
-            // $task->set_start_time   = Carbon::parse($task->start_time, 'UTC')->setTimezone($setting->timezone_code);
-            // $task->set_end_time     = Carbon::parse($task->end_time, 'UTC')->setTimezone($setting->timezone_code);
-
             if ($task->exclude_time && count($task->exclude_time) > 0) {
                 $cal_exclude_time = array_map(function ($date) use($timezone_code) {
                     return Carbon::parse($date, 'UTC');
-                    // ->setTimezone($timezone_code);
                 }, $task->exclude_time);
                 
                 $task->exclude_time = $cal_exclude_time;
