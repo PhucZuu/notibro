@@ -638,13 +638,10 @@ class TaskController extends Controller
                         ], 500);
                     }
                 case 'DEL_1':
+                    Log::error('code',[$code]);
                     try {
                         // select day deleted task
                         $currentDate = $request->date;
-
-                        // set hour and minute of current date to start_time of task
-                        $currentDate->hour = $task->start_time->hour;
-                        $currentDate->minute = $task->start_time->minute;
 
                         // select exclude_time of task
                         if($task->exclude_time) {
@@ -676,14 +673,13 @@ class TaskController extends Controller
                     }
                 case 'DEL_1B':
                     try {
-                        $currentDate = Carbon::createFromFormat('Y-m-d H:i:s', $request->date, $task->timezone_code)->setTimezone('UTC');;
-
-                        $task->until = $currentDate;
+                        // Giảm đi 1 ngày để xóa đc task
+                        $task->until = Carbon::parse($request->date)->subDay()->endOfDay();
                         
                         $task->save();
 
                         // Xoá các task liên quan về sau
-                        $tasksChild = Task::where('start_time', '>', $currentDate)
+                        $tasksChild = Task::where('start_time', '>', $request->date)
                                             ->where('id', $task->id)
                                             ->orWhere('parent_id', $task->id)
                                             ->get(); 
