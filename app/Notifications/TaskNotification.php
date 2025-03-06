@@ -56,9 +56,10 @@ class TaskNotification extends Notification implements ShouldQueue
     public function toBroadcast(object $notifiable): array
     {
         return [
-            'message'       => "Event' {$this->task->title}.' is coming up in",
+            'message'       => "Event' {$this->task->title}.' is coming up at {$this->task->start_time}",
             'task_id'       => $this->task->id,
             'start_time'    => $this->task->start_time,
+            'user_id'       => $notifiable->id,
         ];
     }
 }

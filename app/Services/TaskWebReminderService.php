@@ -34,7 +34,7 @@ class TaskWebReminderService
                 if ($reminder['type'] == 'web') {
                     $nextOccurrence = $this->getNextOccurrence($task, $now);
 
-                    $nextOccurrence = Carbon::parse($nextOccurrence)->subMinutes( $reminder['set_time'] );
+                    $nextOccurrence = Carbon::parse($nextOccurrence)->subMinutes($reminder['set_time']);
 
                     if ($nextOccurrence && $now->isSameMinute($nextOccurrence)) {
 
@@ -53,14 +53,13 @@ class TaskWebReminderService
                                 }
 
                                 //Send notification
-                                $user->notify(new TaskNotification($task)); 
+                                $user->notify(new TaskNotification($task));
                                 Log::info("Task {$task->id} đã được thông báo, bỏ qua... ->Cache key: {$cacheKey}<-");
-                                
+
                                 //Set cache to prevent duplicate notification
                                 Cache::put($cacheKey, true, now()->addHours(24));
-
-                            }else {  
-                                Log::warning("Không tìm thấy người dùng với ID {$userID} cho tác vụ {$task->id}.");  
+                            } else {
+                                Log::warning("Không tìm thấy người dùng với ID {$userID} cho tác vụ {$task->id}.");
                             }
                         }
                     } else {
@@ -77,7 +76,6 @@ class TaskWebReminderService
         if (!$task->is_repeat) {
             return Carbon::parse($task->start_time);
         }
-        
 
         $startTime = Carbon::parse($task->start_time);
         $until = $task->until ? Carbon::parse($task->until) : null;
@@ -131,9 +129,22 @@ class TaskWebReminderService
     {
         $interval = $task->interval ?? 1;
         $startTime = Carbon::parse($task->start_time);
+        $untilTime = $task->until ? Carbon::parse($task->until) : null;
 
-        while ($startTime->lessThan($now)) {
+        $maxCount = $task->count;
+
+        $occurrenceCount = 0;
+
+        while ($startTime->lessThan($now) && $startTime->lessThan($untilTime)) {
             $startTime = $startTime->add($unit, $interval);
+
+            if ($maxCount != null) {
+                $occurrenceCount++;
+
+                if ($occurrenceCount > $maxCount) {
+                    return null;
+                }
+            }
         }
 
         Log::info("Task đã trả vể giá trị chạy tiếp theo {$startTime}");
@@ -141,39 +152,100 @@ class TaskWebReminderService
         return $startTime;
     }
 
-    protected function getNextWeeklyOccurence($task, $now)
+    protected function getNextMonthlyOccurence($task, $now)
     {
         $startTime = Carbon::parse($task->start_time);
-        $weekdays = $task->byweekday ?? [$startTime->dayOfWeek];
-
-        $dayMapping = [
-            'SU' => 0, 'MO' => 1, 'TU' => 2, 'WE' => 3,
-            'TH' => 4, 'FR' => 5, 'SA' => 6
-        ];
-
-        $validDays = array_map(fn($d) => $dayMapping[$d] ?? null, $weekdays);
-        $validDays = array_filter($validDays); // Loại bỏ null nếu có
+        $endTime = $task->end_time ? Carbon::parse($task->end_time) : null;
+        $interval = $task->interval ?? 1;
+        $count = $task->count ?? null;
+        $monthDays = $task->bymonthday ?? [$startTime->day];
 
         $nextOccurrence = $startTime->copy();
+        $occurrenceCount = 0;
 
-        while ($nextOccurrence->lessThan($now) || !in_array($nextOccurrence->dayOfWeek, $weekdays)) {
-            $nextOccurrence = $nextOccurrence->addWeek();
+        while (true) {
+            if ($nextOccurrence->greaterThan($now) && in_array($nextOccurrence->day, $monthDays)) {
+                break;
+            }
+
+            $nextOccurrence = $nextOccurrence->addMonths($interval);
+
+            while (!in_array($nextOccurrence->day, $monthDays)) {
+                $nextOccurrence = $nextOccurrence->addDays();
+
+                if ($nextOccurrence->addDay()) {
+                    $nextOccurrence = $nextOccurrence->addMonths($interval);
+                }
+            }
+
+            if ($endTime && $nextOccurrence->greaterThan($endTime)) {
+                return null;
+            }
+
+            $occurrenceCount++;
+
+            if ($count && $occurrenceCount > $count) {
+                return null;
+            }
         }
 
         return $nextOccurrence;
     }
 
-    protected function getNextMonthlyOccurence($task, $now)
+    protected function getNextWeeklyOccurence($task, $now)
     {
+        $weekdays = $task->byweekday ?? [];
+
         $startTime = Carbon::parse($task->start_time);
-        $monthDays = $task->bymonthday ?? [$startTime->day];
 
-        $nextOccurrence = $startTime->copy();
+        $maxCount = $task->count;
+ 
+        $occurrenceCount = 0;
 
-        while ($nextOccurrence->lessThan($now) || !in_array($nextOccurrence->day, $monthDays)) {
-            $nextOccurrence = $nextOccurrence->addMonth();
+        $dayMapping = [
+            'SU' => 0,
+            'MO' => 1,
+            'TU' => 2,
+            'WE' => 3,
+            'TH' => 4,
+            'FR' => 5,
+            'SA' => 6
+        ];
+ 
+        if (empty($weekdays)) {
+            $this->getNextInterval($task, $now, 'weeks');
+        } else {
+            // Chuyển đổi các ngày từ ký hiệu sang số thứ tự  
+            $validDays = array_map(fn($d) => $dayMapping[$d] ?? null, $weekdays);
+            $validDays = array_filter($validDays); // Loại bỏ null nếu có  
+
+            // Khởi tạo ngày tiếp theo từ thời điểm hiện tại  
+            $nextOccurrence = Carbon::now();
+
+            $maxCount = $task->count;
+
+            $occurrenceCount = 0;
+
+            // Tìm ngày tiếp theo cho tới khi nó nằm trong danh sách ngày hợp lệ hoặc vượt quá maxCount nếu có  
+            while (true) {
+                // Tìm chỉ số của ngày trong tuần  
+                $currentDayOfWeek = $nextOccurrence->dayOfWeek;
+
+                // Nếu ngày hiện tại trong danh sách hợp lệ, thì tăng số lần lặp lại  
+                if (in_array($currentDayOfWeek, $validDays)) {
+                    $occurrenceCount++;
+
+                    // Nếu đã đạt giới hạn và maxCount không phải null thì thoát ra  
+                    if ($maxCount !== null && $occurrenceCount >= $maxCount) {
+                        return null; // Hoặc có thể trả về thông báo hoặc giá trị nào đó nếu cần   
+                    }
+                }
+
+                // Tăng thêm một ngày  
+                $nextOccurrence->addDay();
+            }
+
+            
         }
-
-        return $nextOccurrence;
     }
 }
