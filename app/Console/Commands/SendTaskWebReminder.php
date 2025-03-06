@@ -36,8 +36,6 @@ class SendTaskWebReminder extends Command
      */
     public function handle()
     {
-        Log::info("Task web reminder bắt đầu chạy...");
         $this->taskWebReminderService->taskWebSchedule();
-        Log::info("Task web reminder đã chạy xong...");
     }
 }
