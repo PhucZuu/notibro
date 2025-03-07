@@ -54,7 +54,7 @@ class TaskWebReminderService
 
                                 //Send notification
                                 $user->notify(new TaskNotification($task));
-                                Log::info("Task {$task->id} đã được thông báo, bỏ qua... ->Cache key: {$cacheKey}<-");
+                                Log::info("Task {$task->id} đã thông báo đến user {$user->id}, bỏ qua... ->Cache key: {$cacheKey}<-");
 
                                 //Set cache to prevent duplicate notification
                                 Cache::put($cacheKey, true, now()->addHours(24));
@@ -74,6 +74,7 @@ class TaskWebReminderService
     protected function getNextOccurrence($task, $now)
     {
         if (!$task->is_repeat) {
+            Log::info("Task không lặp lại thời điểm task đến hạn {$task->start_time}");
             return Carbon::parse($task->start_time);
         }
 
@@ -123,7 +124,6 @@ class TaskWebReminderService
 
         return $nextOccurrence;
     }
-
 
     protected function getNextInterval($task, $now, $unit)
     {
