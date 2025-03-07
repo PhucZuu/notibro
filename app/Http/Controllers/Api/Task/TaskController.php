@@ -870,4 +870,117 @@ class TaskController extends Controller
             Mail::to($email)->queue(new InviteGuestMail($mailOwner, $nameOwner, $data));
         }
     }
+
+    public function search(Request $request)
+    {
+        $title      = $request->query('title');
+        $tag        = $request->query('tag');
+        $start      = $request->query('start');
+        $end        = $request->query('end');
+        $location   = $request->query('location');
+
+        $query = Task::query()->where('user_id', auth()->id());
+
+        if ($title) {
+            $query->where('title', 'like', "%$title%");
+        }
+
+        if ($tag) {
+            $query->where('tag_id', $tag);
+        }
+
+        if ($start && $end) {
+            $query->where(function ($q) use ($start, $end) {
+                $q->whereBetween('start_time', ["$start 00:00:00", "$end 23:59:59"])
+                  ->orWhere(function ($q2) use ($start, $end) {
+                      $q2->where('is_repeat', true)
+                         ->where(function ($q3) use ($start, $end) {
+                             $q3->whereNull('until')
+                                ->orWhere('until', '>=', "$start 00:00:00");
+                         });
+                  });
+            });
+        }
+
+        if ($location) {
+            $query->where('location', 'like', "%$location%");
+        }
+
+        $tasks = $query->get();
+
+        $expandedTasks = [];
+
+        foreach ($tasks as $task) {
+            if (!$task->is_repeat || !$task->freq) {
+                $expandedTasks[] = $task;
+                continue;
+            }
+
+            $repeatStart = Carbon::parse($task->start_time);
+            $repeatUntil = $repeatUntil = Carbon::parse($task->until ?? $end);
+            if ($repeatUntil > Carbon::parse($end)) {
+                $repeatUntil = Carbon::parse($end);
+            }
+            $interval = $task->interval ?? 1;
+            $count = $task->count ?? 1000;
+            $occurrences = 0;
+
+            while ($repeatStart <= $repeatUntil && $occurrences < $count) {
+                $formattedDate = $repeatStart->format('Y-m-d');
+
+                // Kiểm tra nếu ngày bị loại trừ
+                if (in_array($formattedDate, $task->exclude_time ?? [])) {
+                    $repeatStart = $this->nextRepeatDate($repeatStart, $task->freq, $interval);
+                    continue;
+                }
+
+                // Kiểm tra logic lặp lại
+                if ($task->freq == 'weekly' && !empty($task->byweekday)) {
+                    if (!in_array(strtoupper(substr($repeatStart->format('D'), 0, 2)), $task->byweekday)) {
+                        $repeatStart = $this->nextRepeatDate($repeatStart, $task->freq, $interval);
+                        continue;
+                    }
+                }
+                if ($task->freq == 'monthly' && !empty($task->bymonthday)) {
+                    if (!in_array($repeatStart->day, $task->bymonthday)) {
+                        $repeatStart = $this->nextRepeatDate($repeatStart, $task->freq, $interval);
+                        continue;
+                    }
+                }
+                if ($task->freq == 'yearly' && !empty($task->bymonth)) {
+                    if (!in_array($repeatStart->month, $task->bymonth)) {
+                        $repeatStart = $this->nextRepeatDate($repeatStart, $task->freq, $interval);
+                        continue;
+                    }
+                }
+
+                // Chỉ thêm task nếu nó nằm trong khoảng thời gian được chọn
+                if ($repeatStart >= Carbon::parse($start) && $repeatStart <= Carbon::parse($end)) {
+                    $newTask = clone $task;
+                    $newTask->start_time = $repeatStart->format('Y-m-d H:i:s');
+                    $expandedTasks[] = $newTask;
+                }
+
+                $repeatStart = $this->nextRepeatDate($repeatStart, $task->freq, $interval);
+                $occurrences++;
+            }
+        }
+
+        return response()->json([
+            'code'  => 200,
+            'message' => 'Success',
+            'data'=> $expandedTasks,
+        ]);
+    }
+
+    private function nextRepeatDate($date, $freq, $interval)
+    {
+        return match ($freq) {
+            'daily' => $date->addDays($interval),
+            'weekly' => $date->addWeeks($interval),
+            'monthly' => $date->addMonths($interval),
+            'yearly' => $date->addYears($interval),
+            default => $date,
+        };
+    }
 }

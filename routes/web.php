@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\DashboardController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AdminAuthController;
+use Illuminate\Support\Facades\Broadcast;
 
 /*
 |--------------------------------------------------------------------------
@@ -39,3 +40,4 @@ Route::prefix('admin')->group(function () {
     });
 
 });
+Broadcast::routes(['middleware' => ['auth:sanctum']]); 

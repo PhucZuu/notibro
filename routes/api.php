@@ -74,6 +74,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Get list guest
     Route::get('/guest', [UserController::class,'guest']);
+
+    Route::get('/tasks/filter', [TaskController::class, 'search']);
     
     Route::middleware(['admin'])->prefix('admin')->group(function () {
         //User
