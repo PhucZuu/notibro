@@ -2,12 +2,16 @@
 
 namespace App\Notifications;
 
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Support\Facades\Log;
 
-class TaskNotification extends Notification implements ShouldQueue
+class TaskNotification extends Notification implements ShouldBroadcast
 {
     use Queueable;
     protected $task;
@@ -27,6 +31,7 @@ class TaskNotification extends Notification implements ShouldQueue
      */
     public function via(object $notifiable): array
     {
+        Log::info("📢 Notification via called for user", ['user_id' => $notifiable->id]);
         return ['broadcast'];
     }
 
@@ -53,13 +58,27 @@ class TaskNotification extends Notification implements ShouldQueue
         ];
     }
 
-    public function toBroadcast(object $notifiable): array
+    public function toBroadcast(object $notifiable): BroadcastMessage 
     {
-        return [
+        Log::info('🔔 Đang gửi thông báo đến Pusher', ['user_id' => $notifiable->id]);
+
+        return new BroadcastMessage ([
             'message'       => "Event' {$this->task->title}.' is coming up at {$this->task->start_time}",
             'task_id'       => $this->task->id,
             'start_time'    => $this->task->start_time,
             'user_id'       => $notifiable->id,
-        ];
+        ]);
     }
+
+    // public function broadcastOn()
+    // {
+    //     Log::info("📡 Broadcast to Pusher", ['channel' => 'App.Models.User.' . $this->notifiable->id]);
+
+    //     return new PrivateChannel('App.Models.User.' . $this->notifiable->id);
+    // }
+
+    // public function broadcastAs()
+    // {
+    //     return 'task.reminder';
+    // }
 }
