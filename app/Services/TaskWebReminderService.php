@@ -53,7 +53,7 @@ class TaskWebReminderService
                                 }
 
                                 //Send notification
-                                $user->notify(new TaskNotification($task));
+                                $user->notify(new TaskNotification($task, $user->id));
                                 Log::info("Task {$task->id} đã thông báo đến user {$user->id}, bỏ qua... ->Cache key: {$cacheKey}<-");
 
                                 //Set cache to prevent duplicate notification

@@ -15,13 +15,15 @@ class TaskNotification extends Notification implements ShouldBroadcast
 {
     use Queueable;
     protected $task;
+    protected $userID;
 
     /**
      * Create a new notification instance.
      */
-    public function __construct($task)
+    public function __construct($task, $userID)
     {
         $this->task = $task;
+        $this->userID = $userID;
     }
 
     /**
@@ -70,15 +72,17 @@ class TaskNotification extends Notification implements ShouldBroadcast
         ]);
     }
 
-    // public function broadcastOn()
-    // {
-    //     Log::info("📡 Broadcast to Pusher", ['channel' => 'App.Models.User.' . $this->notifiable->id]);
+    public function broadcastOn()
+    {
+        Log::info("📡 Broadcast to Pusher", [
+            'channel' => 'App.Models.User.' . $this->userID
+        ]);
 
-    //     return new PrivateChannel('App.Models.User.' . $this->notifiable->id);
-    // }
+        return new PrivateChannel('App.Models.User.' . $this->userID);
+    }
 
-    // public function broadcastAs()
-    // {
-    //     return 'task.reminder';
-    // }
+    public function broadcastAs()
+    {
+        return 'task.reminder';
+    }
 }
