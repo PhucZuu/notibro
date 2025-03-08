@@ -881,29 +881,28 @@ class TaskController extends Controller
 
         $query = Task::query()->where('user_id', auth()->id());
 
-        if ($title) {
+        if (!empty($title)) {
             $query->where('title', 'like', "%$title%");
         }
 
-        if ($tag) {
+        if (!empty($tag)) {
             $query->where('tag_id', $tag);
         }
 
-        if ($start && $end) {
-            $query->where(function ($q) use ($start, $end) {
-                $q->whereBetween('start_time', ["$start 00:00:00", "$end 23:59:59"])
-                  ->orWhere(function ($q2) use ($start, $end) {
-                      $q2->where('is_repeat', true)
-                         ->where(function ($q3) use ($start, $end) {
-                             $q3->whereNull('until')
-                                ->orWhere('until', '>=', "$start 00:00:00");
-                         });
-                  });
-            });
+        if (!empty($location)) {
+            $query->where('location', 'like', "%$location%");
         }
 
-        if ($location) {
-            $query->where('location', 'like', "%$location%");
+        if (!empty($start) && !empty($end)) {
+            $query->where(function ($q) use ($start, $end) {
+                $q->whereBetween('start_time', ["$start 00:00:00", "$end 23:59:59"])
+                ->orWhere(function ($q2) use ($start, $end) {
+                    $q2->where('is_repeat', true)
+                        ->where(function ($q3) use ($start, $end) {
+                            $q3->whereNull('until')->orWhere('until', '>=', "$start 00:00:00");
+                        });
+                });
+            });
         }
 
         $tasks = $query->get();
@@ -916,37 +915,59 @@ class TaskController extends Controller
                 continue;
             }
 
+            // Xác định thời gian lặp
             $repeatStart = Carbon::parse($task->start_time);
-            $repeatUntil = $repeatUntil = Carbon::parse($task->until ?? $end);
-            if ($repeatUntil > Carbon::parse($end)) {
-                $repeatUntil = Carbon::parse($end);
-            }
+            $repeatUntil = $task->until ? Carbon::parse($task->until) : null;
             $interval = $task->interval ?? 1;
             $count = $task->count ?? 1000;
             $occurrences = 0;
 
-            while ($repeatStart <= $repeatUntil && $occurrences < $count) {
-                $formattedDate = $repeatStart->format('Y-m-d');
+            // Nếu không có ngày `$start` và `$end`, lấy toàn bộ trong 5 năm để tránh vô hạn
+            if (empty($start) || empty($end)) {
+                $searchStart = $repeatStart;
+                $searchEnd = $repeatUntil ?? Carbon::now()->addYears(3);
+            } else {
+                $searchStart = Carbon::parse($start);
+                $searchEnd = Carbon::parse($end);
+            }
 
-                // Kiểm tra nếu ngày bị loại trừ
+            while ($repeatStart <= $searchEnd && $occurrences < $count) {
+                $formattedDate = $repeatStart->format('Y-m-d H:i:s');
+
+                // Bỏ qua nếu ngày nằm trong danh sách loại trừ
                 if (in_array($formattedDate, $task->exclude_time ?? [])) {
                     $repeatStart = $this->nextRepeatDate($repeatStart, $task->freq, $interval);
                     continue;
                 }
 
-                // Kiểm tra logic lặp lại
+                // Kiểm tra logic lặp lại theo từng kiểu tần suất
                 if ($task->freq == 'weekly' && !empty($task->byweekday)) {
-                    if (!in_array(strtoupper(substr($repeatStart->format('D'), 0, 2)), $task->byweekday)) {
-                        $repeatStart = $this->nextRepeatDate($repeatStart, $task->freq, $interval);
-                        continue;
+                    while (!in_array(strtoupper(substr($repeatStart->format('D'), 0, 2)), $task->byweekday)) {
+                        $repeatStart = $repeatStart->modify("+1 day");;
                     }
                 }
+                
                 if ($task->freq == 'monthly' && !empty($task->bymonthday)) {
-                    if (!in_array($repeatStart->day, $task->bymonthday)) {
-                        $repeatStart = $this->nextRepeatDate($repeatStart, $task->freq, $interval);
-                        continue;
+                    // Lưu lại tháng hiện tại để lặp qua tất cả các ngày trong bymonthday
+                    $currentMonth = $repeatStart->format('m');
+                    
+                    foreach ($task->bymonthday as $day) {
+                        // Tạo bản sao của $repeatStart để không làm thay đổi ngày gốc
+                        $tempDate = clone $repeatStart;
+                        $tempDate->setDate($tempDate->format('Y'), $currentMonth, $day);
+
+                        // Chỉ thêm vào danh sách nếu nằm trong khoảng tìm kiếm
+                        if ($tempDate >= $searchStart && $tempDate <= $searchEnd) {
+                            $newTask = clone $task;
+                            $newTask->start_time = $tempDate->format('Y-m-d H:i:s');
+                            $expandedTasks[] = $newTask;
+                        }
                     }
+
+                    // Sau khi xử lý hết ngày trong tháng, chuyển sang tháng tiếp theo
+                    $repeatStart = $this->nextRepeatDate($repeatStart, $task->freq, $interval);
                 }
+
                 if ($task->freq == 'yearly' && !empty($task->bymonth)) {
                     if (!in_array($repeatStart->month, $task->bymonth)) {
                         $repeatStart = $this->nextRepeatDate($repeatStart, $task->freq, $interval);
@@ -954,23 +975,25 @@ class TaskController extends Controller
                     }
                 }
 
-                // Chỉ thêm task nếu nó nằm trong khoảng thời gian được chọn
-                if ($repeatStart >= Carbon::parse($start) && $repeatStart <= Carbon::parse($end)) {
+                // Chỉ thêm task nếu nó nằm trong phạm vi tìm kiếm
+                if ($repeatStart >= $searchStart && $repeatStart <= $searchEnd) {
                     $newTask = clone $task;
                     $newTask->start_time = $repeatStart->format('Y-m-d H:i:s');
                     $expandedTasks[] = $newTask;
                 }
 
+                // Chuyển đến ngày tiếp theo
                 $repeatStart = $this->nextRepeatDate($repeatStart, $task->freq, $interval);
                 $occurrences++;
             }
         }
 
         return response()->json([
-            'code'  => 200,
+            'code'    => 200,
             'message' => 'Success',
-            'data'=> $expandedTasks,
+            'data'    => $expandedTasks,
         ]);
+
     }
 
     private function nextRepeatDate($date, $freq, $interval)
