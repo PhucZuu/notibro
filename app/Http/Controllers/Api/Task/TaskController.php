@@ -9,8 +9,8 @@ use App\Models\Setting;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use App\Models\Task;
-use App\Models\Timezone;
 use App\Models\User;
+use App\Services\GetNextOccurrenceService;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -19,6 +19,13 @@ use Illuminate\Support\Facades\Mail;
 
 class TaskController extends Controller
 {
+    protected $serviceNextOcc;
+
+    public function __construct() 
+    {
+        $this->serviceNextOcc = new GetNextOccurrenceService();
+    }
+
     protected function handleJsonStringData($data)
     {
         // Handling reminder if it's a JSON string
@@ -141,37 +148,37 @@ class TaskController extends Controller
             $task->end_time     = Carbon::parse($task->end_time, 'UTC');
 
             if ($task->exclude_time && count($task->exclude_time) > 0) {
-                $cal_exclude_time = array_map(function ($date) use($timezone_code) {
+                $cal_exclude_time = array_map(function ($date) use ($timezone_code) {
                     return Carbon::parse($date, 'UTC');
                 }, $task->exclude_time);
-                
+
                 $task->exclude_time = $cal_exclude_time;
             }
 
-            if ($task->attendees) {  
-                foreach ($task->attendees as $attendee) {  
-                    $user = User::select('first_name', 'last_name', 'email', 'avatar')  
-                        ->where('id', $attendee['user_id'])  
-                        ->first();  
-    
-                    if ($user) {  
-                        $attendeesDetails[] = [  
-                            'user_id'    => $attendee['user_id'],  
-                            'first_name' => $user->first_name,  
-                            'last_name'  => $user->last_name,  
-                            'email'      => $user->email,  
-                            'avatar'     => $user->avatar,  
-                            'status'     => $attendee['status'],  
-                            'role'       => $attendee['role'], 
-                        ];  
-                    }  
-                }  
+            if ($task->attendees) {
+                foreach ($task->attendees as $attendee) {
+                    $user = User::select('first_name', 'last_name', 'email', 'avatar')
+                        ->where('id', $attendee['user_id'])
+                        ->first();
+
+                    if ($user) {
+                        $attendeesDetails[] = [
+                            'user_id'    => $attendee['user_id'],
+                            'first_name' => $user->first_name,
+                            'last_name'  => $user->last_name,
+                            'email'      => $user->email,
+                            'avatar'     => $user->avatar,
+                            'status'     => $attendee['status'],
+                            'role'       => $attendee['role'],
+                        ];
+                    }
+                }
 
                 $task->attendees = $attendeesDetails;
-    
+
                 $attendeesDetails = [];
             }
-            
+
             unset(
                 $task->freq,
                 $task->interval,
@@ -244,7 +251,7 @@ class TaskController extends Controller
         }
 
         switch ($code) {
-                //Update when event dont have reapet
+            //Update when event dont have reapet
             case 'EDIT_N':
                 try {
                     $task->update($data);
@@ -339,7 +346,7 @@ class TaskController extends Controller
                     }
 
                     // Update parent task
-                    $parentTask = Task::find( $task->parent_id);
+                    $parentTask = Task::find($task->parent_id);
                     if ($parentTask) {
                         $parentTask->update($data);
                     }
@@ -393,7 +400,7 @@ class TaskController extends Controller
         }
 
         switch ($code) {
-                //Update when event dont have reapet
+            //Update when event dont have reapet
             case 'EDIT_N':
                 try {
                     $task->update($data);
@@ -421,7 +428,7 @@ class TaskController extends Controller
 
                     $task->start_time = $data['start_time'];
                     $task->end_time = $data['end_time'];
-                    
+
                     $new_task = Task::create($task);
 
                     //Push enddate to exclude_time array of task
@@ -496,7 +503,7 @@ class TaskController extends Controller
         $task = Task::with('user')
             ->select('id', 'user_id', 'title', 'description', 'start_time', 'end_time', 'location', 'timezone_code', 'attendees')
             ->where('type', 'event')
-            ->where('uuid',$uuid)
+            ->where('uuid', $uuid)
             ->first();
 
         if (!$task) {
@@ -580,7 +587,7 @@ class TaskController extends Controller
             $task = Task::create($data);
 
 
-            if(isset($data['sendMail']) && $data['sendMail'] == 'yes'){
+            if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
                 $userIds = collect($task->attendees)->pluck('user_id');
                 $emailGuests = User::select('email')->whereIn('id', $userIds)->get();
                 $this->sendMail(Auth::user()->email, $emailGuests, $task);
@@ -634,13 +641,13 @@ class TaskController extends Controller
                         ], 500);
                     }
                 case 'DEL_1':
-                    Log::error('code',[$code]);
+                    Log::error('code', [$code]);
                     try {
                         // select day deleted task
                         $currentDate = $request->date;
 
                         // select exclude_time of task
-                        if($task->exclude_time) {
+                        if ($task->exclude_time) {
                             $excludeTime = $task->exclude_time;
                         } else {
                             $excludeTime = [];
@@ -656,7 +663,7 @@ class TaskController extends Controller
                         $task->save();
 
                         return response()->json([
-                            'code'=> 200,
+                            'code' => 200,
                             'message' => 'Delete task successfully'
                         ], 200);
                     } catch (\Exception $e) {
@@ -671,23 +678,23 @@ class TaskController extends Controller
                     try {
                         // Giảm đi 1 ngày để xóa đc task
                         $task->until = Carbon::parse($request->date)->subDay()->endOfDay();
-                        
+
                         $task->save();
 
                         // Xoá các task liên quan về sau
                         $tasksChild = Task::where('start_time', '>', $request->date)
-                                            ->where('id', $task->id)
-                                            ->orWhere('parent_id', $task->id)
-                                            ->get(); 
+                            ->where('id', $task->id)
+                            ->orWhere('parent_id', $task->id)
+                            ->get();
 
-                        if(!$tasksChild->isEmpty()) {
-                            foreach($tasksChild as $task) {
+                        if (!$tasksChild->isEmpty()) {
+                            foreach ($tasksChild as $task) {
                                 $task->delete();
                             }
                         }
 
                         return response()->json([
-                            'code'=> 200,
+                            'code' => 200,
                             'message' => 'Delete tasks and following tasks successfully'
                         ], 200);
                     } catch (\Exception $e) {
@@ -707,7 +714,7 @@ class TaskController extends Controller
                             ->delete();
 
                         return response()->json([
-                            'code'=> 200,
+                            'code' => 200,
                             'message' => 'Delete all tasks successfully'
                         ], 200);
                     } catch (\Exception $e) {
@@ -728,8 +735,8 @@ class TaskController extends Controller
             }
         } else {
             return response()->json([
-                'code'=> 401,
-                'message'=> 'You do not have permission to edit this event',
+                'code' => 401,
+                'message' => 'You do not have permission to edit this event',
             ]);
         }
     }
@@ -799,12 +806,11 @@ class TaskController extends Controller
             ]);
 
             DB::commit();
-            
+
             return response()->json([
                 'code'    => 200,
                 'message' => 'You have successfully accepted the event',
             ]);
-
         } catch (\Exception $e) {
             DB::rollBack();
 
@@ -863,10 +869,10 @@ class TaskController extends Controller
         }
     }
 
-    protected function sendMail($mailOwner , $emails, $data) 
+    protected function sendMail($mailOwner, $emails, $data)
     {
         $nameOwner = Auth::user()->first_name . ' ' . Auth::user()->last_name;
-        foreach( $emails as $email ) {
+        foreach ($emails as $email) {
             Mail::to($email)->queue(new InviteGuestMail($mailOwner, $nameOwner, $data));
         }
     }
@@ -1005,5 +1011,92 @@ class TaskController extends Controller
             'yearly' => $date->addYears($interval),
             default => $date,
         };
+    }
+
+    public function getUpComingTasks()
+    {
+        if (Auth::check()) {
+            $user_id = Auth::user()->id;
+        }
+
+        $now = Carbon::now();
+        $next24Hours = $now->copy()->addHours(24);
+
+        $tasks = Task::with('tag:id,name')
+            ->whereNotNull('reminder')
+            ->where(function ($query) use ($now, $next24Hours) {
+                $query->whereBetween('start_time', [$now, $next24Hours])
+                    ->orWhere(function ($q) use ($now, $next24Hours) {
+                        $q->where('is_repeat', 1)
+                            ->where(function ($subQuery) use ($now, $next24Hours) {
+                                $subQuery->where('until', '>=', $now) // Nếu until có giá trị, chỉ lấy các bản ghi chưa hết hạn
+                                    ->orWhereNull('until'); // Nếu until là NULL, nó lặp vô hạn
+                            });
+                    });
+            })->where(function ($query) use ($user_id) {
+                $query->where('user_id', $user_id)
+                    ->orWhereRaw("
+                    EXISTS (
+                        SELECT 1 FROM JSON_TABLE(
+                            attendees, '$[*]' COLUMNS (
+                                user_id INT PATH '$.user_id',
+                                status VARCHAR(20) PATH '$.status'
+                            )
+                        ) AS jt
+                        WHERE jt.user_id = ? AND jt.status = 'yes'
+                    )
+                ", [$user_id]);
+            })
+            ->get()
+            ->map(function ($task) {
+                $task->tag_name = optional($task->tag)->name; // Lấy `name`, nếu null thì không lỗi
+                unset($task->tag); // Xóa object `tag`, chỉ giữ lại `tag_name`
+                return $task;
+            });
+
+        foreach ($tasks as $task) {
+            if ($task->is_repeat) {
+                $nextOccurrence = $this->serviceNextOcc->getNextOccurrence($task, $now);
+
+                if ($nextOccurrence && $nextOccurrence->greaterThanOrEqualTo($now) && $nextOccurrence->lessThanOrEqualTo($next24Hours)) {
+                    // $timezone = $task->timezone_code ?? 'UTC';
+                    // $task->start_time = $nextOccurrence->copy()->tz($timezone)->toDateTimeString();
+
+                    $task->start_time = $nextOccurrence->copy()->tz('UTC');
+                    $task->end_time = Carbon::parse($task->end_time)
+                        ->setDate($nextOccurrence->year, $nextOccurrence->month, $nextOccurrence->day)
+                        ->tz('UTC');
+
+                    $validTasks[] = $task;
+
+                    unset(
+                        $task->freq,
+                        $task->interval,
+                        $task->until,
+                        $task->count,
+                        $task->byweekday,
+                        $task->bymonthday,
+                        $task->bymonth,
+                        $task->bysetpos,
+                        $task->reminder,
+                        $task->attendees,
+                        $task->path,
+                        $task->parent_id,
+                        $task->deleted_at,
+                        $task->created_at,
+                        $task->updated_at,
+                        $task->exclude_time,
+                    );
+                }
+                
+            }
+        }
+        
+        // Trả về view và truyền dữ liệu vào
+        return response()->json([
+            'code'      =>  200,
+            'message'   =>  'Fetching Data successfully',
+            'data'      =>  $validTasks,
+        ], 200);
     }
 }
