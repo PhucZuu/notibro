@@ -4,122 +4,188 @@ namespace App\Services;
 
 use App\Models\Task;
 use App\Models\User;
-use Carbon\Carbon;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Log;
 use App\Mail\TaskReminderMail;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class TaskReminderService
 {
-    public function sendReminders()
+    public function taskMailRemindSchedule()
     {
+        Log::info('Bắt đầu taskMailRemindSchedule');
         $now = Carbon::now();
-        Log::info("Starting to send reminders at {$now}");
+        $next24Hours = $now->copy()->addHours(24);
 
-        try {
-            // Lấy tất cả task có is_reminder = true và có dữ liệu reminder
-            $tasks = Task::where('is_reminder', 1)
-                ->whereNotNull('reminder')
-                ->get();
+        // Lấy danh sách task có nhắc nhở và nằm trong khoảng thời gian hợp lệ
+        $tasks = Task::where('is_reminder', true)
+            ->whereNotNull('reminder')
+            ->where(function ($query) use ($now, $next24Hours) {
+                $query->whereBetween('start_time', [$now, $next24Hours])
+                    ->orWhere(function ($q) use ($now, $next24Hours) {
+                        $q->where('is_repeat', 1)
+                            ->where(function ($subQuery) use ($now, $next24Hours) {
+                                $subQuery->where('until', '>=', $now)
+                                    ->orWhereNull('until');
+                            });
+                    });
+            })->get();
 
-            Log::info("Found {$tasks->count()} tasks with reminders.");
+        Log::info('Số lượng task cần xử lý: ' . $tasks->count());
 
-            foreach ($tasks as $task) {
-                $this->processTaskReminder($task, $now);
-            }
-
-            Log::info("Finished sending reminders at " . Carbon::now());
-        } catch (\Exception $e) {
-            Log::error("Error in sendReminders: " . $e->getMessage());
-        }
-    }
-
-    private function processTaskReminder($task, $now)
-    {
-        try {
-            Log::info("Processing Task ID {$task->id} - Repeat: {$task->repeat}");
-
-            // Giải mã JSON reminder
-            $reminders = is_string($task->reminder) ? json_decode($task->reminder, true) : $task->reminder;
-
-            if (!is_array($reminders)) {
-                Log::warning("Task ID {$task->id} has invalid reminder format: " . json_encode($task->reminder));
-                return;
-            }
-
-            foreach ($reminders as $reminder) {
-                Log::info("Task ID {$task->id} - Checking reminder: " . json_encode($reminder));
-
+        foreach ($tasks as $task) {
+            Log::info("Xử lý task ID: {$task->id}");
+            foreach ($task->reminder as $reminder) {
                 if ($reminder['type'] === 'email') {
-                    $setTime = $reminder['set_time'];
-                    $user = User::find($task->user_id);
-
-                    if (!$user || !$user->email) {
-                        Log::warning("User ID {$task->user_id} not found or has no email.");
-                        continue;
-                    }
-
-                    $sendTime = Carbon::parse($task->start_time)->subHours($setTime);
-                    Log::info("Task ID {$task->id} - Send time: {$sendTime} (Now: {$now})");
-
-                    if ($now->greaterThanOrEqualTo($sendTime) && $now->lessThan($task->start_time)) {
-                        Log::info("Task ID {$task->id} - Sending email to {$user->email}");
-                        $this->sendEmailReminder($user, $task);
-                    } else {
-                        Log::info("Task ID {$task->id} - Not yet time to send email.");
-                    }
+                    Log::info("Xử lý nhắc nhở email cho task ID: {$task->id}");
+                    $this->processEmailReminder($task, $reminder, $now);
                 }
             }
-        } catch (\Exception $e) {
-            Log::error("Error in processTaskReminder for task ID {$task->id}: " . $e->getMessage());
         }
     }
 
-    private function processRepeatingTask($task, $user, $setTime, $now)
+    private function processEmailReminder($task, $reminder, $now)
     {
-        try {
-            $startTime = Carbon::parse($task->start_time);
-            $until = $task->until ? Carbon::parse($task->until) : null;
-            $repeatInterval = $task->interval ?? 1; // Mặc định khoảng cách giữa các lần lặp = 1
+        Log::info("Bắt đầu processEmailReminder cho task ID: {$task->id}");
+        $nextOccurrence = $this->getNextOccurrence($task, $now);
+        if (!$nextOccurrence) {
+            Log::info("Không có lần xuất hiện tiếp theo cho task ID: {$task->id}");
+            return;
+        }
 
-            // Nếu không có until, mặc định kiểm tra trong 1 năm
-            $endCheckTime = $until ?? $now->copy()->addYear();
+        $reminderTime = Carbon::parse($nextOccurrence)->subMinutes($reminder['set_time']);
+        if (!$now->isSameMinute($reminderTime)) {
+            Log::info("Không phải thời gian nhắc nhở cho task ID: {$task->id},{$reminderTime},{$now}");
+            return;
+        }
 
-            while ($startTime->lessThanOrEqualTo($endCheckTime)) {
-                $sendTime = $startTime->copy()->subHours($setTime);
-
-                if ($now->greaterThanOrEqualTo($sendTime) && $now->lessThan($startTime)) {
-                    $this->sendEmailReminder($user, $task, $startTime);
-                }
-
-                // Xác định thời điểm lặp tiếp theo dựa vào repeat
-                switch ($task->repeat) {
-                    case 'daily':
-                        $startTime->addDays($repeatInterval);
-                        break;
-                    case 'weekly':
-                        $startTime->addWeeks($repeatInterval);
-                        break;
-                    case 'monthly':
-                        $startTime->addMonths($repeatInterval);
-                        break;
-                    case 'yearly':
-                        $startTime->addYears($repeatInterval);
-                        break;
-                }
-            }
-        } catch (\Exception $e) {
-            Log::error("Error in processRepeatingTask for task ID {$task->id}: " . $e->getMessage());
+        foreach ($task->getAttendees() as $userID) {
+            Log::info("Gửi nhắc nhở email cho user ID: {$userID}");
+            $this->sendEmailReminder($task, $userID, $reminderTime);
         }
     }
 
-    private function sendEmailReminder($user, $task, $occurrenceTime = null)
+    private function sendEmailReminder($task, $userID, $reminderTime)
     {
-        try {
-            Mail::to($user->email)->send(new TaskReminderMail($user, $task, $occurrenceTime));
-            Log::info("Sent reminder email to {$user->email} for task ID {$task->id}");
-        } catch (\Exception $e) {
-            Log::error("Error sending email reminder for task ID {$task->id} to {$user->email}: " . $e->getMessage());
+        Log::info("Bắt đầu sendEmailReminder cho task ID: {$task->id}, user ID: {$userID}");
+        $user = User::find($userID);
+        if (!$user) {
+            Log::warning("Không tìm thấy user ID {$userID} cho task {$task->id}");
+            return;
         }
+
+        $cacheKey = "task_notified_{$task->id}_{$user->id}_{$reminderTime->timestamp}";
+        if (Cache::has($cacheKey)) {
+            Log::warning("Đã gửi email trước đó: {$cacheKey}");
+            return;
+        }
+
+        // Gửi email
+        try {
+            Mail::to($user->email)->send(new TaskReminderMail($user, $task, $reminderTime));
+            Log::info("Đã gửi email nhắc nhở task {$task->id} đến user {$user->id}");
+            Cache::put($cacheKey, true, now()->addHours(24));
+        } catch (\Exception $e) {
+            Log::error("Lỗi khi gửi email task {$task->id} đến user {$user->id}: " . $e->getMessage());
+        }
+    }
+
+    protected function getNextOccurrence($task, $now)
+    {
+        Log::info("Bắt đầu getNextOccurrence cho task ID: {$task->id}");
+        if (!$task->is_repeat) {
+            return Carbon::parse($task->start_time);
+        }
+
+        $until = $task->until ? Carbon::parse($task->until) : null;
+        if ($until && $now->greaterThan($until)) {
+            return null;
+        }
+
+        switch ($task->freq) {
+            case 'daily':
+                return $this->getNextInterval($task, $now, 'days');
+
+            case 'weekly':
+                return $this->getNextWeeklyOccurrence($task, $now);
+
+            case 'monthly':
+                return $this->getNextMonthlyOccurrence($task, $now);
+
+            case 'yearly':
+                return $this->getNextInterval($task, $now, 'years');
+
+            default:
+                return null;
+        }
+    }
+
+    protected function getNextInterval($task, $now, $unit)
+    {
+        Log::info("Bắt đầu getNextInterval cho task ID: {$task->id}, unit: {$unit}");
+        $interval = $task->interval ?? 1;
+        $startTime = Carbon::parse($task->start_time);
+        $untilTime = $task->until ? Carbon::parse($task->until) : null;
+        $maxCount = $task->count;
+        $occurrenceCount = 0;
+
+        while ($startTime->lessThan($now) && (!$untilTime || $startTime->lessThan($untilTime))) {
+            $startTime->add($unit, $interval);
+            if ($maxCount !== null && ++$occurrenceCount > $maxCount) {
+                return null;
+            }
+        }
+
+        return $startTime;
+    }
+
+    protected function getNextWeeklyOccurrence($task, $now)
+    {
+        Log::info("Bắt đầu getNextWeeklyOccurrence cho task ID: {$task->id}");
+        $weekdays = $task->byweekday ?? [];
+        $startTime = Carbon::parse($task->start_time);
+        $validDays = array_map(fn($d) => ['SU' => 0, 'MO' => 1, 'TU' => 2, 'WE' => 3, 'TH' => 4, 'FR' => 5, 'SA' => 6][$d] ?? null, $weekdays);
+        $validDays = array_filter($validDays);
+
+        $nextOccurrence = Carbon::now();
+        $maxCount = $task->count;
+        $occurrenceCount = 0;
+
+        while (!in_array($nextOccurrence->dayOfWeek, $validDays)) {
+            $nextOccurrence->addDay();
+            if ($maxCount !== null && ++$occurrenceCount > $maxCount) {
+                return null;
+            }
+        }
+
+        return $nextOccurrence;
+    }
+
+    protected function getNextMonthlyOccurrence($task, $now)
+    {
+        Log::info("Bắt đầu getNextMonthlyOccurrence cho task ID: {$task->id}");
+        $startTime = Carbon::parse($task->start_time);
+        $interval = $task->interval ?? 1;
+        $count = $task->count ?? null;
+        $monthDays = $task->bymonthday ?? [$startTime->day];
+
+        $nextOccurrence = $startTime->copy();
+        $occurrenceCount = 0;
+
+        while (true) {
+            if ($nextOccurrence->greaterThan($now) && in_array($nextOccurrence->day, $monthDays)) {
+                break;
+            }
+
+            $nextOccurrence->addMonths($interval);
+
+            if ($count && ++$occurrenceCount > $count) {
+                Log::error("Số lần xuất hiện vượt quá giới hạn cho task ID: {$task->id}");
+                return null;
+            }
+        }
+
+        return $nextOccurrence;
     }
 }

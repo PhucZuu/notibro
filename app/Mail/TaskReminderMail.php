@@ -7,7 +7,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
 
-class TaskReminderMail extends Mailable
+class TaskReminderMail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
@@ -24,7 +24,7 @@ class TaskReminderMail extends Mailable
 
     public function build()
     {
-        return $this->subject('Task Reminder')
+        return $this->subject("Reminder: {$this->task->title} is coming up!")
             ->view('emails.task_reminder')
             ->with([
                 'user' => $this->user,

@@ -21,7 +21,7 @@ class SendTaskReminderEmails extends Command
     public function handle()
     {
         try {
-            $this->taskReminderService->sendReminders();
+            $this->taskReminderService->taskMailRemindSchedule();
             $this->info('Task reminder emails sent successfully.');
         } catch (\Exception $e) {
             Log::error('Error sending task reminder emails: ' . $e->getMessage());
