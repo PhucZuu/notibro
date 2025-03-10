@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Task;
 
+use App\Events\TaskUpdatedEvent;
 use App\Http\Controllers\Controller;
 use App\Mail\InviteGuestMail;
 use App\Models\Reminder;
@@ -68,7 +69,7 @@ class TaskController extends Controller
     protected function handleLogicData($data)
     {
         // if is_all_day = 1, set start_time to 00:00:00 and end_time to 23:59:59
-        if (!empty($data['is_all_day'] && $data['is_all_day'] == 1)) {
+        if (!empty($data['is_all_day']) && $data['is_all_day'] == 1) {
             $data['start_time'] = date('Y-m-d 00:00:00', strtotime($data['start_time']));
             $data['end_time'] = date('Y-m-d 23:59:59', strtotime($data['end_time']));
         }
@@ -586,12 +587,13 @@ class TaskController extends Controller
 
             $task = Task::create($data);
 
-
             if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
                 $userIds = collect($task->attendees)->pluck('user_id');
                 $emailGuests = User::select('email')->whereIn('id', $userIds)->get();
                 $this->sendMail(Auth::user()->email, $emailGuests, $task);
             }
+
+            // broadcast(new TaskUpdatedEvent($task, 'create'));
 
             return response()->json([
                 'code'    => 200,
