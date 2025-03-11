@@ -2,18 +2,21 @@
 
 namespace App\Notifications;
 
+use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
 class TaskNotification extends Notification implements ShouldBroadcast
 {
-    use Queueable;
+    use Queueable, Dispatchable, InteractsWithSockets, SerializesModels;
     protected $task;
     protected $userID;
 
