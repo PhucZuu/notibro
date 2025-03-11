@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Log;
 
 class TaskUpdatedEvent implements ShouldBroadcast
 {
-    use Dispatchable, InteractsWithSockets, SerializesModels;
+    use Dispatchable, InteractsWithSockets;
 
     public $task;
     public $action;
@@ -24,7 +24,9 @@ class TaskUpdatedEvent implements ShouldBroadcast
      */
     public function __construct($task, $action, $recipients)
     {
-        $this->task = $task;
+        $task = collect($task);
+
+        $this->task = $task->map(fn($task) => $task->formatedReturnData())->toArray();
         $this->action = $action;
         $this->recipients = $recipients;
     }
@@ -36,8 +38,6 @@ class TaskUpdatedEvent implements ShouldBroadcast
      */
     public function broadcastOn(): array
     {
-        Log::info('🚀 Tiến hành realtime API cho các user:', ['recipients' => $this->recipients]);
-
         return collect($this->recipients)->map(function ($userId) {
             return new PrivateChannel('App.Models.User.' . $userId);
         })->toArray();

@@ -371,9 +371,9 @@ class TaskController extends Controller
                         }
 
                         //Send REALTIME
-                        if(!$returnTaskDel){
+                        if (!$returnTaskDel) {
                             $this->sendRealTimeUpdate($returnTaskDel, 'delete');
-                        }  
+                        }
 
                         return response()->json([
                             'code'    => 200,
@@ -472,7 +472,7 @@ class TaskController extends Controller
 
         $attendees = collect($task->attendees);
         $attendee = $attendees->firstWhere('user_id', Auth::id());
-        
+
         if ($task->user_id  === Auth::id() || ($attendee && $attendee['role'] === 'edit')) {
             switch ($code) {
                 //Update when event dont have reapet
@@ -579,9 +579,9 @@ class TaskController extends Controller
                             $relatedTask->delete();
                         }
 
-                        if(!$returnTaskDel){
+                        if (!$returnTaskDel) {
                             $this->sendRealTimeUpdate($returnTaskDel, 'delete');
-                        }  
+                        }
 
                         return response()->json([
                             'code'    => 200,
@@ -821,7 +821,7 @@ class TaskController extends Controller
                             ->orWhere('parent_id', $task->id)
                             ->get();
 
-                        $returnTaskDel[] = $tasksChild;    
+                        $returnTaskDel[] = $tasksChild;
 
                         if (!$tasksChild->isEmpty()) {
                             foreach ($tasksChild as $task) {
@@ -830,10 +830,10 @@ class TaskController extends Controller
                         }
 
                         //Send REALTIME
-                        if(!$returnTaskDel){
+                        if (!$returnTaskDel) {
                             $this->sendRealTimeUpdate($returnTaskDel, 'delete');
-                        }        
-                        
+                        }
+
                         return response()->json([
                             'code' => 200,
                             'message' => 'Delete tasks and following tasks successfully'
@@ -854,16 +854,13 @@ class TaskController extends Controller
                             ->orWhere('parent_id',   $task->id)
                             ->get();
 
-                        $returnTaskDel = $deleteTasks;
+                        if ($deleteTasks->isNotEmpty()) {
+                            // Gửi Realtime  
+                            $this->sendRealTimeUpdate($deleteTasks, 'delete');
 
-                        foreach ($returnTaskDel as $task) {
-                            $task->delete();
+                            // Xóa Task
+                            $deleteTasks->each->delete();
                         }
-                        Log::info($returnTaskDel);
-                        //Send REALTIME        
-                        if(!$returnTaskDel){
-                            $this->sendRealTimeUpdate($returnTaskDel, 'delete');
-                        }  
 
                         return response()->json([
                             'code' => 200,
