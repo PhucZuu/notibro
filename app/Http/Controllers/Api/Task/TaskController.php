@@ -144,7 +144,7 @@ class TaskController extends Controller
                                 status VARCHAR(20) PATH '$.status'
                             )
                         ) AS jt
-                        WHERE jt.user_id = ? AND jt.status = 'yes'
+                        WHERE jt.user_id = ?
                     )
                 ", [$user_id]);
             })
@@ -765,7 +765,6 @@ class TaskController extends Controller
                         ], 500);
                     }
                 case 'DEL_1':
-                    Log::error('code', [$code]);
                     try {
                         // select day deleted task
                         $currentDate = $request->date;
@@ -992,11 +991,13 @@ class TaskController extends Controller
 
         try {
             // Kiểm tra người dùng đã tồn tại trong attendees chưa
+            Log::info('before',[$task->attendees]);
+
             if (in_array($user->id, array_column($task->attendees, 'user_id'))) {
                 $task->attendees = array_filter($task->attendees, function ($attendee) use ($user) {
-                    return $attendee['user_id'] !== $user->id;
+                    return $attendee['user_id'] != $user->id;
                 });
-
+                Log::info('after',[$task->attendees]);
                 $task->save();
             }
 
@@ -1027,14 +1028,29 @@ class TaskController extends Controller
     }
 
     public function search(Request $request)
-    {
+    {   
+        $user_id = auth()->user()->id;
         $title      = $request->query('title');
         $tag        = $request->query('tag');
         $start      = $request->query('start');
         $end        = $request->query('end');
         $location   = $request->query('location');
 
-        $query = Task::query()->where('user_id', auth()->id());
+        $query = Task::select('*')
+        ->where(function ($query) use ($user_id) {
+            $query->where('user_id', $user_id)
+                ->orWhereRaw("
+                EXISTS (
+                    SELECT 1 FROM JSON_TABLE(
+                        attendees, '$[*]' COLUMNS (
+                            user_id INT PATH '$.user_id',
+                            status VARCHAR(20) PATH '$.status'
+                        )
+                    ) AS jt
+                    WHERE jt.user_id = ?
+                )
+            ", [$user_id]);
+        });
 
         if (!empty($title)) {
             $query->where('title', 'like', "%$title%");
@@ -1065,6 +1081,30 @@ class TaskController extends Controller
         $expandedTasks = [];
 
         foreach ($tasks as $task) {
+            if ($task->attendees) {
+                foreach ($task->attendees as $attendee) {
+                    $user = User::select('first_name', 'last_name', 'email', 'avatar')
+                        ->where('id', $attendee['user_id'])
+                        ->first();
+    
+                    if ($user) {
+                        $attendeesDetails[] = [
+                            'user_id'    => $attendee['user_id'],
+                            'first_name' => $user->first_name,
+                            'last_name'  => $user->last_name,
+                            'email'      => $user->email,
+                            'avatar'     => $user->avatar,
+                            'status'     => $attendee['status'],
+                            'role'       => $attendee['role'],
+                        ];
+                    }
+                }
+    
+                $task->attendees = $attendeesDetails;
+    
+                $attendeesDetails = [];
+            }
+            
             if (!$task->is_repeat || !$task->freq) {
                 $expandedTasks[] = $task;
                 continue;
