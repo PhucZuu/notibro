@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Api\Task;
 
-use App\Events\TaskUpdatedEvent;
+use App\Events\Task\TaskUpdatedEvent;
 use App\Http\Controllers\Controller;
 use App\Mail\InviteGuestMail;
 use App\Models\Reminder;
@@ -22,7 +22,7 @@ class TaskController extends Controller
 {
     protected $serviceNextOcc;
 
-    public function __construct() 
+    public function __construct()
     {
         $this->serviceNextOcc = new GetNextOccurrenceService();
     }
@@ -102,6 +102,25 @@ class TaskController extends Controller
         }
 
         return $data;
+    }
+
+    //Put in array in array data to get all attendees
+    public function getRecipients($data)
+    {
+        $recipients = collect($data)
+            ->flatMap(fn($task) => $task->getAttendees()) // Lấy tất cả attendees
+            ->unique() // Loại bỏ user trùng
+            ->values() // Reset key của mảng
+            ->toArray();
+
+        return $recipients;
+    }
+
+    public function sendRealTimeUpdate($data, $action)
+    {
+        $recipients = $this->getRecipients($data);
+
+        event(new TaskUpdatedEvent($data, $action, $recipients));
     }
 
     public function index()
@@ -251,127 +270,178 @@ class TaskController extends Controller
             ], 404);
         }
 
-        switch ($code) {
-            //Update when event dont have reapet
-            case 'EDIT_N':
-                try {
-                    $task->update($data);
+        $attendees = collect($task->attendees);
+        $attendee = $attendees->firstWhere('user_id', Auth::id());
 
-                    return response()->json([
-                        'code'    => 200,
-                        'message' => 'Task updated successfully',
-                        'data'    => $task,
-                    ], 200);
-                } catch (\Exception $e) {
-                    Log::error($e->getMessage());
+        if ($task->user_id  === Auth::id() || ($attendee && $attendee['role'] === 'edit')) {
+            switch ($code) {
+                //Update when event dont have reapet
+                case 'EDIT_N':
+                    try {
+                        $task->update($data);
 
-                    return response()->json([
-                        'code'    => 500,
-                        'message' => 'Failed to updated task',
-                    ], 500);
-                }
+                        //Send REALTIME
+                        $returnTask[] = $task;
 
-            case 'EDIT_1':
-                try {
-                    if (!$task->parent_id) {
-                        $data['parent_id'] = $task->parent_id;
+                        $this->sendRealTimeUpdate($returnTask, 'update');
+
+                        return response()->json([
+                            'code'    => 200,
+                            'message' => 'Task updated successfully',
+                            'data'    => $task,
+                        ], 200);
+                    } catch (\Exception $e) {
+                        Log::error($e->getMessage());
+
+                        return response()->json([
+                            'code'    => 500,
+                            'message' => 'Failed to updated task',
+                        ], 500);
                     }
 
-                    //Add new task for 1 day change
-                    $new_task = Task::create($data);
+                case 'EDIT_1':
+                    try {
+                        if (!$task->parent_id) {
+                            $data['parent_id'] = $task->parent_id;
+                        }
 
-                    //Push enddate to exclude_time array of task
-                    $endDate = Carbon::parse($new_task->start_time)->subDay()->endOfDay();
+                        //Add new task for 1 day change
+                        $new_task = Task::create($data);
 
-                    $endDate->hour = $task->start_time->hour;
-                    $endDate->minute = $task->start_time->minute;
+                        //Send REALTIME
+                        $returnTask[] = $new_task;
 
-                    $task->exclude_time[] = $endDate;
-                    $task->save();
+                        $this->sendRealTimeUpdate($returnTask, 'create');
 
-                    return response()->json([
-                        'code'    => 200,
-                        'message' => 'Task updated successfully',
-                        'data'    => $new_task,
-                    ], 200);
-                } catch (\Exception $e) {
-                    Log::error($e->getMessage());
+                        //Push enddate to exclude_time array of task
+                        $endDate = Carbon::parse($new_task->start_time)->subDay()->endOfDay();
 
-                    return response()->json([
-                        'code'    => 500,
-                        'message' => 'Failed to updated task',
-                    ], 500);
-                }
+                        $endDate->hour = $task->start_time->hour;
+                        $endDate->minute = $task->start_time->minute;
 
-            case 'EDIT_1B':
-                try {
-                    //Add new task for following change
-                    $new_task = Task::create($data);
+                        $task->exclude_time[] = $endDate;
+                        $task->save();
 
-                    $task->until = Carbon::parse($new_task->start_time)->subDay()->endOfDay();
-                    $task->save();
+                        //Send REALTIME
+                        $returnTaskUpdate[] = $task;
 
-                    //Delete all task that have parent_id = $task->id and start_time > $ta
-                    $relatedTasks = Task::where('parent_id', $task->id)
-                        ->where('start_time', '>=', $task->until)
-                        ->get();
-                    foreach ($relatedTasks as $relatedTask) {
-                        $relatedTask->delete();
+                        $this->sendRealTimeUpdate($returnTaskUpdate, 'update');
+
+                        return response()->json([
+                            'code'    => 200,
+                            'message' => 'Task updated successfully',
+                            'data'    => $new_task,
+                        ], 200);
+                    } catch (\Exception $e) {
+                        Log::error($e->getMessage());
+
+                        return response()->json([
+                            'code'    => 500,
+                            'message' => 'Failed to updated task',
+                        ], 500);
                     }
 
-                    return response()->json([
-                        'code'    => 200,
-                        'message' => 'Task updated successfully',
-                        'data'    => $task,
-                    ], 200);
-                } catch (\Exception $e) {
-                    Log::error($e->getMessage());
+                case 'EDIT_1B':
+                    try {
+                        //Add new task for following change
+                        $new_task = Task::create($data);
 
-                    return response()->json([
-                        'code'    => 500,
-                        'message' => 'Failed to updated task',
-                    ], 500);
-                }
+                        //Send REALTIME
+                        $returnTask[] = $new_task;
 
-            case 'EDIT_A':
-                try {
-                    //Update current Task
-                    $task->update($data);
+                        $this->sendRealTimeUpdate($returnTask, 'create');
 
-                    // Update all child Task
-                    $relatedTasks = Task::where('parent_id', $task->id)
-                        ->orWhere('parent_id', $task->parent_id)
-                        ->get();
-                    foreach ($relatedTasks as $relatedTask) {
-                        $relatedTask->update($data);
+                        $task->until = Carbon::parse($new_task->start_time)->subDay()->endOfDay();
+                        $task->save();
+
+                        //Send REALTIME
+                        $returnTaskUpdate[] = $new_task;
+
+                        $this->sendRealTimeUpdate($returnTaskUpdate, 'update');
+
+                        //Delete all task that have parent_id = $task->id and start_time > $ta
+                        $relatedTasks = Task::where('parent_id', $task->id)
+                            ->where('start_time', '>=', $task->until)
+                            ->get();
+
+                        $returnTaskDel = $relatedTasks;
+
+                        foreach ($relatedTasks as $relatedTask) {
+                            $relatedTask->delete();
+                        }
+
+                        //Send REALTIME
+                        if(!$returnTaskDel){
+                            $this->sendRealTimeUpdate($returnTaskDel, 'delete');
+                        }  
+
+                        return response()->json([
+                            'code'    => 200,
+                            'message' => 'Task updated successfully',
+                            'data'    => $task,
+                        ], 200);
+                    } catch (\Exception $e) {
+                        Log::error($e->getMessage());
+
+                        return response()->json([
+                            'code'    => 500,
+                            'message' => 'Failed to updated task',
+                        ], 500);
                     }
 
-                    // Update parent task
-                    $parentTask = Task::find($task->parent_id);
-                    if ($parentTask) {
-                        $parentTask->update($data);
+                case 'EDIT_A':
+                    try {
+                        //Update current Task
+                        $task->update($data);
+
+                        $returnTask[] = $task;
+
+                        // Update all child Task
+                        $relatedTasks = Task::where('parent_id', $task->id)
+                            ->orWhere('parent_id', $task->parent_id)
+                            ->get();
+
+                        foreach ($relatedTasks as $relatedTask) {
+                            $relatedTask->update($data);
+                            $returnTask[] = $relatedTask;
+                        }
+
+                        // Update parent task
+                        $parentTask = Task::find($task->parent_id);
+                        if ($parentTask) {
+                            $parentTask->update($data);
+                            $returnTask[] = $parentTask;
+                        }
+
+                        //Send API
+                        $this->sendRealTimeUpdate($returnTask, 'update');
+
+                        return response()->json([
+                            'code'    => 200,
+                            'message' => 'Task updated successfully',
+                            'data'    => $task,
+                        ], 200);
+                    } catch (\Exception $e) {
+                        Log::error($e->getMessage());
+
+                        return response()->json([
+                            'code'    => 500,
+                            'message' => 'Failed to updated task',
+                        ], 500);
                     }
 
+                default:
                     return response()->json([
-                        'code'    => 200,
-                        'message' => 'Task updated successfully',
-                        'data'    => $task,
-                    ], 200);
-                } catch (\Exception $e) {
-                    Log::error($e->getMessage());
-
-                    return response()->json([
-                        'code'    => 500,
-                        'message' => 'Failed to updated task',
-                    ], 500);
-                }
-
-            default:
-                return response()->json([
-                    'code'      =>  400,
-                    'message'   =>  'Invalid code',
-                    'data'      =>  ''
-                ]);
+                        'code'      =>  400,
+                        'message'   =>  'Invalid code',
+                        'data'      =>  ''
+                    ]);
+            }
+        } else {
+            return response()->json([
+                'code' => 401,
+                'message' => 'You do not have permission to edit this event',
+            ]);
         }
     }
 
@@ -400,102 +470,145 @@ class TaskController extends Controller
             ], 404);
         }
 
-        switch ($code) {
-            //Update when event dont have reapet
-            case 'EDIT_N':
-                try {
-                    $task->update($data);
+        $attendees = collect($task->attendees);
+        $attendee = $attendees->firstWhere('user_id', Auth::id());
+        
+        if ($task->user_id  === Auth::id() || ($attendee && $attendee['role'] === 'edit')) {
+            switch ($code) {
+                //Update when event dont have reapet
+                case 'EDIT_N':
+                    try {
+                        $task->update($data);
 
-                    return response()->json([
-                        'code'    => 200,
-                        'message' => 'Task updated successfully',
-                        'data'    => $task,
-                    ], 200);
-                } catch (\Exception $e) {
-                    Log::error($e->getMessage());
+                        //Send REALTIME
+                        $returnTask[] = $task;
 
-                    return response()->json([
-                        'code'    => 500,
-                        'message' => 'Failed to updated task',
-                    ], 500);
-                }
+                        $this->sendRealTimeUpdate($returnTask, 'update');
 
-            case 'EDIT_1':
-                try {
-                    //Add new task for 1 day change
-                    if (!$task->parent_id) {
-                        $task->parent_id = $id;
+                        return response()->json([
+                            'code'    => 200,
+                            'message' => 'Task updated successfully',
+                            'data'    => $task,
+                        ], 200);
+                    } catch (\Exception $e) {
+                        Log::error($e->getMessage());
+
+                        return response()->json([
+                            'code'    => 500,
+                            'message' => 'Failed to updated task',
+                        ], 500);
                     }
 
-                    $task->start_time = $data['start_time'];
-                    $task->end_time = $data['end_time'];
+                case 'EDIT_1':
+                    try {
+                        //Add new task for 1 day change
+                        if (!$task->parent_id) {
+                            $task->parent_id = $id;
+                        }
 
-                    $new_task = Task::create($task);
+                        $task->start_time = $data['start_time'];
+                        $task->end_time = $data['end_time'];
 
-                    //Push enddate to exclude_time array of task
-                    $endDate = Carbon::parse($new_task->start_time)->subDay()->endOfDay();
+                        $new_task = Task::create($task);
 
-                    $endDate->hour = $task->start_time->hour;
-                    $endDate->minute = $task->start_time->minute;
+                        //Send REALTIME
+                        $returnTaskCre[] = $new_task;
 
-                    $task->exclude_time[] = $endDate;
-                    $task->save();
+                        $this->sendRealTimeUpdate($returnTaskCre, 'create');
 
-                    return response()->json([
-                        'code'    => 200,
-                        'message' => 'Task updated successfully',
-                        'data'    => $new_task,
-                    ], 200);
-                } catch (\Exception $e) {
-                    Log::error($e->getMessage());
+                        //Push enddate to exclude_time array of task
+                        $endDate = Carbon::parse($new_task->start_time)->subDay()->endOfDay();
 
-                    return response()->json([
-                        'code'    => 500,
-                        'message' => 'Failed to updated task',
-                    ], 500);
-                }
+                        $endDate->hour = $task->start_time->hour;
+                        $endDate->minute = $task->start_time->minute;
 
-            case 'EDIT_1B':
-                try {
-                    $preNewTask = $task;
+                        $task->exclude_time[] = $endDate;
+                        $task->save();
 
-                    $preNewTask->start_time = $data['start_time'];
-                    $preNewTask->end_time = $data['end_time'];
+                        //Send REALTIME
+                        $returnTask[] = $task;
 
-                    //Add new task for following change
-                    $new_task = Task::create($preNewTask);
+                        $this->sendRealTimeUpdate($returnTask, 'update');
 
-                    $task->until = Carbon::parse($new_task->start_time)->subDay()->endOfDay();
-                    $task->save();
+                        return response()->json([
+                            'code'    => 200,
+                            'message' => 'Task updated successfully',
+                            'data'    => $new_task,
+                        ], 200);
+                    } catch (\Exception $e) {
+                        Log::error($e->getMessage());
 
-                    //Delete all task that have parent_id = $task->id and start_time > $ta
-                    $relatedTasks = Task::where('parent_id', $task->id)
-                        ->where('start_time', '>=', $task->until)
-                        ->get();
-                    foreach ($relatedTasks as $relatedTask) {
-                        $relatedTask->delete();
+                        return response()->json([
+                            'code'    => 500,
+                            'message' => 'Failed to updated task',
+                        ], 500);
                     }
 
-                    return response()->json([
-                        'code'    => 200,
-                        'message' => 'Task updated successfully',
-                        'data'    => $new_task,
-                    ], 200);
-                } catch (\Exception $e) {
-                    Log::error($e->getMessage());
+                case 'EDIT_1B':
+                    try {
+                        $preNewTask = $task;
 
-                    return response()->json([
-                        'code'    => 500,
-                        'message' => 'Failed to updated task',
-                    ], 500);
-                }
+                        $preNewTask->start_time = $data['start_time'];
+                        $preNewTask->end_time = $data['end_time'];
 
-            default:
-                return response()->json([
-                    'code'      =>  400,
-                    'message'   =>  'Invalid code',
-                    'data'      =>  ''
-                ]);
+                        //Add new task for following change
+                        $new_task = Task::create($preNewTask);
+
+                        //Send REALTIME
+                        $returnTask[] = $new_task;
+
+                        $this->sendRealTimeUpdate($returnTask, 'create');
+
+                        $task->until = Carbon::parse($new_task->start_time)->subDay()->endOfDay();
+                        $task->save();
+
+                        //Send REALTIME
+                        $returnTaskUpdate[] = $task;
+
+                        $this->sendRealTimeUpdate($returnTaskUpdate, 'update');
+
+                        //Delete all task that have parent_id = $task->id and start_time > $ta
+                        $relatedTasks = Task::where('parent_id', $task->id)
+                            ->where('start_time', '>=', $task->until)
+                            ->get();
+
+                        //Send REALTIME
+                        $returnTaskDel = $relatedTasks;
+
+                        foreach ($relatedTasks as $relatedTask) {
+                            $relatedTask->delete();
+                        }
+
+                        if(!$returnTaskDel){
+                            $this->sendRealTimeUpdate($returnTaskDel, 'delete');
+                        }  
+
+                        return response()->json([
+                            'code'    => 200,
+                            'message' => 'Task updated successfully',
+                            'data'    => $new_task,
+                        ], 200);
+                    } catch (\Exception $e) {
+                        Log::error($e->getMessage());
+
+                        return response()->json([
+                            'code'    => 500,
+                            'message' => 'Failed to updated task',
+                        ], 500);
+                    }
+
+                default:
+                    return response()->json([
+                        'code'      =>  400,
+                        'message'   =>  'Invalid code',
+                        'data'      =>  ''
+                    ]);
+            }
+        } else {
+            return response()->json([
+                'code' => 401,
+                'message' => 'You do not have permission to edit this event',
+            ]);
         }
     }
 
@@ -593,7 +706,10 @@ class TaskController extends Controller
                 $this->sendMail(Auth::user()->email, $emailGuests, $task);
             }
 
-            // broadcast(new TaskUpdatedEvent($task, 'create'));
+            //Send REALTIME
+            $returnTask[] = $task;
+
+            $this->sendRealTimeUpdate($returnTask, 'create');
 
             return response()->json([
                 'code'    => 200,
@@ -629,7 +745,13 @@ class TaskController extends Controller
             switch ($code) {
                 case 'DEL_N':
                     try {
+                        $returnTask[] = $task;
+
                         $task->delete();
+
+                        //Send REALTIME        
+                        $this->sendRealTimeUpdate($returnTask, 'delete');
+
                         return response()->json([
                             'code'    => 200,
                             'message' => 'Delete task successfully',
@@ -664,6 +786,11 @@ class TaskController extends Controller
                         $task->exclude_time = $excludeTime;
                         $task->save();
 
+                        $returnTask[] = $task;
+
+                        //Send REALTIME        
+                        $this->sendRealTimeUpdate($returnTask, 'update');
+
                         return response()->json([
                             'code' => 200,
                             'message' => 'Delete task successfully'
@@ -683,11 +810,18 @@ class TaskController extends Controller
 
                         $task->save();
 
+                        $returnTask[] = $task;
+
+                        //Send REALTIME        
+                        $this->sendRealTimeUpdate($returnTask, 'update');
+
                         // Xoá các task liên quan về sau
                         $tasksChild = Task::where('start_time', '>', $request->date)
                             ->where('id', $task->id)
                             ->orWhere('parent_id', $task->id)
                             ->get();
+
+                        $returnTaskDel[] = $tasksChild;    
 
                         if (!$tasksChild->isEmpty()) {
                             foreach ($tasksChild as $task) {
@@ -695,6 +829,11 @@ class TaskController extends Controller
                             }
                         }
 
+                        //Send REALTIME
+                        if(!$returnTaskDel){
+                            $this->sendRealTimeUpdate($returnTaskDel, 'delete');
+                        }        
+                        
                         return response()->json([
                             'code' => 200,
                             'message' => 'Delete tasks and following tasks successfully'
@@ -711,9 +850,20 @@ class TaskController extends Controller
                     // select all task with path first char is the same as the first char of the task to delete
                     try {
                         // delete all tasks
-                        Task::where('id', $task->id)
+                        $deleteTasks = Task::where('id', $task->id)
                             ->orWhere('parent_id',   $task->id)
-                            ->delete();
+                            ->get();
+
+                        $returnTaskDel = $deleteTasks;
+
+                        foreach ($returnTaskDel as $task) {
+                            $task->delete();
+                        }
+                        Log::info($returnTaskDel);
+                        //Send REALTIME        
+                        if(!$returnTaskDel){
+                            $this->sendRealTimeUpdate($returnTaskDel, 'delete');
+                        }  
 
                         return response()->json([
                             'code' => 200,
@@ -904,12 +1054,12 @@ class TaskController extends Controller
         if (!empty($start) && !empty($end)) {
             $query->where(function ($q) use ($start, $end) {
                 $q->whereBetween('start_time', ["$start 00:00:00", "$end 23:59:59"])
-                ->orWhere(function ($q2) use ($start, $end) {
-                    $q2->where('is_repeat', true)
-                        ->where(function ($q3) use ($start, $end) {
-                            $q3->whereNull('until')->orWhere('until', '>=', "$start 00:00:00");
-                        });
-                });
+                    ->orWhere(function ($q2) use ($start, $end) {
+                        $q2->where('is_repeat', true)
+                            ->where(function ($q3) use ($start, $end) {
+                                $q3->whereNull('until')->orWhere('until', '>=', "$start 00:00:00");
+                            });
+                    });
             });
         }
 
@@ -954,11 +1104,11 @@ class TaskController extends Controller
                         $repeatStart = $repeatStart->modify("+1 day");;
                     }
                 }
-                
+
                 if ($task->freq == 'monthly' && !empty($task->bymonthday)) {
                     // Lưu lại tháng hiện tại để lặp qua tất cả các ngày trong bymonthday
                     $currentMonth = $repeatStart->format('m');
-                    
+
                     foreach ($task->bymonthday as $day) {
                         // Tạo bản sao của $repeatStart để không làm thay đổi ngày gốc
                         $tempDate = clone $repeatStart;
@@ -1001,7 +1151,6 @@ class TaskController extends Controller
             'message' => 'Success',
             'data'    => $expandedTasks,
         ]);
-
     }
 
     private function nextRepeatDate($date, $freq, $interval)
@@ -1090,10 +1239,9 @@ class TaskController extends Controller
                         $task->exclude_time,
                     );
                 }
-                
             }
         }
-        
+
         // Trả về view và truyền dữ liệu vào
         return response()->json([
             'code'      =>  200,
