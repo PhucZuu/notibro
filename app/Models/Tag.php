@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Str;
 
 class Tag extends Model
 {
@@ -15,17 +14,10 @@ class Tag extends Model
         'description',
         'user_id',
         'color_code',
-        'is_reminder',
-        'reminder',
         'shared_user',
     ];
 
-    protected $attributes = [
-        'is_reminder' => 0,
-    ];
-
     protected $casts = [
-        'reminder'    => 'array',
         'shared_user' => 'array',
     ];
 
