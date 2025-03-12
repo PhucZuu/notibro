@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\Color;
+use App\Models\Timezone;
 use App\Models\User;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -17,6 +19,10 @@ return new class extends Migration
             $table->foreignIdFor(User::class)->constrained();
             $table->string('name', 50);
             $table->text('description')->nullable();
+            $table->string('color_code')->nullable();
+            $table->boolean('is_reminder')->default(0);
+            $table->json('reminder')->nullable();
+            $table->json('shared_user')->nullable();
             $table->timestamps();
         });
     }

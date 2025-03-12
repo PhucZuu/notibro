@@ -15,18 +15,10 @@ class TagController extends Controller
         try {
             $tags = Tag::where('user_id', Auth::id())->get();
 
-            if ($tags->isEmpty()) {
-                return response()->json([
-                    'code'    => 200,
-                    'message' => 'No tags available',
-                    'data'    => []
-                ], 200);
-            }
-
             return response()->json([
                 'code'    => 200,
                 'message' => 'Retrieve tags successfully',
-                'data'    => $tags
+                'data'    => $tags->isEmpty() ? [] : $tags
             ], 200);
         } catch (\Exception $e) {
             Log::error($e->getMessage());
@@ -38,23 +30,59 @@ class TagController extends Controller
         }
     }
 
+    public function show($id)
+    {
+        try {
+            $tag = Tag::where('id', $id)->where('user_id', Auth::id())->first();
+
+            if (!$tag) {
+                return response()->json([
+                    'code'    => 404,
+                    'message' => 'Tag not found or unauthorized',
+                ], 404);
+            }
+
+            return response()->json([
+                'code'    => 200,
+                'message' => 'Tag retrieved successfully',
+                'data'    => $tag,
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+
+            return response()->json([
+                'code'    => 500,
+                'message' => 'An error occurred while retrieving the tag',
+            ], 500);
+        }
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name' => [
-                'required',
-                'string',
-                function ($attribute, $value, $fail) {
-                    if (Tag::where('name', $value)->where('user_id', Auth::id())->exists()) {
-                        $fail('The tag name has already been taken.');
-                    }
-                },
-            ],
-            'description' => 'nullable|string',
+            'name'          => 'required|string',
+            'description'   => 'nullable|string',
+            'color_code'    => 'nullable|string',
+            'is_reminder'   => 'nullable|boolean',
+            'reminder'      => 'nullable|json',
+            'shared_user'   => 'nullable|json',
         ]);
 
         try {
-            $validated['user_id'] = Auth::id(); 
+            $userId = Auth::id();
+
+            // Kiểm tra xem đã có Tag cùng tên chưa
+            if (Tag::where('user_id', $userId)->where('name', $validated['name'])->exists()) {
+                return response()->json([
+                    'code'    => 409,
+                    'message' => 'You already have a tag with this name',
+                ], 409);
+            }
+
+            $validated['user_id'] = $userId;
+            $validated['shared_user'] = json_decode($validated['shared_user'], true) ?? [];
+            $validated['reminder'] = json_decode($validated['reminder'], true) ?? [];
+
             $tag = Tag::create($validated);
 
             return response()->json([
@@ -72,53 +100,21 @@ class TagController extends Controller
         }
     }
 
-    public function show($id)
-    {
-        try {
-            $tag = Tag::where('id', $id)->where('user_id', Auth::id())->first();
-
-            if (!$tag) {
-                return response()->json([
-                    'code'    => 404,
-                    'message' => 'Tag not found',
-                ], 404);
-            }
-
-            return response()->json([
-                'code'    => 200,
-                'message' => 'Retrieve tag successfully',
-                'data'    => $tag
-            ], 200);
-        } catch (\Exception $e) {
-            Log::error($e->getMessage());
-
-            return response()->json([
-                'code'    => 500,
-                'message' => 'An error occurred while retrieving tag',
-            ], 500);
-        }
-    }
 
     public function update(Request $request, $id)
     {
         $validated = $request->validate([
-            'name' => [
-                'required',
-                'string',
-                function ($attribute, $value, $fail) use ($id) {
-                    if (Tag::where('name', $value)
-                            ->where('user_id', Auth::id())
-                            ->where('id', '!=', $id)
-                            ->exists()) {
-                        $fail('The tag name has already been taken.');
-                    }
-                },
-            ],
-            'description' => 'nullable|string',
+            'name'          => 'required|string',
+            'description'   => 'nullable|string',
+            'color_code'    => 'nullable|string',
+            'is_reminder'   => 'nullable|boolean',
+            'reminder'      => 'nullable|json',
+            'shared_user'   => 'nullable|json',
         ]);
 
         try {
-            $tag = Tag::where('id', $id)->where('user_id', Auth::id())->first();
+            $userId = Auth::id();
+            $tag = Tag::where('id', $id)->where('user_id', $userId)->first();
 
             if (!$tag) {
                 return response()->json([
@@ -127,7 +123,22 @@ class TagController extends Controller
                 ], 404);
             }
 
-            $tag->update($validated);
+            // Kiểm tra xem đã có Tag khác cùng tên chưa
+            if (Tag::where('user_id', $userId)->where('name', $validated['name'])->where('id', '!=', $id)->exists()) {
+                return response()->json([
+                    'code'    => 409,
+                    'message' => 'You already have a tag with this name',
+                ], 409);
+            }
+
+            $tag->update([
+                'name'          => $validated['name'],
+                'description'   => $validated['description'],
+                'color_code'    => $validated['color_code'],
+                'is_reminder'   => $validated['is_reminder'],
+                'reminder'      => json_decode($validated['reminder'], true) ?? [],
+                'shared_user'   => json_decode($validated['shared_user'], true) ?? [],
+            ]);
 
             return response()->json([
                 'code'    => 200,
@@ -143,6 +154,7 @@ class TagController extends Controller
             ], 500);
         }
     }
+
 
     public function destroy($id)
     {
@@ -161,7 +173,6 @@ class TagController extends Controller
             return response()->json([
                 'code'    => 200,
                 'message' => 'Tag deleted successfully',
-                'data'    => null
             ], 200);
         } catch (\Exception $e) {
             Log::error($e->getMessage());
