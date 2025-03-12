@@ -63,8 +63,6 @@ class TagController extends Controller
             'name'          => 'required|string',
             'description'   => 'nullable|string',
             'color_code'    => 'nullable|string',
-            'is_reminder'   => 'nullable|boolean',
-            'reminder'      => 'nullable|json',
             'shared_user'   => 'nullable|json',
         ]);
 
@@ -81,7 +79,6 @@ class TagController extends Controller
 
             $validated['user_id'] = $userId;
             $validated['shared_user'] = json_decode($validated['shared_user'], true) ?? [];
-            $validated['reminder'] = json_decode($validated['reminder'], true) ?? [];
 
             $tag = Tag::create($validated);
 
@@ -100,15 +97,12 @@ class TagController extends Controller
         }
     }
 
-
     public function update(Request $request, $id)
     {
         $validated = $request->validate([
             'name'          => 'required|string',
             'description'   => 'nullable|string',
             'color_code'    => 'nullable|string',
-            'is_reminder'   => 'nullable|boolean',
-            'reminder'      => 'nullable|json',
             'shared_user'   => 'nullable|json',
         ]);
 
@@ -135,8 +129,6 @@ class TagController extends Controller
                 'name'          => $validated['name'],
                 'description'   => $validated['description'],
                 'color_code'    => $validated['color_code'],
-                'is_reminder'   => $validated['is_reminder'],
-                'reminder'      => json_decode($validated['reminder'], true) ?? [],
                 'shared_user'   => json_decode($validated['shared_user'], true) ?? [],
             ]);
 
@@ -154,7 +146,6 @@ class TagController extends Controller
             ], 500);
         }
     }
-
 
     public function destroy($id)
     {

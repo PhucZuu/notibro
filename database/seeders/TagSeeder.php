@@ -36,13 +36,6 @@ class TagSeeder extends Seeder
                     'description'  => "Description for Tag {$i} of User {$userId}",
                     'user_id'      => $userId,
                     'color_code'   => sprintf("#%06X", mt_rand(0, 0xFFFFFF)), 
-                    'is_reminder'  => (bool)random_int(0, 1), 
-                    'reminder'     => [
-                        [
-                            'type'     => 'email',
-                            'set_time' => random_int(1, 60) 
-                        ]
-                    ], 
                     'shared_user'  => $sharedUsers, 
                     'created_at'   => now(),
                     'updated_at'   => now(),
