@@ -672,6 +672,110 @@ class TaskController extends Controller
         ]);
     }
 
+    public function showOne($id)
+    {
+        if (Auth::check()) {
+            $user_id = Auth::user()->id;
+        } else {
+            return response()->json([
+                'code'    => 401,
+                'message' => 'Unauthorized',
+            ], 401);
+        }
+
+        // Retrieve the task by its ID  
+        $task = Task::select('*')
+            ->where('id', $id)
+            ->where(function ($query) use ($user_id) {
+                $query->where('user_id', $user_id)
+                    ->orWhereRaw("  
+                EXISTS (  
+                    SELECT 1 FROM JSON_TABLE(  
+                        attendees, '$[*]' COLUMNS (  
+                            user_id INT PATH '$.user_id',  
+                            status VARCHAR(20) PATH '$.status'  
+                        )  
+                    ) AS jt  
+                    WHERE jt.user_id = ?  
+                )  
+            ", [$user_id]);
+            })
+            ->first();
+
+        // If the task is not found  
+        if (!$task) {
+            return response()->json([
+                'code'    => 404,
+                'message' => 'Task not found',
+            ], 404);
+        }
+
+        $timezone_code = $task->timezone_code;
+
+        $task->rrule = [
+            'freq'              => $task->freq,
+            'interval'          => $task->interval,
+            'until'             => Carbon::parse($task->until, 'UTC'),
+            'count'             => $task->count,
+            'byweekday'         => $task->byweekday,
+            'bymonthday'        => $task->bymonthday,
+            'bymonth'           => $task->bymonth,
+            'bysetpos'          => $task->bysetpos,
+        ];
+
+        $task->start_time   = Carbon::parse($task->start_time, 'UTC');
+        $task->end_time     = Carbon::parse($task->end_time, 'UTC');
+
+        if ($task->exclude_time && count($task->exclude_time) > 0) {
+            $cal_exclude_time = array_map(function ($date) use ($timezone_code) {
+                return Carbon::parse($date, 'UTC');
+            }, $task->exclude_time);
+
+            $task->exclude_time = $cal_exclude_time;
+        }
+
+        if ($task->attendees) {
+            $attendeesDetails = [];
+            foreach ($task->attendees as $attendee) {
+                $user = User::select('first_name', 'last_name', 'email', 'avatar')
+                    ->where('id', $attendee['user_id'])
+                    ->first();
+
+                if ($user) {
+                    $attendeesDetails[] = [
+                        'user_id'    => $attendee['user_id'],
+                        'first_name' => $user->first_name,
+                        'last_name'  => $user->last_name,
+                        'email'      => $user->email,
+                        'avatar'     => $user->avatar,
+                        'status'     => $attendee['status'],
+                        'role'       => $attendee['role'],
+                    ];
+                }
+            }
+            $task->attendees = $attendeesDetails;
+        }
+
+        // Remove unnecessary fields  
+        unset(
+            $task->freq,
+            $task->interval,
+            $task->until,
+            $task->count,
+            $task->byweekday,
+            $task->bymonthday,
+            $task->bymonth,
+            $task->bysetpos
+        );
+
+        // Return the response in a similar format as index  
+        return response()->json([
+            'code'    => 200,
+            'message' => 'Fetching Data successfully',
+            'data'    => $task,
+        ], 200);
+    }
+
     public function store(Request $request)
     {
 
@@ -728,7 +832,7 @@ class TaskController extends Controller
 
             foreach ($users as $user) {
                 $user->notify(new NotificationEvent(
-                    $user->id, 
+                    $user->id,
                     "Bạn có 1 lời mời tham gia {$task->type} {$task->title}",
                     "{$this->URL_FRONTEND}/calendar/event/{$task->uuid}/invite",
                     "invite_to_task"
@@ -978,7 +1082,7 @@ class TaskController extends Controller
             $owner = User::find($task->user_id);
 
             $owner->notify(new NotificationEvent(
-                $task->user_id, 
+                $task->user_id,
                 "Tài khoản {$user->first_name} {$user->last_name} vừa mới đồng ý tham gia {$task->type} {$task->title} của bạn",
                 "",
                 "accept_invite"
@@ -1047,7 +1151,7 @@ class TaskController extends Controller
             $owner = User::find($task->user_id);
 
             $owner->notify(new NotificationEvent(
-                $task->user_id, 
+                $task->user_id,
                 "Tài khoản {$user->first_name} {$user->last_name} vừa từ chối tham gia {$task->type} {$task->title} của bạn",
                 "",
                 "refuse_invite"
