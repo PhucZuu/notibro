@@ -361,7 +361,10 @@ class TaskController extends Controller
 
                         $this->sendRealTimeUpdate($returnTask, 'create');
 
-                        $task->until = Carbon::parse($new_task->start_time)->subDay()->endOfDay();
+                        $task->until = Carbon::parse($data['updated_date'])->setTime(
+                            Carbon::parse($task->start_time)->hour,
+                            Carbon::parse($task->start_time)->minute
+                        );
                         $task->save();
 
                         //Send REALTIME
@@ -513,11 +516,20 @@ class TaskController extends Controller
                 case 'EDIT_1':
                     try {
                         $new_task = Task::create([
-                            'parent_id'  => $id,
-                            'start_time' => $data['start_time'],
-                            'end_time'   => $data['end_time'],
-                            'title'      => $task->title,
-                            'user_id'    => $task->user_id,
+                            'parent_id'     => $id,
+                            'start_time'    => $data['start_time'],
+                            'end_time'      => $data['end_time'],
+                            'title'         => $task->title,
+                            'description'   => $task->description,
+                            'user_id'       => $task->user_id,
+                            'timezone_code' => $task->timezone_code,
+                            'color_code'    => $task->color_code,
+                            'tag_id'        => $task->tag_id,
+                            'attendees'     => $task->attendees,
+                            'location'      => $task->location,
+                            'type'          => $task->type,
+                            'is_all_day'    => $task->is_all_day,
+                            'is_busy'       => $task->is_busy,
                         ]);
 
                         //Send REALTIME
@@ -572,9 +584,9 @@ class TaskController extends Controller
 
                         $this->sendRealTimeUpdate($returnTask, 'create');
 
-                        $task->until = Carbon::parse($new_task->start_time)->subDay()->setTime(
-                            $task->start_time->hour,
-                            $task->start_time->minute
+                        $task->until = Carbon::parse($data['updated_date'])->setTime(
+                            Carbon::parse($task->start_time)->hour,
+                            Carbon::parse($task->start_time)->minute
                         );
                         $task->save();
 
