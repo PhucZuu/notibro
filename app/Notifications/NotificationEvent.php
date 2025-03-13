@@ -16,16 +16,19 @@ class NotificationEvent extends Notification implements ShouldBroadcast
     use Queueable;
 
     protected $userID;
-
     protected $message;
+    protected $link;
+    protected $code;
 
     /**
      * Create a new notification instance.
      */
-    public function __construct($userID, $message)
+    public function __construct($userID, $message, $link, $code)
     {
         $this->userID   = $userID;
         $this->message  = $message;
+        $this->link     = $link;
+        $this->code     = $code;
     }
 
     /**
@@ -58,8 +61,11 @@ class NotificationEvent extends Notification implements ShouldBroadcast
     {
         return [
             'message'       => $this->message,
-            'link'          => '',
+            'link'          => $this->link,
+            'code'          => $this->code,
             'user_id'       => $notifiable->id,
+            'created_at' => now()->toDateTimeString(), 
+            'read_at'    => null,
         ];
     }
 
@@ -69,8 +75,11 @@ class NotificationEvent extends Notification implements ShouldBroadcast
 
         return new BroadcastMessage ([
             'message'       => $this->message,
-            'link'          => '',
+            'link'          => $this->link,
+            'code'          => $this->code,
             'user_id'       => $notifiable->id,
+            'created_at' => now()->toDateTimeString(),
+            'read_at'    => null,
         ]);
     }
 
