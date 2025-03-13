@@ -24,9 +24,12 @@ class TaskController extends Controller
 {
     protected $serviceNextOcc;
 
+    public $URL_FRONTEND;
+
     public function __construct()
     {
         $this->serviceNextOcc = new GetNextOccurrenceService();
+        $this->URL_FRONTEND = config('app.frontend_url');
     }
 
     protected function handleJsonStringData($data)
@@ -718,6 +721,15 @@ class TaskController extends Controller
                 $userIds = collect($task->attendees)->pluck('user_id');
                 $emailGuests = User::select('email')->whereIn('id', $userIds)->get();
                 $this->sendMail(Auth::user()->email, $emailGuests, $task);
+
+                foreach ($userIds as $inv_u_id) {
+                    event(new NotificationEvent(
+                        $inv_u_id, 
+                        "Bạn có 1 lời mời tham gia {$task->type} {$task->title}",
+                        "{$this->URL_FRONTEND}/calendar/event/{$task->uuid}/invite",
+                        "invite_to_task"
+                    ));
+                }
             }
 
             //Send REALTIME
@@ -725,6 +737,7 @@ class TaskController extends Controller
 
             $this->sendRealTimeUpdate($returnTask, 'create');
 
+            //Send Notification
             if ($task->tag_id) {
                 $tag = Tag::find($task->tag_id);
 
@@ -735,16 +748,15 @@ class TaskController extends Controller
                         ->toArray();
 
                     foreach ($sharedUsers as $userId) {
-                        event(new NotificationEvent($userId, "Có 1 {$task->type} mới trong tag {$tag->name}"));
-
-                        if ($userId == Auth::id()) {
-                            event(new NotificationEvent(Auth::id(), "Có 1 {$task->type} mới trong tag {$tag->name}"));
-                        }
+                        event(new NotificationEvent(
+                            $userId, 
+                            "Có 1 {$task->type} mới trong tag {$tag->name}",
+                            "",
+                            "C_task_in_tag"
+                        ));
                     }
                 }
             }
-
-            Auth::user()->notify(new NotificationEvent(Auth::id(), 'Tạo mới task thành công'));
 
             return response()->json([
                 'code'    => 200,
@@ -979,6 +991,16 @@ class TaskController extends Controller
             $task->attendees = $attendees;
             $task->save(); // Lưu thay đổi vào database
 
+            //Send Notification
+            $owner = User::find($task->user_id);
+
+            $owner->notify(new NotificationEvent(
+                $task->user_id, 
+                "Tài khoản {$user->first_name} {$user->last_name} vừa mới đồng ý tham gia {$task->type} {$task->title} của bạn",
+                "",
+                "accept_invite"
+            ));
+
             // Thêm thông báo
             Reminder::insert([
                 'title'   => 'Event notification',
@@ -1037,6 +1059,16 @@ class TaskController extends Controller
             }
 
             DB::commit();
+
+            //Send Notification
+            $owner = User::find($task->user_id);
+
+            $owner->notify(new NotificationEvent(
+                $task->user_id, 
+                "Tài khoản {$user->first_name} {$user->last_name} vừa từ chối tham gia {$task->type} {$task->title} của bạn",
+                "",
+                "refuse_invite"
+            ));
 
             return response()->json([
                 'code' => 200,
