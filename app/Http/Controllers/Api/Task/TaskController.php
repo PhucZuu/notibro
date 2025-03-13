@@ -718,13 +718,14 @@ class TaskController extends Controller
             $task = Task::create($data);
 
             if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
-                $userIds = collect($task->attendees)->pluck('user_id');
+                $attendees = is_array($task->attendees) ? $task->attendees : json_decode($task->attendees, true);
+                $users = User::whereIn('id', collect($attendees)->pluck('user_id'))->get();
                 $emailGuests = User::select('email')->whereIn('id', $userIds)->get();
                 $this->sendMail(Auth::user()->email, $emailGuests, $task);
 
-                foreach ($userIds as $inv_u_id) {
-                    event(new NotificationEvent(
-                        $inv_u_id, 
+                foreach ($users as $user) {
+                    $user->notify(new NotificationEvent(
+                        $user->id, 
                         "Bạn có 1 lời mời tham gia {$task->type} {$task->title}",
                         "{$this->URL_FRONTEND}/calendar/event/{$task->uuid}/invite",
                         "invite_to_task"

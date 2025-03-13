@@ -63,9 +63,6 @@ class NotificationEvent extends Notification implements ShouldBroadcast
             'message'       => $this->message,
             'link'          => $this->link,
             'code'          => $this->code,
-            'user_id'       => $notifiable->id,
-            'created_at' => now()->toDateTimeString(), 
-            'read_at'    => null,
         ];
     }
 
@@ -74,9 +71,11 @@ class NotificationEvent extends Notification implements ShouldBroadcast
         Log::info('🔔 Đang gửi notification đến Pusher', ['user_id' => $notifiable->id]);
 
         return new BroadcastMessage ([
-            'message'       => $this->message,
-            'link'          => $this->link,
-            'code'          => $this->code,
+            'data'       => [
+                'message'       => $this->message,
+                'link'          => $this->link,
+                'code'          => $this->code,
+            ],
             'user_id'       => $notifiable->id,
             'created_at' => now()->toDateTimeString(),
             'read_at'    => null,
