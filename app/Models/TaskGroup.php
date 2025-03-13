@@ -11,19 +11,37 @@ class TaskGroup extends Model
 
     protected $fillable = [
         'name',
-        'owner_id'
+        'task_id',
+        'created_by',
     ];
 
-    public function owner()
+    /**
+     * Mối quan hệ: Nhóm thuộc về một Task.
+     */
+    public function task()
     {
-        return $this->belongsTo(User::class, 'owner_id');
+        return $this->belongsTo(Task::class);
     }
 
+    /**
+     * Mối quan hệ: Người tạo nhóm là một User.
+     */
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * Mối quan hệ: Nhóm có nhiều thành viên.
+     */
     public function members()
     {
         return $this->hasMany(TaskGroupMember::class, 'group_id');
     }
 
+    /**
+     * Mối quan hệ: Nhóm có nhiều tin nhắn.
+     */
     public function messages()
     {
         return $this->hasMany(TaskGroupMessage::class, 'group_id');
