@@ -317,13 +317,16 @@ class TaskController extends Controller
 
                         $this->sendRealTimeUpdate($returnTask, 'create');
 
-                        //Push enddate to exclude_time array of task
-                        $endDate = Carbon::parse($new_task->start_time)->subDay()->endOfDay();
+                        //Push updated_date to exclude_time array of task
+                        $exclude_time = $task->exclude_time ?? [];
 
-                        $endDate->hour = $task->start_time->hour;
-                        $endDate->minute = $task->start_time->minute;
+                        if (!is_array($exclude_time)) {
+                            $exclude_time = json_decode($exclude_time, true) ?? [];
+                        }
 
-                        $task->exclude_time[] = $endDate;
+                        $exclude_time[] = Carbon::createFromFormat('Y-m-d H:i:s', $data['updated_date'], $data['timezone_code'])->setTimezone('UTC');
+
+                        $task->exclude_time = $exclude_time;
                         $task->save();
 
                         //Send REALTIME
@@ -519,28 +522,15 @@ class TaskController extends Controller
 
                         $this->sendRealTimeUpdate($returnTaskCre, 'create');
 
-                        //Push enddate to exclude_time array of task
-                        $endDate = Carbon::parse($new_task->start_time)->subDay()->setTime(
-                            $task->start_time->hour,
-                            $task->start_time->minute
-                        );
+                        $exclude_time = $task->exclude_time ?? [];
 
-                        if (!empty($task->exclude_time)) {
-                            // Đảm bảo exclude_time luôn là mảng
-                            if (!is_array($task->exclude_time)) {
-                                $task->exclude_time = json_decode($task->exclude_time, true);
-                                
-                                // Nếu decode thất bại hoặc không phải mảng, đặt về mảng rỗng
-                                if (!is_array($task->exclude_time)) {
-                                    $task->exclude_time = [];
-                                }
-                            }
-                        } else {
-                            $task->exclude_time = [];
+                        if (!is_array($exclude_time)) {
+                            $exclude_time = json_decode($exclude_time, true) ?? [];
                         }
-                        
-                        // Thêm start_time của task mới vào exclude_time
-                        $task->exclude_time[] = Carbon::createFromFormat('Y-m-d H:i:s', $data['updated_date'], $data['timezone_code'])->setTimezone('UTC');
+
+                        $exclude_time[] = Carbon::createFromFormat('Y-m-d H:i:s', $data['updated_date'], $data['timezone_code'])->setTimezone('UTC');
+
+                        $task->exclude_time = $exclude_time;
                         $task->save();
 
                         //Send REALTIME
@@ -735,7 +725,7 @@ class TaskController extends Controller
 
             $this->sendRealTimeUpdate($returnTask, 'create');
 
-            if($task->tag_id){
+            if ($task->tag_id) {
                 $tag = Tag::find($task->tag_id);
 
                 if ($tag && is_array($tag->shared_user)) {
@@ -1036,13 +1026,13 @@ class TaskController extends Controller
 
         try {
             // Kiểm tra người dùng đã tồn tại trong attendees chưa
-            Log::info('before',[$task->attendees]);
+            Log::info('before', [$task->attendees]);
 
             if (in_array($user->id, array_column($task->attendees, 'user_id'))) {
                 $task->attendees = array_filter($task->attendees, function ($attendee) use ($user) {
                     return $attendee['user_id'] != $user->id;
                 });
-                Log::info('after',[$task->attendees]);
+                Log::info('after', [$task->attendees]);
                 $task->save();
             }
 
@@ -1073,7 +1063,7 @@ class TaskController extends Controller
     }
 
     public function search(Request $request)
-    {   
+    {
         $user_id = auth()->user()->id;
         $title      = $request->query('title');
         $tag        = $request->query('tag');
@@ -1082,9 +1072,9 @@ class TaskController extends Controller
         $location   = $request->query('location');
 
         $query = Task::select('*')
-        ->where(function ($query) use ($user_id) {
-            $query->where('user_id', $user_id)
-                ->orWhereRaw("
+            ->where(function ($query) use ($user_id) {
+                $query->where('user_id', $user_id)
+                    ->orWhereRaw("
                 EXISTS (
                     SELECT 1 FROM JSON_TABLE(
                         attendees, '$[*]' COLUMNS (
@@ -1095,7 +1085,7 @@ class TaskController extends Controller
                     WHERE jt.user_id = ?
                 )
             ", [$user_id]);
-        });
+            });
 
         if (!empty($title)) {
             $query->where('title', 'like', "%$title%");
@@ -1131,7 +1121,7 @@ class TaskController extends Controller
                     $user = User::select('first_name', 'last_name', 'email', 'avatar')
                         ->where('id', $attendee['user_id'])
                         ->first();
-    
+
                     if ($user) {
                         $attendeesDetails[] = [
                             'user_id'    => $attendee['user_id'],
@@ -1144,12 +1134,12 @@ class TaskController extends Controller
                         ];
                     }
                 }
-    
+
                 $task->attendees = $attendeesDetails;
-    
+
                 $attendeesDetails = [];
             }
-            
+
             if (!$task->is_repeat || !$task->freq) {
                 $expandedTasks[] = $task;
                 continue;
