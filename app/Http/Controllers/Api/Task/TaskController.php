@@ -226,6 +226,7 @@ class TaskController extends Controller
         $code = $request->code;
 
         $data = $request->validate([
+            'updated_date'      => 'nullable',
             'tag_id'            => 'nullable',
             'color_code'        => 'required',
             'timezone_code'     => 'required',
@@ -453,6 +454,7 @@ class TaskController extends Controller
         $code = $request->code;
 
         $data = $request->validate([
+            'updated_date'      => 'nullable',
             'timezone_code'     => 'required',
             'start_time'        => 'required|date_format:Y-m-d H:i:s',
             'end_time'          => 'nullable|date_format:Y-m-d H:i:s',
@@ -504,18 +506,10 @@ class TaskController extends Controller
 
                 case 'EDIT_1':
                     try {
-                        //Add new task for 1 day change
-                        if (!$task->parent_id) {
-                            $task->parent_id = $id;
-                        }
-
-                        $task->start_time = $data['start_time'];
-                        $task->end_time = $data['end_time'];
-
                         $new_task = Task::create([
-                            'parent_id'  => $task->parent_id,
-                            'start_time' => $task->start_time,
-                            'end_time'   => $task->end_time,
+                            'parent_id'  => $id,
+                            'start_time' => $data['start_time'],
+                            'end_time'   => $data['end_time'],
                             'title'      => $task->title,
                             'user_id'    => $task->user_id,
                         ]);
@@ -531,10 +525,22 @@ class TaskController extends Controller
                             $task->start_time->minute
                         );
 
-                        // Lấy mảng exclude_time hiện tại (nếu null thì gán là mảng rỗng)
-                        $excludeTimeArray = $task->exclude_time ?? [];
-                        $excludeTimeArray[] = $endDate->format('Y-m-d H:i:s');
-                        $task->exclude_time = $excludeTimeArray;
+                        if (!empty($task->exclude_time)) {
+                            // Đảm bảo exclude_time luôn là mảng
+                            if (!is_array($task->exclude_time)) {
+                                $task->exclude_time = json_decode($task->exclude_time, true);
+                                
+                                // Nếu decode thất bại hoặc không phải mảng, đặt về mảng rỗng
+                                if (!is_array($task->exclude_time)) {
+                                    $task->exclude_time = [];
+                                }
+                            }
+                        } else {
+                            $task->exclude_time = [];
+                        }
+                        
+                        // Thêm start_time của task mới vào exclude_time
+                        $task->exclude_time[] = Carbon::createFromFormat('Y-m-d H:i:s', $data['updated_date'], $data['timezone_code'])->setTimezone('UTC');
                         $task->save();
 
                         //Send REALTIME
