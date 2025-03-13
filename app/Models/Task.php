@@ -94,6 +94,17 @@ class Task extends Model
         return $data;
     }
 
+    public function getAttendeesForRealTime()
+    {
+        $filteredAttendees = collect($this->attendees ?? [])
+        ->pluck('user_id') // Lấy user_id
+        ->toArray();
+
+        $data = array_merge([$this->user_id], $filteredAttendees);
+
+        return $data;
+    }
+
     public function formatedReturnData()
     {
         $timezone_code = $this->timezone_code;
