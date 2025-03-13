@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\Color\ColorController;
 use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\Auth\AuthGoogleController;
+use App\Http\Controllers\Api\Notification\NotificationController;
 use App\Http\Controllers\Api\Package\StoragePackageController;
 use App\Http\Controllers\Api\Role\RoleController;
 use App\Http\Controllers\Api\Setting\SettingController;
@@ -53,6 +54,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/event/{uuid}/accept', [TaskController::class,'acceptInvite']);
     Route::post('/event/{uuid}/refuse', [TaskController::class,'refuseInvite']);
     Route::get('/event/{uuid}/invite', [TaskController::class,'show']);
+
+    // Notifications
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::get('/notifications/unread', [NotificationController::class, 'unread']);
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead']);
 
     // TASK
     Route::get('/tasks', [TaskController::class, 'index']);

@@ -7,10 +7,12 @@ use App\Http\Controllers\Controller;
 use App\Mail\InviteGuestMail;
 use App\Models\Reminder;
 use App\Models\Setting;
+use App\Models\Tag;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use App\Models\Task;
 use App\Models\User;
+use App\Notifications\NotificationEvent;
 use App\Services\GetNextOccurrenceService;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
@@ -224,6 +226,7 @@ class TaskController extends Controller
         $code = $request->code;
 
         $data = $request->validate([
+            'tag_id'            => 'nullable',
             'color_code'        => 'required',
             'timezone_code'     => 'required',
             'title'             => 'required|max:255',
@@ -509,7 +512,13 @@ class TaskController extends Controller
                         $task->start_time = $data['start_time'];
                         $task->end_time = $data['end_time'];
 
-                        $new_task = Task::create($task);
+                        $new_task = Task::create([
+                            'parent_id'  => $task->parent_id,
+                            'start_time' => $task->start_time,
+                            'end_time'   => $task->end_time,
+                            'title'      => $task->title,
+                            'user_id'    => $task->user_id,
+                        ]);
 
                         //Send REALTIME
                         $returnTaskCre[] = $new_task;
@@ -517,12 +526,15 @@ class TaskController extends Controller
                         $this->sendRealTimeUpdate($returnTaskCre, 'create');
 
                         //Push enddate to exclude_time array of task
-                        $endDate = Carbon::parse($new_task->start_time)->subDay()->endOfDay();
+                        $endDate = Carbon::parse($new_task->start_time)->subDay()->setTime(
+                            $task->start_time->hour,
+                            $task->start_time->minute
+                        );
 
-                        $endDate->hour = $task->start_time->hour;
-                        $endDate->minute = $task->start_time->minute;
-
-                        $task->exclude_time[] = $endDate;
+                        // Lấy mảng exclude_time hiện tại (nếu null thì gán là mảng rỗng)
+                        $excludeTimeArray = $task->exclude_time ?? [];
+                        $excludeTimeArray[] = $endDate->format('Y-m-d H:i:s');
+                        $task->exclude_time = $excludeTimeArray;
                         $task->save();
 
                         //Send REALTIME
@@ -546,20 +558,25 @@ class TaskController extends Controller
 
                 case 'EDIT_1B':
                     try {
-                        $preNewTask = $task;
+                        $preNewTask = $task->replicate();
 
                         $preNewTask->start_time = $data['start_time'];
                         $preNewTask->end_time = $data['end_time'];
 
+                        unset($preNewTask->uuid);
+
                         //Add new task for following change
-                        $new_task = Task::create($preNewTask);
+                        $new_task = Task::create($preNewTask->toArray());
 
                         //Send REALTIME
                         $returnTask[] = $new_task;
 
                         $this->sendRealTimeUpdate($returnTask, 'create');
 
-                        $task->until = Carbon::parse($new_task->start_time)->subDay()->endOfDay();
+                        $task->until = Carbon::parse($new_task->start_time)->subDay()->setTime(
+                            $task->start_time->hour,
+                            $task->start_time->minute
+                        );
                         $task->save();
 
                         //Send REALTIME
@@ -661,6 +678,7 @@ class TaskController extends Controller
 
         //validate request
         $data = $request->validate([
+            'tag_id'            => 'nullable',
             'color_code'        => 'required',
             'timezone_code'     => 'required',
             'title'             => 'required|max:255',
@@ -710,6 +728,27 @@ class TaskController extends Controller
             $returnTask[] = $task;
 
             $this->sendRealTimeUpdate($returnTask, 'create');
+
+            if($task->tag_id){
+                $tag = Tag::find($task->tag_id);
+
+                if ($tag && is_array($tag->shared_user)) {
+                    $sharedUsers = collect($tag->shared_user)
+                        ->where('status', 'yes')
+                        ->pluck('user_id')
+                        ->toArray();
+
+                    foreach ($sharedUsers as $userId) {
+                        event(new NotificationEvent($userId, "Có 1 {$task->type} mới trong tag {$tag->name}"));
+
+                        if ($userId == Auth::id()) {
+                            event(new NotificationEvent(Auth::id(), "Có 1 {$task->type} mới trong tag {$tag->name}"));
+                        }
+                    }
+                }
+            }
+
+            Auth::user()->notify(new NotificationEvent(Auth::id(), 'Tạo mới task thành công'));
 
             return response()->json([
                 'code'    => 200,
