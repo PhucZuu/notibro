@@ -113,7 +113,7 @@ class TaskController extends Controller
     public function getRecipients($data)
     {
         $recipients = collect($data)
-            ->flatMap(fn($task) => $task->getAttendees()) // Lấy tất cả attendees
+            ->flatMap(fn($task) => $task->getAttendeesForRealTime()) // Lấy tất cả attendees
             ->unique() // Loại bỏ user trùng
             ->values() // Reset key của mảng
             ->toArray();
@@ -717,20 +717,22 @@ class TaskController extends Controller
 
             $task = Task::create($data);
 
+            $attendees = is_array($task->attendees) ? $task->attendees : json_decode($task->attendees, true);
+            $users = User::whereIn('id', collect($attendees)->pluck('user_id'))->get();
+
             if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
-                $attendees = is_array($task->attendees) ? $task->attendees : json_decode($task->attendees, true);
-                $users = User::whereIn('id', collect($attendees)->pluck('user_id'))->get();
+                $userIds = collect($task->attendees)->pluck('user_id');
                 $emailGuests = User::select('email')->whereIn('id', $userIds)->get();
                 $this->sendMail(Auth::user()->email, $emailGuests, $task);
+            }
 
-                foreach ($users as $user) {
-                    $user->notify(new NotificationEvent(
-                        $user->id, 
-                        "Bạn có 1 lời mời tham gia {$task->type} {$task->title}",
-                        "{$this->URL_FRONTEND}/calendar/event/{$task->uuid}/invite",
-                        "invite_to_task"
-                    ));
-                }
+            foreach ($users as $user) {
+                $user->notify(new NotificationEvent(
+                    $user->id, 
+                    "Bạn có 1 lời mời tham gia {$task->type} {$task->title}",
+                    "{$this->URL_FRONTEND}/calendar/event/{$task->uuid}/invite",
+                    "invite_to_task"
+                ));
             }
 
             //Send REALTIME
@@ -738,26 +740,6 @@ class TaskController extends Controller
 
             $this->sendRealTimeUpdate($returnTask, 'create');
 
-            //Send Notification
-            if ($task->tag_id) {
-                $tag = Tag::find($task->tag_id);
-
-                if ($tag && is_array($tag->shared_user)) {
-                    $sharedUsers = collect($tag->shared_user)
-                        ->where('status', 'yes')
-                        ->pluck('user_id')
-                        ->toArray();
-
-                    foreach ($sharedUsers as $userId) {
-                        event(new NotificationEvent(
-                            $userId, 
-                            "Có 1 {$task->type} mới trong tag {$tag->name}",
-                            "",
-                            "C_task_in_tag"
-                        ));
-                    }
-                }
-            }
 
             return response()->json([
                 'code'    => 200,
