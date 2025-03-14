@@ -702,7 +702,7 @@ class TaskController extends Controller
             $task = Task::create($data);
 
             // create group chat after created tasks
-            app(TaskGroupChatController::class)->createGroup($task->id,$task->user_id);
+            app(TaskGroupChatController::class)->createGroup($task->id, $task->user_id);
 
             if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
                 $userIds = collect($task->attendees)->pluck('user_id');
@@ -957,11 +957,11 @@ class TaskController extends Controller
                 'sent_at' => Carbon::now($task->user->setting->timezone_code),
             ]);
 
-            DB::commit();
-
             // add member to group chat after member accepts invitation
             app(TaskGroupChatController::class)->addMember($task->id, $user->id);
-            
+
+            DB::commit();
+
             return response()->json([
                 'code'    => 200,
                 'message' => 'You have successfully accepted the event',
@@ -998,13 +998,13 @@ class TaskController extends Controller
 
         try {
             // Kiểm tra người dùng đã tồn tại trong attendees chưa
-            Log::info('before',[$task->attendees]);
+            Log::info('before', [$task->attendees]);
 
             if (in_array($user->id, array_column($task->attendees, 'user_id'))) {
                 $task->attendees = array_filter($task->attendees, function ($attendee) use ($user) {
                     return $attendee['user_id'] != $user->id;
                 });
-                Log::info('after',[$task->attendees]);
+                Log::info('after', [$task->attendees]);
                 $task->save();
             }
 
@@ -1035,7 +1035,7 @@ class TaskController extends Controller
     }
 
     public function search(Request $request)
-    {   
+    {
         $user_id = auth()->user()->id;
         $title      = $request->query('title');
         $tag        = $request->query('tag');
@@ -1044,9 +1044,9 @@ class TaskController extends Controller
         $location   = $request->query('location');
 
         $query = Task::select('*')
-        ->where(function ($query) use ($user_id) {
-            $query->where('user_id', $user_id)
-                ->orWhereRaw("
+            ->where(function ($query) use ($user_id) {
+                $query->where('user_id', $user_id)
+                    ->orWhereRaw("
                 EXISTS (
                     SELECT 1 FROM JSON_TABLE(
                         attendees, '$[*]' COLUMNS (
@@ -1057,7 +1057,7 @@ class TaskController extends Controller
                     WHERE jt.user_id = ?
                 )
             ", [$user_id]);
-        });
+            });
 
         if (!empty($title)) {
             $query->where('title', 'like', "%$title%");
@@ -1093,7 +1093,7 @@ class TaskController extends Controller
                     $user = User::select('first_name', 'last_name', 'email', 'avatar')
                         ->where('id', $attendee['user_id'])
                         ->first();
-    
+
                     if ($user) {
                         $attendeesDetails[] = [
                             'user_id'    => $attendee['user_id'],
@@ -1106,12 +1106,12 @@ class TaskController extends Controller
                         ];
                     }
                 }
-    
+
                 $task->attendees = $attendeesDetails;
-    
+
                 $attendeesDetails = [];
             }
-            
+
             if (!$task->is_repeat || !$task->freq) {
                 $expandedTasks[] = $task;
                 continue;
