@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Task;
 
 use App\Events\Task\TaskUpdatedEvent;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Api\Chat\TaskGroupChatController;
 use App\Mail\InviteGuestMail;
 use App\Models\Reminder;
 use App\Models\Setting;
@@ -836,6 +837,9 @@ class TaskController extends Controller
             $attendees = is_array($task->attendees) ? $task->attendees : json_decode($task->attendees, true);
             $users = User::whereIn('id', collect($attendees)->pluck('user_id'))->get();
 
+            // create group chat after created tasks
+            app(TaskGroupChatController::class)->createGroup($task->id,$task->user_id);
+
             if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
                 $userIds = collect($task->attendees)->pluck('user_id');
                 $emailGuests = User::select('email')->whereIn('id', $userIds)->get();
@@ -1111,6 +1115,9 @@ class TaskController extends Controller
 
             DB::commit();
 
+            // add member to group chat after member accepts invitation
+            app(TaskGroupChatController::class)->addMember($task->id, $user->id);
+            
             return response()->json([
                 'code'    => 200,
                 'message' => 'You have successfully accepted the event',

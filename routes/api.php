@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\Color\ColorController;
 use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\Auth\AuthGoogleController;
+use App\Http\Controllers\Api\Chat\TaskGroupChatController;
 use App\Http\Controllers\Api\Notification\NotificationController;
 use App\Http\Controllers\Api\Package\StoragePackageController;
 use App\Http\Controllers\Api\Role\RoleController;
@@ -69,6 +70,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/tasks/{id}/onDrag', [TaskController::class, 'updateTaskOnDrag']);
     Route::post('/tasks', [TaskController::class, 'store']);
     Route::delete('/tasks/{id}', [TaskController::class, 'destroy']);
+
+    // GROUP CHAT TASK
+    Route::delete('/task-groups-chat/{groupId}/leave', [TaskGroupChatController::class, 'leaveGroup']);
+    
+    
 
     //List and get timezone
     Route::get('/timezones',        [TimezoneController::class, 'index']);
