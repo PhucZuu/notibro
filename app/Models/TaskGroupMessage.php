@@ -14,6 +14,7 @@ class TaskGroupMessage extends Model
         'user_id',
         'message',
         'file',
+        'reply_to'
     ];
 
     /**
@@ -31,4 +32,15 @@ class TaskGroupMessage extends Model
     {
         return $this->belongsTo(User::class, 'user_id');
     }
+
+    public function replyMessage()
+    {
+        return $this->belongsTo(TaskGroupMessage::class, 'reply_to');
+    }
+
+    public function replies()
+{
+    return $this->hasMany(TaskGroupMessage::class, 'reply_to');
+}
+
 }
