@@ -15,13 +15,10 @@ class TagController extends Controller
         try {
             $userId = Auth::id();
     
-            // Lấy các tag do user sở hữu
             $ownedTags = Tag::where('user_id', $userId)->get();
     
-            // Lấy các tag được chia sẻ với user
             $sharedTags = Tag::whereJsonContains('shared_user', [['user_id' => $userId]])->get();
     
-            // Hợp nhất danh sách
             $tags = $ownedTags->merge($sharedTags)->unique('id');
     
             return response()->json([
@@ -79,7 +76,6 @@ class TagController extends Controller
         try {
             $userId = Auth::id();
 
-            // Kiểm tra xem đã có Tag cùng tên chưa
             if (Tag::where('user_id', $userId)->where('name', $validated['name'])->exists()) {
                 return response()->json([
                     'code'    => 409,
@@ -127,10 +123,8 @@ class TagController extends Controller
                 ], 404);
             }
     
-            // Lấy danh sách shared_user cũ
             $oldSharedUsers = collect($tag->shared_user)->pluck('user_id')->toArray();
     
-            // Cập nhật thông tin Tag
             $tag->update([
                 'name'        => $validated['name'],
                 'description' => $validated['description'],
@@ -138,7 +132,6 @@ class TagController extends Controller
                 'shared_user' => $validated['shared_user'],
             ]);
     
-            // Xử lý thêm người mới vào attendees của Task
             $tag->syncAttendeesWithTasks($oldSharedUsers);
     
             return response()->json([
@@ -161,27 +154,33 @@ class TagController extends Controller
     {
         try {
             $tag = Tag::where('id', $id)->where('user_id', Auth::id())->first();
-
+    
             if (!$tag) {
                 return response()->json([
                     'code'    => 404,
                     'message' => 'Tag not found or unauthorized',
                 ], 404);
             }
+    
+            $tasks = $tag->tasks;
+    
+            foreach ($tasks as $task) {
+                $task->delete();
+            }
 
             $tag->delete();
-
+    
             return response()->json([
                 'code'    => 200,
-                'message' => 'Tag deleted successfully',
+                'message' => 'Tag and related tasks deleted successfully',
             ], 200);
         } catch (\Exception $e) {
             Log::error($e->getMessage());
-
+    
             return response()->json([
                 'code'    => 500,
-                'message' => 'An error occurred while deleting tag',
+                'message' => 'An error occurred while deleting tag and tasks',
             ], 500);
         }
-    }
+    }    
 }
