@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Events;
+namespace App\Events\Chat;
 
 use App\Models\TaskGroupMessage;
 use Illuminate\Broadcasting\Channel;
@@ -42,7 +42,7 @@ class NewTaskGroupChatMessages implements ShouldBroadcast
             'user' => [
                 'first_name' => $this->message->user->first_name,
                 'last_name' => $this->message->user->last_name,
-                'avatar' => $this->message->user->avatar ? asset('storage/' . $this->message->user->avatar) : null,
+                'avatar' => $this->message->user->avatar ? $this->message->user->avatar : null,
             ],
             'reply_to' => $this->message->reply_to,
             'reply_message' => $this->message->replyMessage ? [
