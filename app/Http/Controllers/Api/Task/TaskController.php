@@ -865,7 +865,7 @@ class TaskController extends Controller
             $users = User::whereIn('id', collect($attendees)->pluck('user_id'))->get();
 
             // create group chat after created tasks
-            app(TaskGroupChatController::class)->createGroup($task->id,$task->user_id);
+            app(TaskGroupChatController::class)->createGroup($task->id, $task->user_id);
 
             if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
                 $userIds = collect($task->attendees)->pluck('user_id');
@@ -1173,11 +1173,11 @@ class TaskController extends Controller
                 'sent_at' => Carbon::now($task->user->setting->timezone_code),
             ]);
 
-            DB::commit();
-
             // add member to group chat after member accepts invitation
             app(TaskGroupChatController::class)->addMember($task->id, $user->id);
-            
+
+            DB::commit();
+
             return response()->json([
                 'code'    => 200,
                 'message' => 'You have successfully accepted the event',

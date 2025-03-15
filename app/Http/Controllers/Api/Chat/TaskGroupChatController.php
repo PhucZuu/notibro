@@ -110,10 +110,11 @@ class TaskGroupChatController extends Controller
         $request->validate([
             'group_id' => 'required|exists:task_groups,id',
             'message' => 'nullable|string',
-            'file' => 'nullable|file|max:5120', // Tối đa 5MB
+            'file' => 'nullable|file|max:5120', // Max 5MB
+            'reply_to' => 'nullable|exists:task_group_messages,id',
         ]);
 
-        $group = TaskGroup::findOrFail($request->group_id);
+        $group = TaskGroup::find($request->group_id);
 
         // Kiểm tra xem user có trong nhóm không
         if (!TaskGroupMember::where('group_id', $group->id)->where('user_id', Auth::id())->exists()) {
@@ -131,10 +132,11 @@ class TaskGroupChatController extends Controller
             'user_id' => Auth::id(),
             'message' => $request->message ?? null,
             'file' => $filePath,
+            'reply_to' => $request->reply_to, // Lưu ID tin nhắn được trả lời
         ]);
 
-        // Load thông tin người gửi (name, avatar)
-        $message->load('user:id,name,avatar');
+        // Load thông tin người gửi và tin nhắn gốc (nếu có)
+        $message->load(['user:id,name,avatar', 'replyMessage']);
 
         // 🔥 Gửi event real-time qua Pusher
         broadcast(new NewTaskGroupChatMessages($message))->toOthers();
@@ -143,7 +145,7 @@ class TaskGroupChatController extends Controller
             'message' => 'Message sent successfully!',
             'data' => [
                 'id' => $message->id,
-                'group_id' => $message->group_id, // Đã sửa tên đúng
+                'group_id' => $message->group_id,
                 'user_id' => $message->user_id,
                 'message' => $message->message,
                 'file' => $message->file ? asset('storage/' . $message->file) : null,
@@ -152,11 +154,18 @@ class TaskGroupChatController extends Controller
                     'name' => $message->user->name,
                     'avatar' => $message->user->avatar ? asset('storage/' . $message->user->avatar) : null,
                 ],
-            ]
+                'reply_to' => $message->reply_to,
+                'reply_message' => $message->replyMessage ? [
+                    'id' => $message->replyMessage->id,
+                    'message' => $message->replyMessage->message,
+                    'user' => [
+                        'name' => $message->replyMessage->user->name,
+                        'avatar' => $message->replyMessage->user->avatar ? asset('storage/' . $message->replyMessage->user->avatar) : null,
+                    ],
+                ] : null,
+            ],
         ], 201);
     }
-
-
 
     // Get all messages in the group
     public function getMessages($groupId)
@@ -167,7 +176,8 @@ class TaskGroupChatController extends Controller
 
         $messages = TaskGroupMessage::where('group_id', $groupId)
             ->with([
-                'user:id,name,avatar' // Lấy thêm tên và avatar của user
+                'user:id,name,avatar',
+                'replyMessage.user:id,name,avatar' // Lấy thông tin của tin nhắn được trả lời
             ])
             ->latest()
             ->paginate(20);

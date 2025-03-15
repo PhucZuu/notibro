@@ -72,9 +72,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/tasks/{id}', [TaskController::class, 'destroy']);
 
     // GROUP CHAT TASK
+
     Route::delete('/task-groups-chat/{groupId}/leave', [TaskGroupChatController::class, 'leaveGroup']);
-    
-    
+    Route::delete('/group/{taskGroupId}/remove-member/{userId}', [TaskGroupChatController::class, 'removeMember']);
+    Route::post('/group/message/send', [TaskGroupChatController::class, 'sendMessage']);
+    Route::get('/group/{groupId}/messages', [TaskGroupChatController::class, 'getMessages']);
+
 
     //List and get timezone
     Route::get('/timezones',        [TimezoneController::class, 'index']);

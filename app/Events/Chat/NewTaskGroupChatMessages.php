@@ -19,13 +19,13 @@ class NewTaskGroupChatMessages implements ShouldBroadcast
 
     public function __construct(TaskGroupMessage $message)
     {
-        // Load thêm thông tin user để gửi kèm
-        $this->message = $message->load('user:id,name,avatar');
+        // Load thêm thông tin user và tin nhắn được reply (nếu có)
+        $this->message = $message->load(['user:id,name,avatar', 'replyMessage.user:id,name,avatar']);
     }
 
     public function broadcastOn()
     {
-        return new PrivateChannel('task-group.' . $this->message->group_id); 
+        return new PrivateChannel('task-group.' . $this->message->group_id);
     }
 
     public function broadcastWith()
@@ -41,6 +41,17 @@ class NewTaskGroupChatMessages implements ShouldBroadcast
                 'name' => $this->message->user->name,
                 'avatar' => $this->message->user->avatar ? asset('storage/' . $this->message->user->avatar) : null,
             ],
+            'reply_message' => $this->message->replyMessage ? [
+                'id' => $this->message->replyMessage->id,
+                'message' => $this->message->replyMessage->message,
+                'user' => [
+                    'id' => $this->message->replyMessage->user->id,
+                    'name' => $this->message->replyMessage->user->name,
+                    'avatar' => $this->message->replyMessage->user->avatar 
+                        ? asset('storage/' . $this->message->replyMessage->user->avatar) 
+                        : null,
+                ],
+            ] : null,
         ];
     }
 }
