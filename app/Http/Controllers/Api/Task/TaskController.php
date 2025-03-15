@@ -281,7 +281,13 @@ class TaskController extends Controller
         $attendees = collect($task->attendees);
         $attendee = $attendees->firstWhere('user_id', Auth::id());
 
-        if ($task->user_id  === Auth::id() || ($attendee && $attendee['role'] === 'edit')) {
+        if(!empty($task->tag_id)){
+            $tag = Tag::where('id', $task->tag_id)->first();
+            $sharedUsers = collect($tag->shared_user);
+            $currentUser = $sharedUsers->firstWhere('user_id', Auth::id());
+        }
+
+        if ($task->user_id  === Auth::id() || ($attendee && $attendee['role'] === 'editor') || ($currentUser && $currentUser['role'] == "editor")) {
             switch ($code) {
                 //Update when event dont have reapet
                 case 'EDIT_N':
@@ -488,7 +494,13 @@ class TaskController extends Controller
         $attendees = collect($task->attendees);
         $attendee = $attendees->firstWhere('user_id', Auth::id());
 
-        if ($task->user_id  === Auth::id() || ($attendee && $attendee['role'] === 'edit')) {
+        if(!empty($task->tag_id)){
+            $tag = Tag::where('id', $task->tag_id)->first();
+            $sharedUsers = collect($tag->shared_user);
+            $currentUser = $sharedUsers->firstWhere('user_id', Auth::id());
+        }
+
+        if ($task->user_id  === Auth::id() || ($attendee && $attendee['role'] === 'editor') || ($currentUser && $currentUser['role'] == "editor")) {
             switch ($code) {
                 //Update when event dont have reapet
                 case 'EDIT_N':
@@ -832,7 +844,22 @@ class TaskController extends Controller
 
             $data = $this->handleLogicData($data);
 
-            $task = Task::create($data);
+            if(!empty($data['tag_id'])){
+                $tag = Tag::where('id', $data['tag_id'])->first();
+                $sharedUsers = collect($tag->shared_user);
+                $currentUser = $sharedUsers->firstWhere('user_id', Auth::id());
+
+                if($tag->user_id == Auth::id() || ($currentUser && $currentUser['role'] == "editor")){
+                    $task = Task::create($data);
+                }else{
+                    return response()->json([
+                        'code' => 401,
+                        'message' => 'You do not have permission to create new event with this tag',
+                    ]);
+                }
+            }else{
+                $task = Task::create($data);
+            }
 
             $attendees = is_array($task->attendees) ? $task->attendees : json_decode($task->attendees, true);
             $users = User::whereIn('id', collect($attendees)->pluck('user_id'))->get();
@@ -854,6 +881,33 @@ class TaskController extends Controller
                     "invite_to_task"
                 ));
             }
+
+            if(!empty($data['tag_id']) ){
+                // $tag = Tag::where('id', $data['tag_id'])->first();
+                $users = User::whereIn('id', collect($tag->shared_user)->pluck('user_id'))->get();
+
+                $attendees = $task->attendees ?? [];
+                $existingUserIds = collect($attendees)->pluck('user_id')->toArray();
+
+                foreach ($users as $user) {
+                    if(!in_array($user->id, $existingUserIds)){
+                        $attendees[] = [
+                            'role'      =>  'viewer',
+                            'status'    =>  'yes',
+                            'user_id'   =>  $user->id,
+                        ];
+                    }
+
+                    $user->notify(new NotificationEvent(
+                        $user->id,
+                        "Vừa có {$task->type} {$task->title} được thêm vào trong {$tag->name}",
+                        "",
+                        "new_task_in_tag"
+                    ));
+                }
+            }
+
+            $task->attendees = $attendees;
 
             //Send REALTIME
             $returnTask[] = $task;
@@ -891,7 +945,13 @@ class TaskController extends Controller
         $attendees = collect($task->attendees);
         $attendee = $attendees->firstWhere('user_id', Auth::id());
 
-        if ($task->user_id  === Auth::id() || ($attendee && $attendee['role'] === 'edit')) {
+        if(!empty($task->tag_id)){
+            $tag = Tag::where('id', $task->tag_id)->first();
+            $sharedUsers = collect($tag->shared_user);
+            $currentUser = $sharedUsers->firstWhere('user_id', Auth::id());
+        }
+
+        if ($task->user_id  === Auth::id() || ($attendee && $attendee['role'] === 'editor') || ($currentUser && $currentUser['role'] == "editor")) {
             switch ($code) {
                 case 'DEL_N':
                     try {
