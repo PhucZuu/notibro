@@ -8,8 +8,9 @@ use App\Models\TaskGroupMember;
 use App\Models\TaskGroupMessage;
 use App\Models\Task;
 use Illuminate\Support\Facades\Auth;
-use App\Events\NewTaskGroupChatMessages;
+use App\Events\Chat\NewTaskGroupChatMessages;
 use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Log;
 
 class TaskGroupChatController extends Controller
 {
@@ -43,30 +44,48 @@ class TaskGroupChatController extends Controller
     // Add a member to the group
     public function addMember(int $taskGroupId, int $userId)
     {
-        // Kiểm tra xem user đã có trong nhóm chưa
-        $exists = TaskGroupMember::where('group_id', $taskGroupId)
-            ->where('user_id', $userId)
-            ->exists();
-
-        if ($exists) {
-            return response()->json([
-                'message' => 'User is already a member of the group',
-                'group_id' => $taskGroupId,
+        try {
+            // Lấy ra group theo task group id
+            $group = TaskGroup::where('task_id',$taskGroupId)->first();
+    
+            if (!$group) {
+                return response()->json(['message' => 'Group not found'], 404);
+            }
+            // Kiểm tra xem user đã có trong nhóm chưa
+            $exists = TaskGroupMember::where('group_id', $group->id)
+                ->where('user_id', $userId)
+                ->exists();
+    
+            if ($exists) {
+                return response()->json([
+                    'message'  => 'User is already a member of the group',
+                    'group_id' => $taskGroupId,
+                    'user_id'  => $userId,
+                ], 400);
+            }
+        
+            // Thêm thành viên mới với quyền mặc định là "member"
+            $member = TaskGroupMember::create([
+                'task_id' => $taskGroupId,
+                'group_id' => $group->id,
                 'user_id' => $userId,
-            ], 400);
+                'role'    => 'member',
+            ]);
+    
+    
+            return response()->json([
+                'message' => 'Member has been successfully added to the group',
+                'data'    => $member,
+            ], 201);
+    
+        } catch (\Exception $e) {
+            Log::error('Unexpected error when adding member', [
+                'task_group_id' => $taskGroupId,
+                'user_id'       => $userId,
+                'error'         => $e->getMessage(),
+                'trace'         => $e->getTraceAsString(),
+            ]);
         }
-
-        // Thêm thành viên mới với quyền mặc định là "member"
-        $member = TaskGroupMember::create([
-            'group_id' => $taskGroupId,
-            'user_id'       => $userId,
-            'role'          => 'member',
-        ]);
-
-        return response()->json([
-            'message' => 'Member has been successfully added to the group',
-            'data'    => $member,
-        ], 201);
     }
 
     public function removeMember($taskGroupId, $userId)
@@ -142,6 +161,7 @@ class TaskGroupChatController extends Controller
         broadcast(new NewTaskGroupChatMessages($message))->toOthers();
 
         return response()->json([
+            'code' => 200,
             'message' => 'Message sent successfully!',
             'data' => [
                 'id' => $message->id,
@@ -153,7 +173,7 @@ class TaskGroupChatController extends Controller
                 'user' => [
                     'first_name' => $message->user->first_name,
                     'last_name' => $message->user->last_name,
-                    'avatar' => $message->user->avatar ? asset('storage/' . $message->user->avatar) : null,
+                    'avatar' => $message->user->avatar ? $message->user->avatar : null,
                 ],
                 'reply_to' => $message->reply_to,
                 'reply_message' => $message->replyMessage ? [
