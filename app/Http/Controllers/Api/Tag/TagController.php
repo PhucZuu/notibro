@@ -2,14 +2,39 @@
 
 namespace App\Http\Controllers\Api\Tag;
 
+use App\Events\Tag\TagUpdatedEvetn;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Tag;
+use App\Models\User;
+use App\Notifications\NotificationEvent;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
 class TagController extends Controller
 {
+    public function getRecipients($data)
+    {
+        Log::info('Xử lý người nhận');
+
+        $recipients = collect($data)
+            ->flatMap(fn($tag) => $tag->getSharedUserAndOwner()) // Lấy tất cả attendees
+            ->unique() // Loại bỏ user trùng
+            ->values() // Reset key của mảng
+            ->toArray();
+
+        return $recipients;
+    }
+
+    public function sendRealTimeUpdate($data, $action)
+    {   
+        Log::info('Xử lý gửi đi');
+
+        $recipients = $this->getRecipients($data);
+
+        event(new TagUpdatedEvetn($data, $action, $recipients));
+    }
+
     public function index()
     {
         try {
@@ -17,14 +42,10 @@ class TagController extends Controller
     
             $ownedTags = Tag::where('user_id', $userId)->get();
     
-            $sharedTags = Tag::whereJsonContains('shared_user', [['user_id' => $userId]])->get();
-    
-            $tags = $ownedTags->merge($sharedTags)->unique('id');
-    
             return response()->json([
                 'code'    => 200,
                 'message' => 'Retrieve tags successfully',
-                'data'    => $tags->isEmpty() ? [] : $tags
+                'data'    => $ownedTags->isEmpty() ? [] : $ownedTags
             ], 200);
         } catch (\Exception $e) {
             Log::error($e->getMessage());
@@ -35,7 +56,28 @@ class TagController extends Controller
             ], 500);
         }
     }
+
+    public function getSharedTag()
+    {
+        try {
+            $userId = Auth::id();
     
+            $sharedTags = Tag::whereJsonContains('shared_user', [['user_id' => $userId]])->get();
+    
+            return response()->json([
+                'code'    => 200,
+                'message' => 'Retrieve shared tags successfully',
+                'data'    => $sharedTags->isEmpty() ? [] : $sharedTags
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+    
+            return response()->json([
+                'code'    => 500,
+                'message' => 'An error occurred while retrieving shared tags',
+            ], 500);
+        }
+    }
 
     public function show($id)
     {
@@ -84,9 +126,18 @@ class TagController extends Controller
             }
 
             $validated['user_id'] = $userId;
-            $validated['shared_user'] = json_decode($validated['shared_user'], true) ?? [];
+
+            if (!empty($validated['shared_user']) && is_string($validated['shared_user'])) {
+                $validated['shared_user'] = json_decode($validated['shared_user'], true);
+            }
+
+            // $validated['shared_user'] = json_decode($validated['shared_user'], true) ?? [];
 
             $tag = Tag::create($validated);
+ 
+            $returnTag[] = $tag;
+
+            $this->sendRealTimeUpdate($returnTag, 'create');
 
             return response()->json([
                 'code'    => 201,
@@ -133,6 +184,23 @@ class TagController extends Controller
             ]);
     
             $tag->syncAttendeesWithTasks($oldSharedUsers);
+
+            $returnTag[] = $tag;
+
+            $this->sendRealTimeUpdate($returnTag, 'update');
+
+            $newSharedUsers = collect($tag->shared_user)->pluck('user_id')->toArray();
+
+            foreach($newSharedUsers as $userID){
+                $user = User::find($userID);
+
+                $user->notify(new NotificationEvent(
+                    $user->id,
+                    "Tag {$tag->name} vừa đưuọc cập nhật một chút, nhớ ngó qua nhé",
+                    "",
+                    "updated_tag"
+                ));
+            }
     
             return response()->json([
                 'code'    => 200,
@@ -167,6 +235,10 @@ class TagController extends Controller
             foreach ($tasks as $task) {
                 $task->delete();
             }
+
+            $returnTag[] = $tag;
+
+            $this->sendRealTimeUpdate($returnTag, 'delete');
 
             $tag->delete();
     

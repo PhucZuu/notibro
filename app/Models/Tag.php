@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Mail\InviteGuestMail;
+use App\Notifications\NotificationEvent;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
@@ -37,6 +38,18 @@ class Tag extends Model
     public function getSharedUsers()
     {
         return array_column($this->shared_user ?? [], 'user_id');
+    }
+
+    public function getSharedUserAndOwner()
+    {
+        $filteredSharedUser = collect($this->shared_user ?? [])
+        ->where('status', 'yes') 
+        ->pluck('user_id')
+        ->toArray();
+
+        $data = array_merge([$this->user_id], $filteredSharedUser);
+
+        return $data;
     }
 
     public function syncAttendeesWithTasks($oldSharedUsers)
