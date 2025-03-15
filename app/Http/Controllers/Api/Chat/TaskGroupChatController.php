@@ -136,7 +136,7 @@ class TaskGroupChatController extends Controller
         ]);
 
         // Load thông tin người gửi và tin nhắn gốc (nếu có)
-        $message->load(['user:id,name,avatar', 'replyMessage']);
+        $message->load(['user:id,first_name,last_name,avatar', 'replyMessage']);
 
         // 🔥 Gửi event real-time qua Pusher
         broadcast(new NewTaskGroupChatMessages($message))->toOthers();
@@ -151,7 +151,8 @@ class TaskGroupChatController extends Controller
                 'file' => $message->file ? asset('storage/' . $message->file) : null,
                 'created_at' => $message->created_at->toDateTimeString(),
                 'user' => [
-                    'name' => $message->user->name,
+                    'first_name' => $message->user->first_name,
+                    'last_name' => $message->user->last_name,
                     'avatar' => $message->user->avatar ? asset('storage/' . $message->user->avatar) : null,
                 ],
                 'reply_to' => $message->reply_to,
@@ -159,8 +160,8 @@ class TaskGroupChatController extends Controller
                     'id' => $message->replyMessage->id,
                     'message' => $message->replyMessage->message,
                     'user' => [
-                        'name' => $message->replyMessage->user->name,
-                        'avatar' => $message->replyMessage->user->avatar ? asset('storage/' . $message->replyMessage->user->avatar) : null,
+                        'first_name' => $message->user->first_name,
+                        'last_name' => $message->user->last_name,
                     ],
                 ] : null,
             ],
@@ -168,20 +169,38 @@ class TaskGroupChatController extends Controller
     }
 
     // Get all messages in the group
-    public function getMessages($groupId)
+    public function getMessages($taskId)
     {
-        if (!TaskGroupMember::where(['group_id' => $groupId, 'user_id' => Auth::id()])->exists()) {
+        // Tìm group dựa vào task_id (giả sử group_id gắn với task_id)
+        $group = TaskGroup::where('task_id', $taskId)->first();
+
+        if (!$group) {
+            return response()->json(['message' => 'Group not found for this task!'], 404);
+        }
+
+        // Kiểm tra user có trong group không
+        if (!TaskGroupMember::where(['group_id' => $group->id, 'user_id' => Auth::id()])->exists()) {
             return response()->json(['message' => 'You are not a member of this group!'], 403);
         }
 
-        $messages = TaskGroupMessage::where('group_id', $groupId)
+        // Lấy danh sách tin nhắn của nhóm
+        $messages = TaskGroupMessage::where('group_id', $group->id)
             ->with([
-                'user:id,name,avatar',
-                'replyMessage.user:id,name,avatar' // Lấy thông tin của tin nhắn được trả lời
+                'user:id,first_name,last_name,avatar',
+                'replyMessage:id,group_id,user_id,message,reply_to,created_at',
+                'replyMessage.user:id,first_name,last_name'
             ])
-            ->latest()
-            ->paginate(20);
+            ->orderBy('created_at', 'asc')
+            ->get();
 
-        return response()->json($messages);
+        return response()->json([
+            'group' => [
+                'id' => $group->id,
+                'task_id' => $group->task_id,
+                'name' => $group->name, // Nếu group có tên
+                'created_at' => $group->created_at,
+            ],
+            'messages' => $messages
+        ]);
     }
 }
