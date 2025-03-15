@@ -1154,6 +1154,9 @@ class TaskController extends Controller
             $task->attendees = $attendees;
             $task->save(); // Lưu thay đổi vào database
 
+            $returnTask[] = $task;
+            $this->sendRealTimeUpdate($returnTask, 'update');
+
             //Send Notification
             $owner = User::find($task->user_id);
 
@@ -1222,6 +1225,9 @@ class TaskController extends Controller
                 });
                 Log::info('after', [$task->attendees]);
                 $task->save();
+
+                $returnTask[] = $task;
+                $this->sendRealTimeUpdate($returnTask, 'update');
             }
 
             DB::commit();
