@@ -17,23 +17,24 @@ class TaskReminderService
         Log::info('Bắt đầu taskMailRemindSchedule');
         $now = Carbon::now();
         $next24Hours = $now->copy()->addHours(24);
-
-        // Lấy danh sách task có nhắc nhở và nằm trong khoảng thời gian hợp lệ
+    
+        // Lấy danh sách task có nhắc nhở
         $tasks = Task::where('is_reminder', true)
             ->whereNotNull('reminder')
-            ->where(function ($query) use ($now, $next24Hours) {
-                $query->whereBetween('start_time', [$now, $next24Hours])
-                    ->orWhere(function ($q) use ($now, $next24Hours) {
-                        $q->where('is_repeat', 1)
-                            ->where(function ($subQuery) use ($now, $next24Hours) {
-                                $subQuery->where('until', '>=', $now)
-                                    ->orWhereNull('until');
-                            });
-                    });
-            })->get();
-
+            ->get() // Lấy tất cả trước, rồi lọc lại
+            ->filter(function ($task) use ($now, $next24Hours) {
+                if (!$task->is_repeat) {
+                    // Nếu task không lặp lại, kiểm tra start_time trực tiếp
+                    return Carbon::parse($task->start_time)->between($now, $next24Hours);
+                }
+    
+                // Nếu task có lặp lại, tìm lần xuất hiện tiếp theo
+                $nextOccurrence = $this->getNextOccurrence($task, $now);
+                return $nextOccurrence && $nextOccurrence->between($now, $next24Hours);
+            });
+    
         Log::info('Số lượng task cần xử lý: ' . $tasks->count());
-
+    
         foreach ($tasks as $task) {
             Log::info("Xử lý task ID: {$task->id}");
             foreach ($task->reminder as $reminder) {
@@ -43,20 +44,21 @@ class TaskReminderService
                 }
             }
         }
-    }
+    }    
 
     private function processEmailReminder($task, $reminder, $now)
     {
         Log::info("Bắt đầu processEmailReminder cho task ID: {$task->id}");
         $nextOccurrence = $this->getNextOccurrence($task, $now);
+        //$nextOccurrence = Carbon::parse($nextOccurrence)->setTimezone(config('app.timezone'));
         if (!$nextOccurrence) {
             Log::info("Không có lần xuất hiện tiếp theo cho task ID: {$task->id}");
             return;
         }
-
+    
         $reminderTime = Carbon::parse($nextOccurrence)->subMinutes($reminder['set_time']);
         if (!$now->isSameMinute($reminderTime)) {
-            Log::info("Không phải thời gian nhắc nhở cho task ID: {$task->id},{$reminderTime},{$now}");
+            Log::info("Không phải thời gian nhắc nhở cho task ID: {$task->id}, Remind time:{$reminderTime},Now:{$now}");
             return;
         }
 
