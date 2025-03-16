@@ -261,13 +261,15 @@ class TaskController extends Controller
             'parent_id'         => 'nullable',
         ]);
 
-        $data['user_id'] = Auth::id();
+        // $data['user_id'] = Auth::id();
 
         $data = $this->handleJsonStringData($data);
 
         $data = $this->handleLogicData($data);
 
         $task = Task::find($id);
+
+        $data['user_id'] = $task->user_id;
 
         //Kiểm tra xem có tìm được task với id truyền vào không
         if (!$task) {
@@ -320,7 +322,22 @@ class TaskController extends Controller
                         }
 
                         //Add new task for 1 day change
-                        $new_task = Task::create($data);
+                        $new_task = Task::create([
+                            'parent_id'     => $data['parent_id'],
+                            'start_time'    => $data['start_time'],
+                            'end_time'      => $data['end_time'],
+                            'title'         => $data['title'],
+                            'description'   => $data['description'],
+                            'user_id'       => $data['user_id'],
+                            'timezone_code' => $data['timezone_code'],
+                            'color_code'    => $data['color_code'],
+                            'tag_id'        => $data['tag_id'],
+                            'attendees'     => $data['attendees'],
+                            'location'      => $data['location'],
+                            'type'          => $data['type'],
+                            'is_all_day'    => $data['is_all_day'],
+                            'is_busy'       => $data['is_busy'],
+                        ]);
 
                         //Send REALTIME
                         $returnTask[] = $new_task;
@@ -411,26 +428,86 @@ class TaskController extends Controller
 
                 case 'EDIT_A':
                     try {
-                        //Update current Task
-                        $task->update($data);
-
-                        $returnTask[] = $task;
-
-                        // Update all child Task
-                        $relatedTasks = Task::where('parent_id', $task->id)
-                            ->orWhere('parent_id', $task->parent_id)
-                            ->get();
-
-                        foreach ($relatedTasks as $relatedTask) {
-                            $relatedTask->update($data);
-                            $returnTask[] = $relatedTask;
-                        }
-
-                        // Update parent task
                         $parentTask = Task::find($task->parent_id);
+
                         if ($parentTask) {
+                            $relatedTasks = Task::where('parent_id', $parentTask->id)
+                                ->orWhere('parent_id', $task->parent_id)
+                                ->get();
+
+                            foreach ($relatedTasks as $relatedTask) {
+                                $relatedTask->update([
+                                    'parent_id'     => $parentTask->id,
+                                    'start_time'    => $data['start_time'],
+                                    'end_time'      => $data['end_time'],
+                                    'title'         => $data['title'],
+                                    'description'   => $data['description'],
+                                    'user_id'       => $data['user_id'],
+                                    'timezone_code' => $data['timezone_code'],
+                                    'color_code'    => $data['color_code'],
+                                    'tag_id'        => $data['tag_id'],
+                                    'attendees'     => $data['attendees'],
+                                    'location'      => $data['location'],
+                                    'type'          => $data['type'],
+                                    'is_all_day'    => $data['is_all_day'],
+                                    'is_busy'       => $data['is_busy'],
+                                ]);
+
+                                $returnTask[] = $relatedTask;
+                            }
+
+                            // $task->update([
+                            //     'parent_id'     => $data['parent_id'],
+                            //     'start_time'    => $data['start_time'],
+                            //     'end_time'      => $data['end_time'],
+                            //     'title'         => $data['title'],
+                            //     'description'   => $data['description'],
+                            //     'user_id'       => $data['user_id'],
+                            //     'timezone_code' => $data['timezone_code'],
+                            //     'color_code'    => $data['color_code'],
+                            //     'tag_id'        => $data['tag_id'],
+                            //     'attendees'     => $data['attendees'],
+                            //     'location'      => $data['location'],
+                            //     'type'          => $data['type'],
+                            //     'is_all_day'    => $data['is_all_day'],
+                            //     'is_busy'       => $data['is_busy'],
+                            // ]);
+
+                            unset($data['parent_id']);
                             $parentTask->update($data);
                             $returnTask[] = $parentTask;
+
+                            $returnTask[] = $task;
+                        }else{
+                            //Update current Task
+                            $task->update($data);
+
+                            $returnTask[] = $task;
+
+                            // Update all child Task
+                            $relatedTasks = Task::where('parent_id', $task->id)
+                                ->orWhere('parent_id', $task->parent_id)
+                                ->get();
+
+                            foreach ($relatedTasks as $relatedTask) {
+                                $relatedTask->update([
+                                    'parent_id'     => $task->id,
+                                    'start_time'    => $data['start_time'],
+                                    'end_time'      => $data['end_time'],
+                                    'title'         => $data['title'],
+                                    'description'   => $data['description'],
+                                    'user_id'       => $data['user_id'],
+                                    'timezone_code' => $data['timezone_code'],
+                                    'color_code'    => $data['color_code'],
+                                    'tag_id'        => $data['tag_id'],
+                                    'attendees'     => $data['attendees'],
+                                    'location'      => $data['location'],
+                                    'type'          => $data['type'],
+                                    'is_all_day'    => $data['is_all_day'],
+                                    'is_busy'       => $data['is_busy'],
+                                ]);
+                                $returnTask[] = $relatedTask;
+                            }
                         }
 
                         //Send API
@@ -476,11 +553,11 @@ class TaskController extends Controller
             'end_time'          => 'nullable|date_format:Y-m-d H:i:s',
         ]);
 
-        $data['user_id'] = Auth::id();
-
         $data = $this->handleLogicData($data);
 
         $task = Task::find($id);
+
+        $data['user_id'] = $task->user_id;
 
         //Kiểm tra xem có tìm được task với id truyền vào không
         if (!$task) {
