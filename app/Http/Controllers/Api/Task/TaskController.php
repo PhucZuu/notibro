@@ -392,7 +392,7 @@ class TaskController extends Controller
                         $task->save();
 
                         //Send REALTIME
-                        $returnTaskUpdate[] = $new_task;
+                        $returnTaskUpdate[] = $task;
 
                         $this->sendRealTimeUpdate($returnTaskUpdate, 'update');
 
@@ -438,8 +438,6 @@ class TaskController extends Controller
                             foreach ($relatedTasks as $relatedTask) {
                                 $relatedTask->update([
                                     'parent_id'     => $parentTask->id,
-                                    'start_time'    => $data['start_time'],
-                                    'end_time'      => $data['end_time'],
                                     'title'         => $data['title'],
                                     'description'   => $data['description'],
                                     'user_id'       => $data['user_id'],
@@ -492,8 +490,6 @@ class TaskController extends Controller
                             foreach ($relatedTasks as $relatedTask) {
                                 $relatedTask->update([
                                     'parent_id'     => $task->id,
-                                    'start_time'    => $data['start_time'],
-                                    'end_time'      => $data['end_time'],
                                     'title'         => $data['title'],
                                     'description'   => $data['description'],
                                     'user_id'       => $data['user_id'],
