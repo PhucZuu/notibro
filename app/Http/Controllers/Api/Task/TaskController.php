@@ -74,7 +74,7 @@ class TaskController extends Controller
 
     protected function handleLogicData($data)
     {
-        // if is_all_day = 1, set start_time to 00:00:00 and end_time to 23:59:59
+        // if is_all_day = 1, set start_time to 00:00:00 and end_time to 00:00:00
         if (!empty($data['is_all_day']) && $data['is_all_day'] == 1) {
             $data['start_time'] = date('Y-m-d 00:00:00', strtotime($data['start_time']));
             $data['end_time'] = date('Y-m-d 00:00:00', strtotime($data['end_time']));
@@ -283,7 +283,7 @@ class TaskController extends Controller
         $attendees = collect($task->attendees);
         $attendee = $attendees->firstWhere('user_id', Auth::id());
 
-        if(!empty($task->tag_id)){
+        if (!empty($task->tag_id)) {
             $tag = Tag::where('id', $task->tag_id)->first();
             $sharedUsers = collect($tag->shared_user);
             $currentUser = $sharedUsers->firstWhere('user_id', Auth::id());
@@ -337,6 +337,8 @@ class TaskController extends Controller
                             'type'          => $data['type'],
                             'is_all_day'    => $data['is_all_day'],
                             'is_busy'       => $data['is_busy'],
+                            'is_reminder'   => $data['is_reminder'],
+                            'reminder'      => $data['reminder'],
                         ]);
 
                         //Send REALTIME
@@ -444,6 +446,8 @@ class TaskController extends Controller
                                     'title'         => $data['title'],
                                     'description'   => $data['description'],
                                     'user_id'       => $data['user_id'],
+                                    'start_time'    => $data['start_time'],
+                                    'end_time'      => $data['end_time'],
                                     'timezone_code' => $data['timezone_code'],
                                     'color_code'    => $data['color_code'],
                                     'tag_id'        => $data['tag_id'] ?? null,
@@ -452,6 +456,8 @@ class TaskController extends Controller
                                     'type'          => $data['type'],
                                     'is_all_day'    => $data['is_all_day'],
                                     'is_busy'       => $data['is_busy'],
+                                    'is_reminder'   => $data['is_reminder'],
+                                    'reminder'      => $data['reminder'],
                                 ]);
 
                                 $returnTask[] = $relatedTask;
@@ -479,7 +485,7 @@ class TaskController extends Controller
                             $returnTask[] = $parentTask;
 
                             $returnTask[] = $task;
-                        }else{
+                        } else {
                             Log::info("Đây là task cha else  {$task}");
                             //Update current Task
                             $task->update($data);
@@ -492,12 +498,14 @@ class TaskController extends Controller
 
                             foreach ($relatedTasks as $relatedTask) {
                                 Log::info("Đây là task con else  {$relatedTask}");
-                                
+
                                 $relatedTask->update([
                                     'parent_id'     => $task->id,
                                     'title'         => $data['title'],
                                     'description'   => $data['description'],
                                     'user_id'       => $data['user_id'],
+                                    'start_time'    => $data['start_time'],
+                                    'end_time'      => $data['end_time'],
                                     'timezone_code' => $data['timezone_code'],
                                     'color_code'    => $data['color_code'],
                                     'tag_id'        => $data['tag_id'] ?? null,
@@ -506,6 +514,8 @@ class TaskController extends Controller
                                     'type'          => $data['type'],
                                     'is_all_day'    => $data['is_all_day'],
                                     'is_busy'       => $data['is_busy'],
+                                    'is_reminder'   => $data['is_reminder'],
+                                    'reminder'      => $data['reminder'],
                                 ]);
                                 $returnTask[] = $relatedTask;
                             }
@@ -572,7 +582,7 @@ class TaskController extends Controller
         $attendees = collect($task->attendees);
         $attendee = $attendees->firstWhere('user_id', Auth::id());
 
-        if(!empty($task->tag_id)){
+        if (!empty($task->tag_id)) {
             $tag = Tag::where('id', $task->tag_id)->first();
             $sharedUsers = collect($tag->shared_user);
             $currentUser = $sharedUsers->firstWhere('user_id', Auth::id());
@@ -621,6 +631,8 @@ class TaskController extends Controller
                             'type'          => $task->type,
                             'is_all_day'    => $task->is_all_day,
                             'is_busy'       => $task->is_busy,
+                            'is_reminder'   => $task->is_reminder,
+                            'reminder'      => $task->reminder,
                         ]);
 
                         //Send REALTIME
@@ -706,6 +718,98 @@ class TaskController extends Controller
                             'code'    => 200,
                             'message' => 'Task updated successfully',
                             'data'    => $new_task,
+                        ], 200);
+                    } catch (\Exception $e) {
+                        Log::error($e->getMessage());
+
+                        return response()->json([
+                            'code'    => 500,
+                            'message' => 'Failed to updated task',
+                        ], 500);
+                    }
+
+                case 'EDIT_A':
+                    try {
+                        $parentTask = Task::find($task->parent_id);
+
+                        Log::info("Đây là task cha {$parentTask}");
+
+                        if ($parentTask) {
+                            $relatedTasks = Task::where('parent_id', $parentTask->id)
+                                ->orWhere('parent_id', $task->parent_id)
+                                ->get();
+
+                            foreach ($relatedTasks as $relatedTask) {
+                                Log::info("Đây là task con if  {$relatedTask}");
+                                $relatedTask->update([
+                                    'parent_id'     => $parentTask->id,
+                                    'title'         => $parentTask->title,
+                                    'description'   => $parentTask->description,
+                                    'user_id'       => $parentTask->user_id,
+                                    'start_time'    => $data['start_time'],
+                                    'end_time'      => $data['end_time'],
+                                    'timezone_code' => $data['timezone_code'],
+                                    'color_code'    => $parentTask->color_code,
+                                    'tag_id'        => $parentTask->tag_id ?? null,
+                                    'attendees'     => $parentTask->attendees,
+                                    'location'      => $parentTask->location,
+                                    'type'          => $parentTask->type,
+                                    'is_all_day'    => $parentTask->is_all_day,
+                                    'is_busy'       => $parentTask->is_busy,
+                                    'is_reminder'   => $parentTask->is_reminder,
+                                    'reminder'      => $parentTask->reminder,
+                                ]);
+
+                                $returnTask[] = $relatedTask;
+                            }
+
+                            $parentTask->update($data);
+                            $returnTask[] = $parentTask;
+
+                            $returnTask[] = $task;
+                        } else {
+                            Log::info("Đây là task cha else  {$task}");
+                            //Update current Task
+                            $task->update($data);
+
+                            $returnTask[] = $task;
+
+                            // Update all child Task
+                            $relatedTasks = Task::where('parent_id', $task->id)
+                                ->get();
+
+                            foreach ($relatedTasks as $relatedTask) {
+                                Log::info("Đây là task con else  {$relatedTask}");
+
+                                $relatedTask->update([
+                                    'parent_id'     => $task->id,
+                                    'title'         => $task->title,
+                                    'description'   => $task->description,
+                                    'user_id'       => $task->user_id,
+                                    'start_time'    => $data['start_time'],
+                                    'end_time'      => $data['end_time'],
+                                    'timezone_code' => $data['timezone_code'],
+                                    'color_code'    => $task->color_code,
+                                    'tag_id'        => $task->tag_id ?? null,
+                                    'attendees'     => $task->attendees,
+                                    'location'      => $task->location,
+                                    'type'          => $task->type,
+                                    'is_all_day'    => $task->is_all_day,
+                                    'is_busy'       => $task->is_busy,
+                                    'is_reminder'   => $task->is_reminder,
+                                    'reminder'      => $task->reminder,
+                                ]);
+                                $returnTask[] = $relatedTask;
+                            }
+                        }
+
+                        //Send API
+                        $this->sendRealTimeUpdate($returnTask, 'update');
+
+                        return response()->json([
+                            'code'    => 200,
+                            'message' => 'Task updated successfully',
+                            'data'    => $task,
                         ], 200);
                     } catch (\Exception $e) {
                         Log::error($e->getMessage());
@@ -922,20 +1026,20 @@ class TaskController extends Controller
 
             $data = $this->handleLogicData($data);
 
-            if(!empty($data['tag_id'])){
+            if (!empty($data['tag_id'])) {
                 $tag = Tag::where('id', $data['tag_id'])->first();
                 $sharedUsers = collect($tag->shared_user);
                 $currentUser = $sharedUsers->firstWhere('user_id', Auth::id());
 
-                if($tag->user_id == Auth::id() || ($currentUser && $currentUser['role'] == "editor")){
+                if ($tag->user_id == Auth::id() || ($currentUser && $currentUser['role'] == "editor")) {
                     $task = Task::create($data);
-                }else{
+                } else {
                     return response()->json([
                         'code' => 401,
                         'message' => 'You do not have permission to create new event with this tag',
                     ]);
                 }
-            }else{
+            } else {
                 $task = Task::create($data);
             }
 
@@ -960,7 +1064,7 @@ class TaskController extends Controller
                 ));
             }
 
-            if(!empty($data['tag_id']) ){
+            if (!empty($data['tag_id'])) {
                 // $tag = Tag::where('id', $data['tag_id'])->first();
                 $users = User::whereIn('id', collect($tag->shared_user)->pluck('user_id'))->get();
 
@@ -968,7 +1072,7 @@ class TaskController extends Controller
                 $existingUserIds = collect($attendees)->pluck('user_id')->toArray();
 
                 foreach ($users as $user) {
-                    if(!in_array($user->id, $existingUserIds)){
+                    if (!in_array($user->id, $existingUserIds)) {
                         $attendees[] = [
                             'role'      =>  'viewer',
                             'status'    =>  'yes',
@@ -1023,7 +1127,7 @@ class TaskController extends Controller
         $attendees = collect($task->attendees);
         $attendee = $attendees->firstWhere('user_id', Auth::id());
 
-        if(!empty($task->tag_id)){
+        if (!empty($task->tag_id)) {
             $tag = Tag::where('id', $task->tag_id)->first();
             $sharedUsers = collect($tag->shared_user);
             $currentUser = $sharedUsers->firstWhere('user_id', Auth::id());
