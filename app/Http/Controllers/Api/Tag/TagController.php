@@ -179,7 +179,7 @@ class TagController extends Controller
             $tag->update([
                 'name'        => $validated['name'],
                 'description' => $validated['description'],
-                'color_code'  => $validated['color_code'],
+                'color_code'  => $validated['color_code'] ?? $tag->color_code,
                 'shared_user' => $validated['shared_user'],
             ]);
     
