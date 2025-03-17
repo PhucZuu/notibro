@@ -318,7 +318,7 @@ class TaskController extends Controller
                 case 'EDIT_1':
                     try {
                         if (!$task->parent_id) {
-                            $data['parent_id'] = $task->parent_id;
+                            $data['parent_id'] = $task->id;
                         }
 
                         //Add new task for 1 day change
@@ -388,7 +388,7 @@ class TaskController extends Controller
                         $task->until = Carbon::parse($data['updated_date'])->setTime(
                             Carbon::parse($task->start_time)->hour,
                             Carbon::parse($task->start_time)->minute
-                        );
+                        )->subDay();
                         $task->save();
 
                         //Send REALTIME
@@ -430,12 +430,15 @@ class TaskController extends Controller
                     try {
                         $parentTask = Task::find($task->parent_id);
 
+                        Log::info("Đây là task cha {$parentTask}");
+
                         if ($parentTask) {
                             $relatedTasks = Task::where('parent_id', $parentTask->id)
                                 ->orWhere('parent_id', $task->parent_id)
                                 ->get();
 
                             foreach ($relatedTasks as $relatedTask) {
+                                Log::info("Đây là task con if  {$relatedTask}");
                                 $relatedTask->update([
                                     'parent_id'     => $parentTask->id,
                                     'title'         => $data['title'],
@@ -477,6 +480,7 @@ class TaskController extends Controller
 
                             $returnTask[] = $task;
                         }else{
+                            Log::info("Đây là task cha else  {$task}");
                             //Update current Task
                             $task->update($data);
 
@@ -484,10 +488,11 @@ class TaskController extends Controller
 
                             // Update all child Task
                             $relatedTasks = Task::where('parent_id', $task->id)
-                                ->orWhere('parent_id', $task->parent_id)
                                 ->get();
 
                             foreach ($relatedTasks as $relatedTask) {
+                                Log::info("Đây là task con else  {$relatedTask}");
+                                
                                 $relatedTask->update([
                                     'parent_id'     => $task->id,
                                     'title'         => $data['title'],
