@@ -77,7 +77,7 @@ class TaskController extends Controller
         // if is_all_day = 1, set start_time to 00:00:00 and end_time to 23:59:59
         if (!empty($data['is_all_day']) && $data['is_all_day'] == 1) {
             $data['start_time'] = date('Y-m-d 00:00:00', strtotime($data['start_time']));
-            $data['end_time'] = date('Y-m-d 23:59:59', strtotime($data['end_time']));
+            $data['end_time'] = date('Y-m-d 00:00:00', strtotime($data['end_time']));
         }
 
         if (!empty($data['start_time']) && !empty($data['timezone_code'])) {
