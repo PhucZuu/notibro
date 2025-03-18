@@ -353,7 +353,7 @@ class TaskController extends Controller
                             $exclude_time = json_decode($exclude_time, true) ?? [];
                         }
 
-                        $exclude_time[] = Carbon::createFromFormat('Y-m-d H:i:s', $data['updated_date'], $data['timezone_code'])->setTimezone('UTC');
+                        $exclude_time[] = Carbon::createFromFormat('Y-m-d H:i:s', $data['updated_date']);
 
                         $task->exclude_time = $exclude_time;
                         $task->save();
