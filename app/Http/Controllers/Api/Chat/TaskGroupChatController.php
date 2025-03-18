@@ -46,8 +46,8 @@ class TaskGroupChatController extends Controller
     {
         try {
             // Lấy ra group theo task group id
-            $group = TaskGroup::where('task_id',$taskGroupId)->first();
-    
+            $group = TaskGroup::where('task_id', $taskGroupId)->first();
+
             if (!$group) {
                 return response()->json(['message' => 'Group not found'], 404);
             }
@@ -55,7 +55,7 @@ class TaskGroupChatController extends Controller
             $exists = TaskGroupMember::where('group_id', $group->id)
                 ->where('user_id', $userId)
                 ->exists();
-    
+
             if ($exists) {
                 return response()->json([
                     'message'  => 'User is already a member of the group',
@@ -63,7 +63,7 @@ class TaskGroupChatController extends Controller
                     'user_id'  => $userId,
                 ], 400);
             }
-        
+
             // Thêm thành viên mới với quyền mặc định là "member"
             $member = TaskGroupMember::create([
                 'task_id' => $taskGroupId,
@@ -71,13 +71,12 @@ class TaskGroupChatController extends Controller
                 'user_id' => $userId,
                 'role'    => 'member',
             ]);
-    
-    
+
+
             return response()->json([
                 'message' => 'Member has been successfully added to the group',
                 'data'    => $member,
             ], 201);
-    
         } catch (\Exception $e) {
             Log::error('Unexpected error when adding member', [
                 'task_group_id' => $taskGroupId,
@@ -88,11 +87,13 @@ class TaskGroupChatController extends Controller
         }
     }
 
+    // Api remove member from group
     public function removeMember($taskGroupId, $userId)
     {
         $adminId = Auth::id();
 
         // Kiểm tra xem người gọi API có phải là admin của nhóm không
+        // $taskGroupId: là id của nhóm chat không phải là id của task
         $admin = TaskGroupMember::where('group_id', $taskGroupId)
             ->where('user_id', $adminId)
             ->where('role', 'admin')
@@ -120,6 +121,29 @@ class TaskGroupChatController extends Controller
         $member->delete();
 
         return response()->json(['message' => 'Member has been removed from the group'], 200);
+    }
+
+    public function deleteGroup($taskId)
+    {
+        try {
+            $group = TaskGroup::where('task_id', $taskId)->first();
+
+            if (!$group) {
+                return response()->json(['message' => 'Group not found for this task!'], 404);
+            }
+            // lấy ra thành viên theo group_id
+            $groupMenbers = TaskGroupMember::where('group_id', $group->id)->get();
+            // lấy ra tin nhắn theo group_id
+            $groupMessages = TaskGroupMessage::where('group_id', $group->id)->get();
+
+            $groupMessages->delete();
+            $groupMenbers->delete();
+            $group->delete();
+
+            return true;
+        } catch (\Throwable $th) {
+            log::error("đã có lỗi xảy ra khi thực hiện xóa group", ['error' => $th->getMessage()]);
+        }
     }
 
 
