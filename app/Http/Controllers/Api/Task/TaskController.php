@@ -361,6 +361,9 @@ class TaskController extends Controller
                         //Send REALTIME
                         $returnTaskUpdate[] = $task;
 
+                        // update task -> create new group
+                        app(TaskGroupChatController::class)->createGroup($new_task->id, $new_task->user_id);
+
                         $this->sendRealTimeUpdate($returnTaskUpdate, 'update');
 
                         return response()->json([
@@ -388,7 +391,7 @@ class TaskController extends Controller
                         $this->sendRealTimeUpdate($returnTask, 'create');
 
                         $task->until = Carbon::parse($data['updated_date'])->setTime(0, 0, 0)->subDay();
-                        
+
                         $task->save();
 
                         //Send REALTIME
@@ -412,6 +415,9 @@ class TaskController extends Controller
                             $this->sendRealTimeUpdate($returnTaskDel, 'delete');
                         }
 
+                        // create new task -> create new group
+                        app(TaskGroupChatController::class)->createGroup($new_task->id, $new_task->user_id);
+                        
                         return response()->json([
                             'code'    => 200,
                             'message' => 'Task updated successfully',
@@ -651,6 +657,8 @@ class TaskController extends Controller
 
                         //Send REALTIME
                         $returnTask[] = $task;
+
+
 
                         $this->sendRealTimeUpdate($returnTask, 'update');
 
@@ -1137,6 +1145,9 @@ class TaskController extends Controller
 
                         $task->delete();
 
+                        // delete all tasks -> delete group chats
+                        app(TaskGroupChatController::class)->deleteGroup($task->id);
+
                         //Send REALTIME        
                         $this->sendRealTimeUpdate($returnTask, 'delete');
 
@@ -1248,6 +1259,9 @@ class TaskController extends Controller
                             // Xóa Task
                             $deleteTasks->each->delete();
                         }
+
+                        // delete all tasks -> delete group chats
+                        app(TaskGroupChatController::class)->deleteGroup($task->id);
 
                         return response()->json([
                             'code' => 200,
