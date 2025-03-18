@@ -450,8 +450,6 @@ class TaskController extends Controller
                                     'title'         => $data['title'],
                                     'description'   => $data['description'],
                                     'user_id'       => $data['user_id'],
-                                    'start_time'    => $data['start_time'],
-                                    'end_time'      => $data['end_time'],
                                     'timezone_code' => $data['timezone_code'],
                                     'color_code'    => $data['color_code'],
                                     'tag_id'        => $data['tag_id'] ?? null,
@@ -467,24 +465,7 @@ class TaskController extends Controller
                                 $returnTask[] = $relatedTask;
                             }
 
-                            // $task->update([
-                            //     'parent_id'     => $data['parent_id'],
-                            //     'start_time'    => $data['start_time'],
-                            //     'end_time'      => $data['end_time'],
-                            //     'title'         => $data['title'],
-                            //     'description'   => $data['description'],
-                            //     'user_id'       => $data['user_id'],
-                            //     'timezone_code' => $data['timezone_code'],
-                            //     'color_code'    => $data['color_code'],
-                            //     'tag_id'        => $data['tag_id'] ?? null,
-                            //     'attendees'     => $data['attendees'],
-                            //     'location'      => $data['location'],
-                            //     'type'          => $data['type'],
-                            //     'is_all_day'    => $data['is_all_day'],
-                            //     'is_busy'       => $data['is_busy'],
-                            // ]);
-
-                            unset($data['parent_id']);
+                            unset($data['parent_id'], $data['start_time'],$data['end_time']);
                             $parentTask->update($data);
                             $returnTask[] = $parentTask;
 
@@ -492,6 +473,7 @@ class TaskController extends Controller
                         } else {
                             Log::info("Đây là task cha else  {$task}");
                             //Update current Task
+                            unset($data['parent_id'], $data['start_time'],$data['end_time']);
                             $task->update($data);
 
                             $returnTask[] = $task;
@@ -508,8 +490,6 @@ class TaskController extends Controller
                                     'title'         => $data['title'],
                                     'description'   => $data['description'],
                                     'user_id'       => $data['user_id'],
-                                    'start_time'    => $data['start_time'],
-                                    'end_time'      => $data['end_time'],
                                     'timezone_code' => $data['timezone_code'],
                                     'color_code'    => $data['color_code'],
                                     'tag_id'        => $data['tag_id'] ?? null,
@@ -566,6 +546,7 @@ class TaskController extends Controller
             'timezone_code'     => 'required',
             'start_time'        => 'required|date_format:Y-m-d H:i:s',
             'end_time'          => 'nullable|date_format:Y-m-d H:i:s',
+            'is_all_day'        => 'nullable|boolean',
         ]);
 
         $data = $this->handleLogicData($data);
