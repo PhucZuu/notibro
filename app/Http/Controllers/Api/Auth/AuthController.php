@@ -207,7 +207,8 @@ class AuthController extends Controller
     {
         $data = $request->validate([
             'old_password' => ['required'],
-            'new_password' => ['required','min:8','regex:/[a-z]/','regex:/[A-Z]/','regex:/[0-9]/','regex:/[!@#$%^&*]/','confirmed'],
+            'new_password' => ['required','min:8','regex:/[a-z]/','regex:/[A-Z]/','regex:/[0-9]/','regex:/[!@#$%^&*]/'],
+            'password_confirmation' => ['required','same:new_password'],
         ]);
         
         $user = User::find(auth()->id());
@@ -219,7 +220,7 @@ class AuthController extends Controller
             ],404);
         } 
 
-        if(Hash::check($request->old_password, $user->password)) {
+        if(!Hash::check($request->old_password, $user->password)) {
             return response()->json([
                 'code'    => 400,
                 'message' => 'Password is incorrect',
