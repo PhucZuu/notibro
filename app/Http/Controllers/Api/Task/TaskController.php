@@ -353,7 +353,7 @@ class TaskController extends Controller
                             $exclude_time = json_decode($exclude_time, true) ?? [];
                         }
 
-                        $exclude_time[] = Carbon::createFromFormat('Y-m-d H:i:s', $data['updated_date']);
+                        $exclude_time[] = Carbon::createFromFormat('Y-m-d H:i:s', $data['updated_date'], $data['timezone_code'])->setTimezone('UTC');
 
                         $task->exclude_time = $exclude_time;
                         $task->save();
@@ -1155,10 +1155,10 @@ class TaskController extends Controller
                         } else {
                             $excludeTime = [];
                         }
-
+                        Log::info($currentDate);
                         // add current date to exclude_time
                         if (!in_array($currentDate, $excludeTime)) {
-                            $excludeTime[] = $currentDate;
+                            $excludeTime[] = Carbon::parse( $currentDate, $task->timezone_code)->setTimezone('UTC');
                         }
 
                         // Encode back to JSON before saving
@@ -1185,7 +1185,7 @@ class TaskController extends Controller
                 case 'DEL_1B':
                     try {
                         // Giảm đi 1 ngày để xóa đc task
-                        $task->until = Carbon::parse($request->date)->subDay()->endOfDay();
+                        $task->until = Carbon::parse($request->date)->subDay()->startOfDay();
 
                         $task->save();
 
