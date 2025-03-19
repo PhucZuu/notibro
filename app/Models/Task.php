@@ -6,11 +6,14 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class Task extends Model
 {
     use HasFactory;
+
+    protected $table = 'tasks';
 
     protected $fillable = [
         'uuid',
@@ -167,5 +170,43 @@ class Task extends Model
         );
 
         return $formattedTask;
+    }
+
+    public static function getTableStructure()
+    {
+        $columns = Schema::getColumnListing((new self)->getTable());
+
+        // Định nghĩa mô tả rõ ràng hơn cho từng cột
+        $descriptions = [
+            'tag_id'        => 'nullable|integer',
+            'color_code'    => 'required|string|max:10',
+            'timezone_code' => 'required|string|max:50',
+            'title'         => 'required|string|max:255',
+            'description'   => 'nullable|string',
+            'start_time'    => 'required|date_format:Y-m-d H:i:s',
+            'end_time'      => 'required|date_format:Y-m-d H:i:s|after_or_equal:start_time',
+            'is_reminder'   => 'nullable|boolean',
+            'reminder'      => 'nullable|array',
+            'is_done'       => 'nullable|boolean',
+            'attendees'     => 'nullable|array',
+            'location'      => 'nullable|string|max:255',
+            'type'          => 'required|in:meeting,event,task',
+            'is_all_day'    => 'nullable|boolean',
+            'is_repeat'     => 'nullable|boolean',
+            'is_busy'       => 'nullable|boolean',
+            'path'          => 'nullable|string',
+            'freq'          => 'nullable|in:daily,weekly,monthly,yearly',
+            'interval'      => 'nullable|integer|min:1',
+            'until'         => 'nullable|date_format:Y-m-d H:i:s|after:start_time',
+            'count'         => 'nullable|integer|min:1',
+            'byweekday'     => 'nullable|array',
+            'bymonthday'    => 'nullable|array',
+            'bymonth'       => 'nullable|array',
+            'bysetpos'      => 'nullable|array',
+            'exclude_time'  => 'nullable|array',
+            'parent_id'     => 'nullable|integer',
+        ];
+
+        return array_combine($columns, array_map(fn($col) => $descriptions[$col] ?? "Không có mô tả", $columns));
     }
 }
