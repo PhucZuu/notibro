@@ -47,24 +47,45 @@ class TagController extends Controller
     {
         try {
             $userId = Auth::id();
-    
+
             $ownedTags = Tag::where('user_id', $userId)->get();
-    
-            $sharedTags = Tag::whereJsonContains('shared_user', [['user_id' => $userId]])->get();
-    
-            $tags = $ownedTags->merge($sharedTags)->unique('id');
-    
+
             return response()->json([
                 'code'    => 200,
-                'message' => 'Retrieve tags successfully',
-                'data'    => $tags->isEmpty() ? [] : $tags
+                'message' => 'Retrieve owned tags successfully',
+                'data'    => $ownedTags->isEmpty() ? [] : $ownedTags
             ], 200);
         } catch (\Exception $e) {
             Log::error($e->getMessage());
-    
+
             return response()->json([
                 'code'    => 500,
-                'message' => 'An error occurred while retrieving tags',
+                'message' => 'An error occurred while retrieving owned tags',
+            ], 500);
+        }
+    }
+
+    /**
+     * Lấy danh sách tag được chia sẻ với người dùng.
+     */
+    public function getSharedTag()
+    {
+        try {
+            $userId = Auth::id();
+
+            $sharedTags = Tag::whereJsonContains('shared_user', [['user_id' => $userId]])->get();
+
+            return response()->json([
+                'code'    => 200,
+                'message' => 'Retrieve shared tags successfully',
+                'data'    => $sharedTags->isEmpty() ? [] : $sharedTags
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+
+            return response()->json([
+                'code'    => 500,
+                'message' => 'An error occurred while retrieving shared tags',
             ], 500);
         }
     }
