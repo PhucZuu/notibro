@@ -57,6 +57,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/event/{uuid}/refuse', [TaskController::class,'refuseInvite']);
     Route::get('/event/{uuid}/invite', [TaskController::class,'show']);
 
+    Route::post('/events/{id}/accept', [TagController::class, 'acceptTagInvite']);
+    Route::post('/events/{id}/refuse', [TagController::class, 'declineTagInvite']);
+    Route::get('/events/{id}/invite', [TagController::class, 'show']);
+
     // Notifications
     Route::get('/notifications', [NotificationController::class, 'index']);
     Route::get('/notifications/unread', [NotificationController::class, 'unread']);
