@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\Auth\AuthGoogleController;
 use App\Http\Controllers\Api\Chat\TaskGroupChatController;
 use App\Http\Controllers\Api\Notification\NotificationController;
+use App\Http\Controllers\Api\OpenAI\OpenAIController;
 use App\Http\Controllers\Api\Package\StoragePackageController;
 use App\Http\Controllers\Api\Role\RoleController;
 use App\Http\Controllers\Api\Setting\SettingController;
@@ -78,7 +79,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/group/message/send', [TaskGroupChatController::class, 'sendMessage']);
     Route::get('/task/{taskId}/messages', [TaskGroupChatController::class, 'getMessages']);
 
-
+    //OpenAi
+    Route::post('/ai/extract-fields', [OpenAIController::class, 'extractFields']);
 
     //List and get timezone
     Route::get('/timezones',        [TimezoneController::class, 'index']);

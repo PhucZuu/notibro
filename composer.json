@@ -11,6 +11,7 @@
         "laravel/sanctum": "^3.3",
         "laravel/socialite": "^5.18",
         "laravel/tinker": "^2.8",
+        "openai-php/laravel": "^0.11.0",
         "pusher/pusher-php-server": "^7.2"
     },
     "require-dev": {
