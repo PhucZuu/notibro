@@ -37,20 +37,18 @@ class Tag extends Model
 
     public function getSharedUsers()
     {
-        return array_column($this->shared_user ?? [], 'user_id');
-    }
+        return collect($this->shared_user ?? [])->pluck('user_id')->toArray();
+    }    
 
     public function getSharedUserAndOwner()
     {
         $filteredSharedUser = collect($this->shared_user ?? [])
-        ->where('status', 'yes') 
-        ->pluck('user_id')
-        ->toArray();
-
-        $data = array_merge([$this->user_id], $filteredSharedUser);
-
-        return $data;
-    }
+            ->where('status', 'yes')
+            ->pluck('user_id')
+            ->toArray();
+    
+        return array_merge([$this->user_id], $filteredSharedUser);
+    }    
 
     public function syncAttendeesWithTasks($oldSharedUsers)
     {
@@ -69,24 +67,20 @@ class Tag extends Model
             });
     
             foreach ($addedUsers as $userId) {
-                $exists = collect($attendees)->contains('user_id', $userId);
-                if (!$exists) {
-                    $user = User::find($userId);
-                    if ($user) {
-                        $attendees[] = [
-                            'user_id'    => $user->id,
-                            'first_name' => $user->first_name,
-                            'last_name'  => $user->last_name,
-                            'email'      => $user->email,
-                            'avatar'     => $user->avatar ?? null,
-                            'status'     => 'pending',
-                            'role'       => 'viewer',
-                        ];
-    
-                        Mail::to($user->email)->queue(new InviteGuestMail(Auth::user()->email, Auth::user()->name, $task));
-                    }
+                $user = User::find($userId);
+                if ($user) {
+                    $attendees[] = [
+                        'user_id'    => $user->id,
+                        'first_name' => $user->first_name,
+                        'last_name'  => $user->last_name,
+                        'email'      => $user->email,
+                        'avatar'     => $user->avatar ?? null,
+                        'status'     => 'pending',
+                        'role'       => 'viewer',
+                    ];
                 }
             }
+            
     
             $task->update(['attendees' => array_values($attendees)]);
         }
