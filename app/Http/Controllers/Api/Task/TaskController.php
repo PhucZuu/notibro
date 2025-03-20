@@ -139,9 +139,10 @@ class TaskController extends Controller
             ->where('user_id', '=', $user_id)
             ->first();
 
-        $tasks = Task::select('*')
+        $tasks = Task::select('tasks.*', 'tags.name as tag_name')  
+            ->leftJoin('tags', 'tasks.tag_id', '=', 'tags.id')
             ->where(function ($query) use ($user_id) {
-                $query->where('user_id', $user_id)
+                $query->where('tasks.user_id', $user_id)
                     ->orWhereRaw("
                     EXISTS (
                         SELECT 1 FROM JSON_TABLE(
