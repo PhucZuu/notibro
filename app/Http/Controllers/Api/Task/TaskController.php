@@ -259,7 +259,6 @@ class TaskController extends Controller
             'bymonth'           => 'nullable', //JSON
             'bysetpos'           => 'nullable', //JSON
             'exclude_time'      => 'nullable', //JSON
-            'parent_id'         => 'nullable',
         ]);
 
         // $data['user_id'] = Auth::id();
