@@ -421,6 +421,63 @@ class TagController extends Controller
         ], 200);
     }    
 
+    public function leaveTag($id)
+    {
+        $userId = Auth::id();
+        $tag = Tag::find($id);
+    
+        if (!$tag) {
+            return response()->json(['code' => 404, 'message' => 'Tag not found'], 404);
+        }
+    
+        // Ngăn chủ sở hữu tag rời đi
+        if ($tag->user_id == $userId) {
+            return response()->json(['code' => 403, 'message' => 'You are the owner of this tag and cannot leave'], 403);
+        }
+    
+        $sharedUsers = collect($tag->shared_user ?? []);
+    
+        // Kiểm tra nếu người dùng có trong danh sách shared_user
+        if (!$sharedUsers->firstWhere('user_id', $userId)) {
+            return response()->json(['code' => 403, 'message' => 'You are not part of this tag'], 403);
+        }
+    
+        // Loại bỏ user khỏi danh sách shared_user
+        $newSharedUsers = $sharedUsers
+            ->reject(fn($user) => $user['user_id'] == $userId)
+            ->values()
+            ->toArray();
+    
+        $tag->update(['shared_user' => $newSharedUsers]);
+    
+        // Loại bỏ user khỏi tất cả các task của tag
+        $tasks = $tag->tasks;
+        foreach ($tasks as $task) {
+            $attendees = collect($task->attendees ?? [])
+                ->reject(fn($attendee) => $attendee['user_id'] == $userId)
+                ->values()
+                ->toArray();
+    
+            $task->update(['attendees' => $attendees]);
+        }
+    
+        // Gửi thông báo cho chủ sở hữu
+        $owner = User::find($tag->user_id);
+        if ($owner) {
+            $owner->notify(new NotificationEvent(
+                $owner->id,
+                "Người dùng {$userId} đã rời khỏi tag: {$tag->name}",
+                "",
+                "leave_tag"
+            ));
+        }
+    
+        return response()->json([
+            'code' => 200,
+            'message' => 'Successfully left the tag and related tasks',
+        ], 200);
+    }    
+
     protected function sendMail($mailOwner, $emails, $tag)
     {
         $nameOwner = Auth::user()->name;

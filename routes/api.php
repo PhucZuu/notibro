@@ -97,6 +97,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/tags/{id}', [TagController::class, 'show']);
     Route::put('/tags/{id}', [TagController::class, 'update']);
     Route::delete('/tags/{id}', [TagController::class, 'destroy']);
+    Route::post('/tags/{id}/leave', [TagController::class, 'leaveTag']);
 
     // Get list guest
     Route::get('/guest', [UserController::class,'guest']);
