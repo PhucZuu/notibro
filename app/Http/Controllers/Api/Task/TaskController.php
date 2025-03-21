@@ -139,7 +139,7 @@ class TaskController extends Controller
             ->where('user_id', '=', $user_id)
             ->first();
 
-        $tasks = Task::select('tasks.*', 'tags.name as tag_name')  
+        $tasks = Task::select('tasks.*', 'tags.name as tag_name')
             ->leftJoin('tags', 'tasks.tag_id', '=', 'tags.id')
             ->where(function ($query) use ($user_id) {
                 $query->where('tasks.user_id', $user_id)
@@ -816,45 +816,46 @@ class TaskController extends Controller
                             foreach ($relatedTasks as $relatedTask) {
                                 if ($relatedTask->is_repeat) {
                                     $relatedTask->update([
-                                        'parent_id'     => $parentTask->id,
-                                        'title'         => $data['title'],
-                                        'description'   => $data['description'],
-                                        'user_id'       => $data['user_id'],
-                                        'timezone_code' => $data['timezone_code'],
-                                        'color_code'    => $data['color_code'],
-                                        'tag_id'        => $data['tag_id'] ?? null,
-                                        'attendees'     => $data['attendees'],
-                                        'location'      => $data['location'],
-                                        'type'          => $data['type'],
-                                        'is_all_day'    => $data['is_all_day'],
-                                        'is_busy'       => $data['is_busy'],
-                                        'is_reminder'   => $data['is_reminder'],
-                                        'reminder'      => $data['reminder'],
-                                        'is_repeat'     => $data['is_repeat'],
-                                        'freq'          => $data['freq'],
-                                        'interval'      => $data['interval'],
-                                        'until'         => $data['until'],
-                                        'count'         => $data['count'],
-                                        'byweekday'     => $data['byweekday'],
-                                        'bymonthday'    => $data['bymonthday'],
-                                        'bymonth'       => $data['bymonth'],
+                                        'title'         => $parentTask->title,
+                                        'description'   => $parentTask->description,
+                                        'user_id'       => $parentTask->user_id,
+                                        'timezone_code' => $parentTask->timezone_code,
+                                        'color_code'    => $parentTask->color_code,
+                                        'tag_id'        => $parentTask->tag_id ?? null,
+                                        'attendees'     => $parentTask->attendees,
+                                        'location'      => $parentTask->location,
+                                        'type'          => $parentTask->type,
+                                        'is_all_day'    => $parentTask->is_all_day,
+                                        'is_busy'       => $parentTask->is_busy,
+                                        'is_reminder'   => $parentTask->is_reminder,
+                                        'reminder'      => $parentTask->reminder,
+                                        'is_repeat'     => $parentTask->is_repeat,
+                                        'freq'          => $parentTask->freq,
+                                        'interval'      => $parentTask->interval,
+                                        'until'         => $parentTask->until,
+                                        'count'         => $parentTask->count,
+                                        'byweekday'     => $parentTask->byweekday,
+                                        'bymonthday'    => $parentTask->bymonthday,
+                                        'bymonth'       => $parentTask->bymonth,
+
                                     ]);
                                 } else {
                                     $relatedTask->update([
                                         'parent_id'     => $parentTask->id,
-                                        'title'         => $data['title'],
-                                        'description'   => $data['description'],
-                                        'user_id'       => $data['user_id'],
-                                        'timezone_code' => $data['timezone_code'],
-                                        'color_code'    => $data['color_code'],
-                                        'tag_id'        => $data['tag_id'] ?? null,
-                                        'attendees'     => $data['attendees'],
-                                        'location'      => $data['location'],
-                                        'type'          => $data['type'],
-                                        'is_all_day'    => $data['is_all_day'],
-                                        'is_busy'       => $data['is_busy'],
-                                        'is_reminder'   => $data['is_reminder'],
-                                        'reminder'      => $data['reminder'],
+                                        'title'         => $parentTask->title,
+                                        'description'   => $parentTask->description,
+                                        'user_id'       => $parentTask->user_id,
+                                        'timezone_code' => $parentTask->timezone_code,
+                                        'color_code'    => $parentTask->color_code,
+                                        'tag_id'        => $parentTask->tag_id ?? null,
+                                        'attendees'     => $parentTask->attendees,
+                                        'location'      => $parentTask->location,
+                                        'type'          => $parentTask->type,
+                                        'is_all_day'    => $parentTask->is_all_day,
+                                        'is_busy'       => $parentTask->is_busy,
+                                        'is_reminder'   => $parentTask->is_reminder,
+                                        'reminder'      => $parentTask->reminder,
+
                                     ]);
                                 }
 
@@ -880,44 +881,45 @@ class TaskController extends Controller
                                 if ($relatedTask->is_repeat) {
                                     $relatedTask->update([
                                         'parent_id'     => $task->id,
-                                        'title'         => $data['title'],
-                                        'description'   => $data['description'],
-                                        'user_id'       => $data['user_id'],
-                                        'timezone_code' => $data['timezone_code'],
-                                        'color_code'    => $data['color_code'],
-                                        'tag_id'        => $data['tag_id'] ?? null,
-                                        'attendees'     => $data['attendees'],
-                                        'location'      => $data['location'],
-                                        'type'          => $data['type'],
-                                        'is_all_day'    => $data['is_all_day'],
-                                        'is_busy'       => $data['is_busy'],
-                                        'is_reminder'   => $data['is_reminder'],
-                                        'reminder'      => $data['reminder'],
-                                        'is_repeat'     => $data['is_repeat'],
-                                        'freq'          => $data['freq'],
-                                        'interval'      => $data['interval'],
-                                        'until'         => $data['until'],
-                                        'count'         => $data['count'],
-                                        'byweekday'     => $data['byweekday'],
-                                        'bymonthday'    => $data['bymonthday'],
-                                        'bymonth'       => $data['bymonth'],
+                                        'title'         => $task->title,
+                                        'description'   => $task->description,
+                                        'user_id'       => $task->user_id,
+                                        'timezone_code' => $task->timezone_code,
+                                        'color_code'    => $task->color_code,
+                                        'tag_id'        => $task->tag_id ?? null,
+                                        'attendees'     => $task->attendees,
+                                        'location'      => $task->location,
+                                        'type'          => $task->type,
+                                        'is_all_day'    => $task->is_all_day,
+                                        'is_busy'       => $task->is_busy,
+                                        'is_reminder'   => $task->is_reminder,
+                                        'reminder'      => $task->reminder,
+                                        'is_repeat'     => $task->is_repeat,
+                                        'freq'          => $task->freq,
+                                        'interval'      => $task->interval,
+                                        'until'         => $task->until,
+                                        'count'         => $task->count,
+                                        'byweekday'     => $task->byweekday,
+                                        'bymonthday'    => $task->bymonthday,
+                                        'bymonth'       => $task->bymonth,
+
                                     ]);
                                 } else {
                                     $relatedTask->update([
                                         'parent_id'     => $task->id,
-                                        'title'         => $data['title'],
-                                        'description'   => $data['description'],
-                                        'user_id'       => $data['user_id'],
-                                        'timezone_code' => $data['timezone_code'],
-                                        'color_code'    => $data['color_code'],
-                                        'tag_id'        => $data['tag_id'] ?? null,
-                                        'attendees'     => $data['attendees'],
-                                        'location'      => $data['location'],
-                                        'type'          => $data['type'],
-                                        'is_all_day'    => $data['is_all_day'],
-                                        'is_busy'       => $data['is_busy'],
-                                        'is_reminder'   => $data['is_reminder'],
-                                        'reminder'      => $data['reminder'],
+                                        'title'         => $task->title,
+                                        'description'   => $task->description,
+                                        'user_id'       => $task->user_id,
+                                        'timezone_code' => $task->timezone_code,
+                                        'color_code'    => $task->color_code,
+                                        'tag_id'        => $task->tag_id ?? null,
+                                        'attendees'     => $task->attendees,
+                                        'location'      => $task->location,
+                                        'type'          => $task->type,
+                                        'is_all_day'    => $task->is_all_day,
+                                        'is_busy'       => $task->is_busy,
+                                        'is_reminder'   => $task->is_reminder,
+                                        'reminder'      => $task->reminder,
                                     ]);
                                 }
 
@@ -1369,11 +1371,11 @@ class TaskController extends Controller
                         $deleteTasks = Task::where('id', $task->id)
                             ->orWhere('parent_id',   $task->id)
                             ->orWhere('id',   $task->parent_id)
-                            ->orWhere(function ($query) use ($task) {  
+                            ->orWhere(function ($query) use ($task) {
                                 // Nếu có parent_id, lấy thêm các task con của task cha  
-                                if ($task->parent_id !== null) {  
-                                    $query->where('parent_id', $task->parent_id);  
-                                }  
+                                if ($task->parent_id !== null) {
+                                    $query->where('parent_id', $task->parent_id);
+                                }
                             })
                             ->get();
 
