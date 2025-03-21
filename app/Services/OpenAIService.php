@@ -2,7 +2,10 @@
 
 namespace App\Services;
 
+use App\Models\Setting;
+use Carbon\Carbon;
 use Exception;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use OpenAI;
 
@@ -17,6 +20,13 @@ class OpenAIService
 
     public function analyzeRequest($userRequest, $tableStructure)
     {
+
+        $setting = Setting::select('*')
+            ->where('user_id', '=', Auth::id())
+            ->first();
+        Log::info($setting);
+
+        $currentDateTime = Carbon::parse(now()->format('Y-m-d H:i:s'), $setting->timezone_code);
 
         try {
             $response = $this->client->chat()->create([
@@ -37,6 +47,7 @@ class OpenAIService
                     { \"field_1\": \"value_1\", \"field_2\": \"value_2\" }
                     </json>"],
                     ['role' => 'user', 'content' => 'Tin nhắn của tôi: ' . $userRequest],
+                    ['role' => 'user', 'content' => 'Hiện tại tôi đang là ngày: ' . $currentDateTime . 'với múi giờ' . $setting->timezone_code],
                     ['role' => 'user', 'content' => 'Hãy trích xuất các trường phù hợp từ tin nhắn trên.'],
                 ]
             ]);

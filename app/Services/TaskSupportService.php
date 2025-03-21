@@ -128,6 +128,16 @@ class TaskSupportService
 
         $data = $this->handleLogicData($data);
 
+        if(!$data['is_reminder']){
+            $data['is_reminder'] = 0;
+        }
+
+        if ($data['is_repeat']) {
+            $data['until'] = $data['until'] ?? now()->addYears(5);
+        }
+
+        Log::info($data);
+
         if (!empty($data['tag_id'])) {
             $tag = Tag::where('id', $data['tag_id'])->first();
             $sharedUsers = collect($tag->shared_user);
