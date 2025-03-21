@@ -406,6 +406,7 @@ class TaskController extends Controller
                             }
                         })
                             ->where('start_time', '>=', $task->until)
+                            ->where('id', '!=', $new_task->id)
                             ->get();
 
                         $returnTaskDel = $relatedTasks;
@@ -714,6 +715,9 @@ class TaskController extends Controller
 
                         $this->sendRealTimeUpdate($returnTask, 'update');
 
+                        app(TaskGroupChatController::class)->createGroup($new_task->id, $new_task->user_id);
+
+
                         return response()->json([
                             'code'    => 200,
                             'message' => 'Task updated successfully',
@@ -739,6 +743,7 @@ class TaskController extends Controller
 
                         //Add new task for following change
                         $new_task = Task::create($preNewTask->toArray());
+                        Log::info($new_task);
 
                         $task->until = Carbon::parse($data['updated_date'])->setTime(0, 0, 0)->subDay();
 
@@ -749,7 +754,7 @@ class TaskController extends Controller
 
                         $this->sendRealTimeUpdate($returnTaskUpdate, 'update');
 
-                        //Delete all task that have parent_id = $task->id and start_time > $ta
+                        // Delete all task that have parent_id = $task->id and start_time > $ta
                         $relatedTasks = Task::where(function ($query) use ($task) {
                             $query->where('parent_id', $task->id);
                             // Kiểm tra nếu parent_id của task hiện tại không phải là null  
@@ -758,6 +763,7 @@ class TaskController extends Controller
                             }
                         })
                             ->where('start_time', '>=', $task->until)
+                            ->where('id', '!=', $new_task->id)
                             ->get();
 
                         //Send REALTIME
@@ -774,6 +780,7 @@ class TaskController extends Controller
                         app(TaskGroupChatController::class)->createGroup($new_task->id, $new_task->user_id);
 
                         $new_task->parent_id = $task->parent_id ?? $task->id;
+                        Log::info($new_task->parent_id);
                         $new_task->save();
 
                         //Send REALTIME
