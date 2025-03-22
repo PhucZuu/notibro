@@ -22,7 +22,7 @@ class AuthController extends Controller
     {
         $credentials = $request->only('email','password');
 
-        $user = User::with('roles:id,name')
+        $user = User::with('roles:id,name','setting')
         ->where('email',$credentials['email'])
         ->first();
 
@@ -49,7 +49,8 @@ class AuthController extends Controller
                     "last_name"  => $user->last_name,
                     "role"       => $user->roles[0]['name'] ?? 'user',
                     "avatar"     => $user->avatar,
-                ]
+                ],
+                'setting'      => $user->setting,
             ],
         ],200);
     }

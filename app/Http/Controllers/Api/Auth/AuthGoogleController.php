@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Laravel\Socialite\Facades\Socialite;
 use App\Http\Controllers\Controller;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class AuthGoogleController extends Controller
@@ -29,6 +30,8 @@ class AuthGoogleController extends Controller
 
             $handleName = explode(' ',$googleUser->user['name']);
             // dd($handleName);
+            DB::beginTransaction();
+            
             $user = User::firstOrCreate(
                 ['email' => $googleUser->getEmail()],
                 [
@@ -52,12 +55,15 @@ class AuthGoogleController extends Controller
                     $user->roles()->attach($role->id);
                 }
             }
-            
+            DB::commit();
+
             $token = $user->createToken('access_token')->plainTextToken;
             
             return redirect()->away(env('URL_FRONTEND') . '/auth/google/callback?token=' . $token);
 
         } catch (\Exception $e) {
+            DB::rollBack();
+
             Log::error($e->getMessage());
 
             return redirect()->away(env('URL_FRONTEND') . '/auth/google/error');
@@ -67,7 +73,9 @@ class AuthGoogleController extends Controller
     public function getGoogleUser()
     {
         try{
-            $user = auth()->user();
+            $user = User::with('roles:id,name','setting')
+            ->where('id', auth()->id())
+            ->first();
 
             if(!$user) {
                 return response()->json([
@@ -85,7 +93,8 @@ class AuthGoogleController extends Controller
                     "last_name"  => $user->last_name,
                     "role"       => $user->roles[0]['name'] ?? 'user',
                     "avatar"     => $user->avatar,
-                ]
+                ],
+                'setting'      => $user->setting,
             ],200);
         } catch (\Exception $e) {
             Log::error($e->getMessage());
