@@ -5,6 +5,7 @@ namespace App\Models;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -12,6 +13,7 @@ use Illuminate\Support\Str;
 class Task extends Model
 {
     use HasFactory;
+    use SoftDeletes;
 
     protected $table = 'tasks';
 
@@ -44,7 +46,10 @@ class Task extends Model
         'bymonth',
         'bysetpos',
         'exclude_time',
-        'parent_id'
+        'parent_id',
+        'link',
+        'is_private',
+        // 'is_trash',
     ];
 
     protected $attributes = [
@@ -53,6 +58,8 @@ class Task extends Model
         'is_all_day'    => 0,
         'is_repeat'     => 0,
         'is_busy'       => 0,
+        'is_private'    => 0,
+        // 'is_trash'      => 0,
     ];
 
     protected $casts = [
@@ -205,6 +212,7 @@ class Task extends Model
             'bysetpos'      => 'nullable|array',
             'exclude_time'  => 'nullable|array|date_format:Y-m-d H:i:s',
             'parent_id'     => 'nullable|integer',
+            'is_private'    => 'required|boolean|in:0,1',
         ];
 
         return array_combine($columns, array_map(fn($col) => $descriptions[$col] ?? "Không có mô tả", $columns));
