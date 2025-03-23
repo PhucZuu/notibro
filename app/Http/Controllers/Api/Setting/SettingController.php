@@ -33,18 +33,18 @@ class SettingController extends Controller
     public function changeSetting(Request $request)
     {
         $setting = $request->validate([
-            "timezone_code"   => ['required',Rule::exists('timezones','id')],
+            "timezone_code"   => ['required'],
             "language"      => ['required',Rule::in(['en','vi'])],
             "theme"         => ['required',Rule::in(['light','dark'])],
-            "date_format"   => ['required',Rule::in(['d/m/Y', 'm/d/Y', 'Y-m-d'])],
-            "time_format"   => ['required',Rule::in(['h:mmA', 'HH:mm'])],
+            "date_format"   => ['required',Rule::in(['YYYY-MM-DD', 'MM-DD-YYYY', 'DD-MM-YYYY', 'DD/MM/YYYY', 'MM/DD/YYYY'])],
+            "time_format"   => ['required',Rule::in(['h:mm A', 'HH:mm'])],
             'hour_format'   => ['required'],
             'display_type'  => ['required'],
             'is_display_dayoff' => ['required'],
             'tittle_format_option' => ['required'],
             'column_header_format_option' => ['required'],
             'first' => ['required'],
-            'notification_type' => ['required'],
+            'notification_type' => ['required', Rule::in(['both','desktop','alerts','off'])],
         ]);
 
         $userSetting = Setting::where('user_id', auth()->user()->id)->first();
