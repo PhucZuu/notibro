@@ -260,6 +260,8 @@ class TaskController extends Controller
             'bymonth'           => 'nullable', //JSON
             'bysetpos'           => 'nullable', //JSON
             'exclude_time'      => 'nullable', //JSON
+            'link'              => 'nullable',
+            'is_private'        => 'nullable',
         ]);
 
         // $data['user_id'] = Auth::id();
@@ -342,6 +344,8 @@ class TaskController extends Controller
                             'is_busy'       => $data['is_busy'],
                             'is_reminder'   => $data['is_reminder'],
                             'reminder'      => $data['reminder'],
+                            'link'          => $data['link'],
+                            'is_private'    => $data['is_private'],
                         ]);
 
                         //Send REALTIME
@@ -481,6 +485,8 @@ class TaskController extends Controller
                                         'byweekday'     => $data['byweekday'],
                                         'bymonthday'    => $data['bymonthday'],
                                         'bymonth'       => $data['bymonth'],
+                                        'link'          => $data['link'],
+                                        'is_private'    => $data['is_private'],
                                     ]);
                                 } else {
                                     $relatedTask->update([
@@ -498,6 +504,8 @@ class TaskController extends Controller
                                         'is_busy'       => $data['is_busy'],
                                         'is_reminder'   => $data['is_reminder'],
                                         'reminder'      => $data['reminder'],
+                                        'link'          => $data['link'],
+                                        'is_private'    => $data['is_private'],
                                     ]);
                                 }
 
@@ -745,7 +753,11 @@ class TaskController extends Controller
                         $new_task = Task::create($preNewTask->toArray());
                         Log::info($new_task);
 
-                        $task->until = Carbon::parse($data['updated_date'])->setTime(0, 0, 0)->subDay();
+                        if($data['start_time']->isSameDay($data['updated_date'])) {
+                            $task->until = Carbon::parse($data['updated_date'])->setTime(0, 0, 0);
+                        }else{
+                            $task->until = Carbon::parse($data['updated_date'])->setTime(0, 0, 0)->subDay();
+                        }
 
                         $task->save();
 
@@ -1141,6 +1153,8 @@ class TaskController extends Controller
             'exclude_time'      => 'nullable', //JSON
             'parent_id'         => 'nullable',
             'sendMail'          => 'nullable',
+            'link'              => 'nullable',
+            'is_private'        => 'nullable',
         ]);
 
         try {
@@ -1149,6 +1163,8 @@ class TaskController extends Controller
             $data = $this->handleJsonStringData($data);
 
             $data = $this->handleLogicData($data);
+
+            $data['is_private'] = $data['is_private'] ?? 0;
 
             if (!empty($data['tag_id'])) {
                 $tag = Tag::where('id', $data['tag_id'])->first();
@@ -1263,10 +1279,12 @@ class TaskController extends Controller
                     try {
                         $returnTask[] = $task;
 
-                        $task->delete();
+                        $is_trash = true;
+
+                        $task->update(['is_trash' => $is_trash]);
 
                         // delete all tasks -> delete group chats
-                        app(TaskGroupChatController::class)->deleteGroup($task->id);
+                        // app(TaskGroupChatController::class)->deleteGroup($task->id);
 
                         //Send REALTIME        
                         $this->sendRealTimeUpdate($returnTask, 'delete');
@@ -1799,6 +1817,8 @@ class TaskController extends Controller
                 unset($task->tag); // Xóa object `tag`, chỉ giữ lại `tag_name`
                 return $task;
             });
+
+        $validTasks = [];
 
         foreach ($tasks as $task) {
             if ($task->is_repeat) {
