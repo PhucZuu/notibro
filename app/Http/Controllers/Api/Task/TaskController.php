@@ -399,7 +399,7 @@ class TaskController extends Controller
                         //Send REALTIME
                         $returnTaskUpdate[] = $task;
 
-                        $this->sendRealTimeUpdate($returnTaskUpdate, 'update');
+                        // $this->sendRealTimeUpdate($returnTaskUpdate, 'update');
 
                         //Delete all task that have parent_id = $task->id and start_time > $ta
                         $relatedTasks = Task::where(function ($query) use ($task) {
@@ -413,15 +413,66 @@ class TaskController extends Controller
                             ->where('id', '!=', $new_task->id)
                             ->get();
 
-                        $returnTaskDel = $relatedTasks;
-
                         foreach ($relatedTasks as $relatedTask) {
-                            $relatedTask->delete();
+                            $updatedStartTime = Carbon::parse($relatedTask->start_time)->setTime($data['start_time']->hour, $data['start_time']->minute, $data['start_time']->second);
+                            $updatedEndTime = Carbon::parse($relatedTask->end_time)->setTime($data['end_time']->hour, $data['end_time']->minute, $data['end_time']->second);
+
+                            if ($relatedTask->is_repeat) {
+                                $relatedTask->update([
+                                    'start_time'    => $updatedStartTime,
+                                    'end_time'      => $updatedEndTime,
+                                    'title'         => $data['title'],
+                                    'description'   => $data['description'],
+                                    'user_id'       => $data['user_id'],
+                                    'timezone_code' => $data['timezone_code'],
+                                    'color_code'    => $data['color_code'],
+                                    'tag_id'        => $data['tag_id'] ?? null,
+                                    'attendees'     => $data['attendees'],
+                                    'location'      => $data['location'],
+                                    'type'          => $data['type'],
+                                    'is_all_day'    => $data['is_all_day'],
+                                    'is_busy'       => $data['is_busy'],
+                                    'is_reminder'   => $data['is_reminder'],
+                                    'reminder'      => $data['reminder'],
+                                    'is_repeat'     => $data['is_repeat'],
+                                    'freq'          => $data['freq'],
+                                    'interval'      => $data['interval'],
+                                    'until'         => $data['until'],
+                                    'count'         => $data['count'],
+                                    'byweekday'     => $data['byweekday'],
+                                    'bymonthday'    => $data['bymonthday'],
+                                    'bymonth'       => $data['bymonth'],
+                                    'link'          => $data['link'],
+                                    'is_private'    => $data['is_private'],
+                                ]);
+                            } else {
+                                $relatedTask->update([
+                                    'start_time'    => $updatedStartTime,
+                                    'end_time'      => $updatedEndTime,
+                                    'title'         => $data['title'],
+                                    'description'   => $data['description'],
+                                    'user_id'       => $data['user_id'],
+                                    'timezone_code' => $data['timezone_code'],
+                                    'color_code'    => $data['color_code'],
+                                    'tag_id'        => $data['tag_id'] ?? null,
+                                    'attendees'     => $data['attendees'],
+                                    'location'      => $data['location'],
+                                    'type'          => $data['type'],
+                                    'is_all_day'    => $data['is_all_day'],
+                                    'is_busy'       => $data['is_busy'],
+                                    'is_reminder'   => $data['is_reminder'],
+                                    'reminder'      => $data['reminder'],
+                                    'link'          => $data['link'],
+                                    'is_private'    => $data['is_private'],
+                                ]);
+                            }
+
+                            $returnTaskUpdate[] = $relatedTask;
                         }
 
                         //Send REALTIME
-                        if (!$returnTaskDel) {
-                            $this->sendRealTimeUpdate($returnTaskDel, 'delete');
+                        if (!$returnTaskUpdate) {
+                            $this->sendRealTimeUpdate($returnTaskUpdate, 'update');
                         }
 
                         // create new task -> create new group
@@ -764,7 +815,7 @@ class TaskController extends Controller
                         //Send REALTIME
                         $returnTaskUpdate[] = $task;
 
-                        $this->sendRealTimeUpdate($returnTaskUpdate, 'update');
+                        // $this->sendRealTimeUpdate($returnTaskUpdate, 'update');
 
                         // Delete all task that have parent_id = $task->id and start_time > $ta
                         $relatedTasks = Task::where(function ($query) use ($task) {
@@ -779,14 +830,23 @@ class TaskController extends Controller
                             ->get();
 
                         //Send REALTIME
-                        $returnTaskDel = $relatedTasks;
+                        // $returnTaskDel = $relatedTasks;
 
                         foreach ($relatedTasks as $relatedTask) {
-                            $relatedTask->delete();
+                            $updatedStartTime = Carbon::parse($relatedTask->start_time)->setTime($data['start_time']->hour, $data['start_time']->minute, $data['start_time']->second);
+                            $updatedEndTime = Carbon::parse($relatedTask->end_time)->setTime($data['end_time']->hour, $data['end_time']->minute, $data['end_time']->second);
+
+                            $relatedTask->update([
+                                'start_time'    => $updatedStartTime,
+                                'end_time'      => $updatedEndTime,
+                                'is_all_day'    => $data['is_all_day'] ?? $relatedTask->is_all_day,
+                            ]);
+
+                            $returnTaskUpdate[] = $relatedTask;
                         }
 
-                        if (!$returnTaskDel) {
-                            $this->sendRealTimeUpdate($returnTaskDel, 'delete');
+                        if (!$returnTaskUpdate) {
+                            $this->sendRealTimeUpdate($returnTaskUpdate, 'update');
                         }
 
                         app(TaskGroupChatController::class)->createGroup($new_task->id, $new_task->user_id);
@@ -1863,7 +1923,11 @@ class TaskController extends Controller
 
         if (empty($validTasks)) {  
             $validTasks = []; // Trả về mảng rỗng nếu không có giá trị  
-        }
+        }else {  
+            usort($validTasks, function ($a, $b) {
+                return Carbon::parse($a->start_time)->timestamp <=> Carbon::parse($b->start_time)->timestamp;
+            });
+        }  
 
         // Trả về view và truyền dữ liệu vào
         return response()->json([
