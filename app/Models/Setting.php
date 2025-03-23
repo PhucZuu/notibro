@@ -19,7 +19,7 @@ class Setting extends Model
         'hour_format',
         'display_type',
         'is_display_dayoff',
-        'tittle_format_option',
+        'tittle_format_options',
         'column_header_format_option',
         'first',
         'notification_type',
