@@ -1796,6 +1796,10 @@ class TaskController extends Controller
                                 $subQuery->where('until', '>=', $now) // Nếu until có giá trị, chỉ lấy các bản ghi chưa hết hạn
                                     ->orWhereNull('until'); // Nếu until là NULL, nó lặp vô hạn
                             });
+                    })
+                    ->orWhere(function ($q) use ($now, $next24Hours) {  
+                        $q->where('is_repeat', 0) // Đưa điều kiện này vào để lấy bản ghi có is_repeat = 0  
+                            ->whereBetween('start_time', [$now, $next24Hours]); // Thời gian cũng được kiểm tra  
                     });
             })->where(function ($query) use ($user_id) {
                 $query->where('user_id', $user_id)
@@ -1817,8 +1821,6 @@ class TaskController extends Controller
                 unset($task->tag); // Xóa object `tag`, chỉ giữ lại `tag_name`
                 return $task;
             });
-
-        $validTasks = [];
 
         foreach ($tasks as $task) {
             if ($task->is_repeat) {
@@ -1854,7 +1856,13 @@ class TaskController extends Controller
                         $task->exclude_time,
                     );
                 }
+            }else{
+                $validTasks[] = $task;
             }
+        }
+
+        if (empty($validTasks)) {  
+            $validTasks = []; // Trả về mảng rỗng nếu không có giá trị  
         }
 
         // Trả về view và truyền dữ liệu vào
