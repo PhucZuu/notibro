@@ -136,32 +136,29 @@ class TagController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name'        => 'required|string',
-            'description' => 'nullable|string',
-            'color_code'  => 'nullable|string',
-            'shared_user' => 'nullable',
+            'name'         => 'required|string',
+            'description'  => 'nullable|string',
+            'color_code'   => 'nullable|string',
+            'reminder'     => 'nullable',
+            'shared_user'  => 'nullable',
         ]);
-
+    
         try {
             $userId = Auth::id();
-
+    
             if (Tag::where('user_id', $userId)->where('name', $validated['name'])->exists()) {
                 return response()->json([
                     'code'    => 409,
                     'message' => 'You already have a tag with this name',
                 ], 409);
             }
-
-            // Xử lý linh hoạt kiểu array hoặc JSON
-            if (!empty($validated['shared_user']) && is_string($validated['shared_user'])) {
-                $shared_user = json_decode($validated['shared_user'], true) ?? [];
-            } elseif (is_array($validated['shared_user'])) {
-                $shared_user = $validated['shared_user'];
-            } else {
-                $shared_user = [];
+    
+            $sharedUsersRaw = $validated['shared_user'] ?? [];
+            if (is_string($sharedUsersRaw)) {
+                $sharedUsersRaw = json_decode($sharedUsersRaw, true) ?? [];
             }
-
-            $formattedSharedUsers = collect($shared_user)->map(function ($user) {
+    
+            $formattedSharedUsers = collect($sharedUsersRaw)->map(function ($user) {
                 return [
                     'user_id'    => $user['user_id'],
                     'first_name' => $user['first_name'] ?? null,
@@ -171,24 +168,42 @@ class TagController extends Controller
                     'status'     => $user['status'] ?? 'pending',
                     'role'       => $user['role'] ?? 'viewer',
                 ];
-            })->toArray();
-
+            })->filter()->values()->toArray();
+    
+            $reminderRaw = $validated['reminder'] ?? [];
+            if (is_string($reminderRaw)) {
+                $reminderRaw = json_decode($reminderRaw, true);
+                if (json_last_error() !== JSON_ERROR_NONE || !is_array($reminderRaw)) {
+                    return response()->json(['code' => 400, 'message' => 'Invalid reminder JSON'], 400);
+                }
+            }
+    
+            $formattedReminder = collect($reminderRaw)->map(function ($item) {
+                return [
+                    'type'   => $item['type']   ?? null,
+                    'time'   => $item['time']   ?? null,
+                    'method' => $item['method'] ?? 'once',
+                ];
+            })->filter(fn($r) => $r['type'] && $r['time'])->values()->toArray();
+    
             $tag = Tag::create([
-                'name'        => $validated['name'],
-                'description' => $validated['description'],
-                'color_code'  => $validated['color_code'],
-                'user_id'     => Auth::id(),
-                'shared_user' => $formattedSharedUsers,
+                'name'         => $validated['name'],
+                'description'  => $validated['description'],
+                'color_code'   => $validated['color_code'],
+                'user_id'      => $userId,
+                'shared_user'  => $formattedSharedUsers,
+                'reminder'     => $formattedReminder,
             ]);
-
+    
             return response()->json([
                 'code'    => 201,
                 'message' => 'Tag created successfully',
                 'data'    => $tag
             ], 201);
+    
         } catch (\Exception $e) {
             Log::error($e->getMessage());
-
+    
             return response()->json([
                 'code'    => 500,
                 'message' => 'An error occurred while creating tag',
@@ -200,10 +215,11 @@ class TagController extends Controller
     public function update(Request $request, $id)
     {
         $validated = $request->validate([
-            'name'        => 'required|string',
-            'description' => 'nullable|string',
-            'color_code'  => 'nullable|string',
-            'shared_user' => 'nullable',
+            'name'         => 'required|string',
+            'description'  => 'nullable|string',
+            'color_code'   => 'nullable|string',
+            'reminder'     => 'nullable',
+            'shared_user'  => 'nullable',
         ]);
     
         try {
@@ -211,31 +227,23 @@ class TagController extends Controller
             $tag = Tag::where('id', $id)->where('user_id', $userId)->first();
     
             if (!$tag) {
-                return response()->json(['code' => 404, 'message' => 'Tag not found or unauthorized'], 404);
+                return response()->json([
+                    'code'    => 404,
+                    'message' => 'Tag not found or unauthorized'
+                ], 404);
             }
     
-            // Lấy danh sách shared_user cũ TRƯỚC KHI UPDATE
             $oldSharedUsers = collect($tag->shared_user ?? [])->pluck('user_id')->toArray();
     
-            // Xử lý linh hoạt JSON hoặc Array
-            if (!empty($validated['shared_user'])) {
-                if (is_string($validated['shared_user'])) {
-                    $decodedSharedUsers = json_decode($validated['shared_user'], true);
-                    if (json_last_error() !== JSON_ERROR_NONE || !is_array($decodedSharedUsers)) {
-                        return response()->json(['code' => 400, 'message' => 'Invalid shared_user JSON'], 400);
-                    }
-                    $newSharedUsers = $decodedSharedUsers;
-                } elseif (is_array($validated['shared_user'])) {
-                    $newSharedUsers = $validated['shared_user'];
-                } else {
-                    $newSharedUsers = [];
+            $sharedUsersRaw = $validated['shared_user'] ?? [];
+            if (is_string($sharedUsersRaw)) {
+                $sharedUsersRaw = json_decode($sharedUsersRaw, true);
+                if (json_last_error() !== JSON_ERROR_NONE || !is_array($sharedUsersRaw)) {
+                    return response()->json(['code' => 400, 'message' => 'Invalid shared_user JSON'], 400);
                 }
-            } else {
-                $newSharedUsers = [];
             }
     
-            // Lọc và định dạng shared_user mới
-            $formattedSharedUsers = collect($newSharedUsers)->map(function ($user) {
+            $formattedSharedUsers = collect($sharedUsersRaw)->map(function ($user) {
                 $userModel = User::find($user['user_id']);
                 if (!$userModel) return null;
     
@@ -250,24 +258,36 @@ class TagController extends Controller
                 ];
             })->filter()->values()->toArray();
     
-            // Lấy danh sách người dùng cũ trước khi cập nhật
-            $oldSharedUsers = collect($tag->shared_user ?? [])->pluck('user_id')->toArray();
+            // ✅ Parse & format reminder
+            $reminderRaw = $validated['reminder'] ?? [];
+            if (is_string($reminderRaw)) {
+                $reminderRaw = json_decode($reminderRaw, true);
+                if (json_last_error() !== JSON_ERROR_NONE || !is_array($reminderRaw)) {
+                    return response()->json(['code' => 400, 'message' => 'Invalid reminder JSON'], 400);
+                }
+            }
     
-            // Cập nhật tag
+            $formattedReminder = collect($reminderRaw)->map(function ($item) {
+                return [
+                    'type'   => $item['type']   ?? null,
+                    'time'   => $item['time']   ?? null,
+                    'method' => $item['method'] ?? 'once',
+                ];
+            })->filter(fn($r) => $r['type'] && $r['time'])->values()->toArray();
+    
             $tag->update([
-                'name'        => $validated['name'],
-                'description' => $validated['description'],
-                'color_code'  => $validated['color_code'],
-                'shared_user' => $formattedSharedUsers,
+                'name'         => $validated['name'],
+                'description'  => $validated['description'],
+                'color_code'   => $validated['color_code'],
+                'shared_user'  => $formattedSharedUsers,
+                'reminder'     => $formattedReminder,
             ]);
     
-            // Xác định người dùng mới được thêm vào
-            $addedUsers = array_diff(
-                collect($formattedSharedUsers)->pluck('user_id')->toArray(),
-                $oldSharedUsers
-            );
+            $tag->syncAttendeesWithTasks($oldSharedUsers);
     
-            // Gửi mail và notification cho người dùng mới
+            $newUserIds = collect($formattedSharedUsers)->pluck('user_id')->toArray();
+            $addedUsers = array_diff($newUserIds, $oldSharedUsers);
+    
             if (!empty($addedUsers)) {
                 $emails = User::whereIn('id', $addedUsers)->pluck('email');
     
@@ -297,18 +317,18 @@ class TagController extends Controller
         } catch (\Exception $e) {
             Log::error('Error updating tag:', [
                 'message' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
+                'file'    => $e->getFile(),
+                'line'    => $e->getLine(),
+                'trace'   => $e->getTraceAsString(),
             ]);
-        
+    
             return response()->json([
-                'code' => 500,
+                'code'    => 500,
                 'message' => 'An error occurred while updating tag',
                 'error_details' => [
                     'message' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
+                    'file'    => $e->getFile(),
+                    'line'    => $e->getLine(),
                 ],
             ], 500);
         }
