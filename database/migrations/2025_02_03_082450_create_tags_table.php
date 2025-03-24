@@ -20,6 +20,7 @@ return new class extends Migration
             $table->string('name', 50);
             $table->text('description')->nullable();
             $table->string('color_code')->nullable();
+            $table->json('reminder')->nullable();
             $table->json('shared_user')->nullable();
             $table->timestamps();
         });

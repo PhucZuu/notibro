@@ -23,6 +23,7 @@ class Tag extends Model
 
     protected $casts = [
         'shared_user' => 'array',
+        'reminder' => 'array',
     ];
 
     public function user()
@@ -50,40 +51,48 @@ class Tag extends Model
         return array_merge([$this->user_id], $filteredSharedUser);
     }    
 
-    public function syncAttendeesWithTasks($oldSharedUsers)
+
+    public function syncAttendeesWithTasks(array $oldSharedUsers)
     {
-        $newSharedUsers = collect($this->shared_user)->pluck('user_id')->toArray();
-    
-        $removedUsers = array_diff($oldSharedUsers, $newSharedUsers);
-        $addedUsers = array_diff($newSharedUsers, $oldSharedUsers);
-    
+        $newSharedUsers = collect($this->shared_user)->keyBy('user_id');
         $tasks = $this->tasks;
     
         foreach ($tasks as $task) {
-            $attendees = is_array($task->attendees) ? $task->attendees : json_decode($task->attendees, true) ?? [];
+            $attendees = collect(is_array($task->attendees) ? $task->attendees : json_decode($task->attendees, true) ?? [])
+                ->keyBy('user_id');
     
-            $attendees = array_filter($attendees, function ($attendee) use ($removedUsers) {
-                return !in_array($attendee['user_id'], $removedUsers);
-            });
+            $updatedAttendees = [];
     
-            foreach ($addedUsers as $userId) {
+            foreach ($newSharedUsers as $userId => $sharedUserInfo) {
                 $user = User::find($userId);
-                if ($user) {
-                    $attendees[] = [
-                        'user_id'    => $user->id,
-                        'first_name' => $user->first_name,
-                        'last_name'  => $user->last_name,
-                        'email'      => $user->email,
-                        'avatar'     => $user->avatar ?? null,
-                        'status'     => 'pending',
-                        'role'       => 'viewer',
-                    ];
+                if (!$user) continue;
+    
+                $newAttendee = [
+                    'user_id'    => $user->id,
+                    'first_name' => $user->first_name,
+                    'last_name'  => $user->last_name,
+                    'email'      => $user->email,
+                    'avatar'     => $user->avatar ?? null,
+                    'status'     => $sharedUserInfo['status'] ?? 'pending',
+                    'role'       => $sharedUserInfo['role'] ?? 'viewer',
+                ];
+    
+                $existingAttendee = $attendees->get($userId);
+    
+                // Nếu attendee mới khác với attendee cũ (so sánh từng giá trị)
+                if (!$existingAttendee || $existingAttendee !== $newAttendee) {
+                    $updatedAttendees[$userId] = $newAttendee;
+                } else {
+                    $updatedAttendees[$userId] = $existingAttendee;
                 }
             }
-            
     
-            $task->update(['attendees' => array_values($attendees)]);
+            // Chỉ giữ lại những attendee nằm trong shared_user (những user bị xóa sẽ bị loại bỏ)
+            $task->update([
+                'attendees' => array_values($updatedAttendees),
+            ]);
         }
     }
     
+
 }
