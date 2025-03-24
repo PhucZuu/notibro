@@ -12,20 +12,38 @@ class RoleController extends Controller
 {
     public function index()
     {
-        $roles = Role::query()->withTrashed()->get();
-
-        if(!$roles) {
+        $roles = Role::query()->get(); // hoặc Role::all();
+    
+        if ($roles->isEmpty()) {
             return response()->json([
                 'code'    => 404,
-                'message' => "Roles not found"
-            ],404);
+                'message' => "No roles found"
+            ], 404);
         }
-
+    
         return response()->json([
             'code'    => 200,
             'message' => "Retrieve roles successfully",
             'data'    => $roles,
-        ],200);
+        ], 200);
+    }
+
+    public function trashed()
+    {
+        $roles = Role::onlyTrashed()->get();
+
+        if ($roles->isEmpty()) {
+            return response()->json([
+                'code'    => 404,
+                'message' => "No trashed roles found"
+            ], 404);
+        }
+
+        return response()->json([
+            'code'    => 200,
+            'message' => "Retrieve trashed roles successfully",
+            'data'    => $roles,
+        ], 200);
     }
 
     public function show($id)
