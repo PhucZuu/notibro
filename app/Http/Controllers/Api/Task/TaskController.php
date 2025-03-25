@@ -704,7 +704,9 @@ class TaskController extends Controller
             $currentUser = $sharedUsers->firstWhere('user_id', Auth::id());
         }
 
-        if ($task->user_id  === Auth::id() || ($attendee && $attendee['role'] === 'editor') || ($currentUser && $currentUser['role'] == "editor")) {
+
+        if ($task->user_id  === Auth::id() || ($currentUser && $currentUser['role'] == "editor")) {
+            // if ($task->user_id  === Auth::id() || ($attendee && $attendee['role'] === 'editor') || ($currentUser && $currentUser['role'] == "editor")) {
             switch ($code) {
                 //Update when event dont have reapet
                 case 'EDIT_N':
@@ -804,9 +806,9 @@ class TaskController extends Controller
                         $new_task = Task::create($preNewTask->toArray());
                         Log::info($new_task);
 
-                        if($data['start_time']->isSameDay($data['updated_date'])) {
+                        if ($data['start_time']->isSameDay($data['updated_date'])) {
                             $task->until = Carbon::parse($data['updated_date'])->setTime(0, 0, 0);
-                        }else{
+                        } else {
                             $task->until = Carbon::parse($data['updated_date'])->setTime(0, 0, 0)->subDay();
                         }
 
@@ -1333,15 +1335,13 @@ class TaskController extends Controller
             $currentUser = $sharedUsers->firstWhere('user_id', Auth::id());
         }
 
-        if ($task->user_id  === Auth::id() || ($attendee && $attendee['role'] === 'editor') || ($currentUser && $currentUser['role'] == "editor")) {
+        if ($task->user_id  === Auth::id() || ($currentUser && $currentUser['role'] == "editor")) {
             switch ($code) {
                 case 'DEL_N':
                     try {
                         $returnTask[] = $task;
 
-                        $is_trash = true;
-
-                        $task->update(['is_trash' => $is_trash]);
+                        $task->delete();
 
                         // delete all tasks -> delete group chats
                         // app(TaskGroupChatController::class)->deleteGroup($task->id);
@@ -1372,11 +1372,37 @@ class TaskController extends Controller
                         } else {
                             $excludeTime = [];
                         }
-                        Log::info($currentDate);
+
                         // add current date to exclude_time
                         if (!in_array($currentDate, $excludeTime)) {
                             $excludeTime[] = Carbon::parse($currentDate, $task->timezone_code)->setTimezone('UTC');
                         }
+
+                        $updatedStartTime = Carbon::parse($task->start_time)->setDate($excludeTime->start_time->year, $excludeTime->start_time->month, $excludeTime->start_time->day);
+                        $updatedEndTime = Carbon::parse($task->end_time)->setDate($excludeTime->end_time->year, $excludeTime->end_time->month, $excludeTime->end_time->day);
+
+                        $new_task = Task::create([
+                            'start_time'    => $updatedStartTime,
+                            'end_time'      => $updatedEndTime,
+                            'title'         => $task->title,
+                            'description'   => $task->description,
+                            'user_id'       => $task->user_id,
+                            'timezone_code' => $task->timezone_code,
+                            'color_code'    => $task->color_code,
+                            'tag_id'        => $task->tag_id ?? null,
+                            'attendees'     => $task->attendees,
+                            'location'      => $task->location,
+                            'type'          => $task->type,
+                            'is_all_day'    => $task->is_all_day,
+                            'is_busy'       => $task->is_busy,
+                            'is_reminder'   => $task->is_reminder,
+                            'reminder'      => $task->reminder,
+                            'link'          => $task->link,
+                            'is_private'    => $task->is_private,
+                            'parent_id'     => $task->parent_id ?? $task->id,
+                        ]);
+
+                        // $returnTaskDel[] = $new_task;
 
                         // Encode back to JSON before saving
                         $task->exclude_time = $excludeTime;
@@ -1401,6 +1427,8 @@ class TaskController extends Controller
                     }
                 case 'DEL_1B':
                     try {
+                        $preUntil = $task->until;
+
                         // Giảm đi 1 ngày để xóa đc task
                         $task->until = Carbon::parse($request->date)->subDay()->startOfDay();
 
@@ -1412,17 +1440,83 @@ class TaskController extends Controller
                         $this->sendRealTimeUpdate($returnTask, 'update');
 
                         // Xoá các task liên quan về sau
-                        $tasksChild = Task::where('start_time', '>', $request->date)
-                            ->where('id', $task->id)
-                            ->orWhere('parent_id', $task->id)
+                        // $tasksChild = Task::where('start_time', '>', $request->date)
+                        //     ->where('id', $task->id)
+                        //     ->orWhere('parent_id', $task->id)
+                        //     ->get();
+
+                        // $returnTaskDel[] = $tasksChild;
+
+                        // if (!$tasksChild->isEmpty()) {
+                        //     foreach ($tasksChild as $task) {
+                        //         $task->delete();
+                        //     }
+                        // }
+
+                        $relatedTasks = Task::where(function ($query) use ($task) {
+                            $query->where('parent_id', $task->id);
+                            // Kiểm tra nếu parent_id của task hiện tại không phải là null  
+                            if ($task->parent_id !== null) {
+                                $query->orWhere('parent_id', $task->parent_id);
+                            }
+                        })
+                            ->where('start_time', '>=', $request->date)
                             ->get();
 
-                        $returnTaskDel[] = $tasksChild;
+                        $returnTaskDel = [];
 
-                        if (!$tasksChild->isEmpty()) {
-                            foreach ($tasksChild as $task) {
-                                $task->delete();
+                        foreach ($relatedTasks as $relatedTask) {
+                            if ($relatedTask->is_repeat) {
+                                $relatedTask->create([
+                                    'parent_id'     => $task->parent_id ?? $task->id,
+                                    'title'         => $task->title,
+                                    'description'   => $task->description,
+                                    'user_id'       => $task->user_id,
+                                    'timezone_code' => $task->timezone_code,
+                                    'color_code'    => $task->color_code,
+                                    'tag_id'        => $task->tag_id ?? null,
+                                    'attendees'     => $task->attendees,
+                                    'location'      => $task->location,
+                                    'type'          => $task->type,
+                                    'is_all_day'    => $task->is_all_day,
+                                    'is_busy'       => $task->is_busy,
+                                    'is_reminder'   => $task->is_reminder,
+                                    'reminder'      => $task->reminder,
+                                    'is_repeat'     => $task->is_repeat,
+                                    'freq'          => $task->freq,
+                                    'interval'      => $task->interval,
+                                    'until'         => $preUntil,
+                                    'count'         => $task->count,
+                                    'byweekday'     => $task->byweekday,
+                                    'bymonthday'    => $task->bymonthday,
+                                    'bymonth'       => $task->bymonth,
+                                    'link'          => $task->link,
+                                    'is_private'    => $task->is_private,
+                                ]);
+                            } else {
+                                $relatedTask->create([
+                                    'parent_id'     => $task->parent_id ?? $task->id,
+                                    'title'         => $task->title,
+                                    'description'   => $task->description,
+                                    'user_id'       => $task->user_id,
+                                    'timezone_code' => $task->timezone_code,
+                                    'color_code'    => $task->color_code,
+                                    'tag_id'        => $task->tag_id ?? null,
+                                    'attendees'     => $task->attendees,
+                                    'location'      => $task->location,
+                                    'type'          => $task->type,
+                                    'is_all_day'    => $task->is_all_day,
+                                    'is_busy'       => $task->is_busy,
+                                    'is_reminder'   => $task->is_reminder,
+                                    'reminder'      => $task->reminder,
+                                    'link'          => $task->link,
+                                    'is_private'    => $task->is_private,
+                                ]);
                             }
+
+                            $relatedTask->delete();
+
+                            $returnTaskDel[] = $relatedTask;
                         }
 
                         //Send REALTIME
@@ -1494,6 +1588,217 @@ class TaskController extends Controller
                 'message' => 'You do not have permission to edit this event',
             ]);
         }
+    }
+
+    public function forceDestroy(Request $request)
+    {
+        // Validate input  
+        $request->validate([
+            'ids' => 'required|array',
+            'ids.*' => 'integer|exists:tasks,id',
+        ]);
+
+        $ids = $request->input('ids');
+
+        $canDelete = false;
+
+        try {
+            $tasks = Task::whereIn('id', $ids)->get();
+
+            foreach ($tasks as $task) {
+                if (!empty($task->tag_id)) {
+                    $tag = Tag::where('id', $task->tag_id)->first();
+                    $sharedUsers = collect($tag->shared_user);
+                    $currentUser = $sharedUsers->firstWhere('user_id', Auth::id());
+
+                    if ($task->user_id === Auth::id() || ($currentUser && $currentUser['role'] == "editor")) {
+                        $canDelete = true;
+                    } else {
+                        return response()->json([
+                            'code' => 401,
+                            'message' => 'You do not have permission to delete ' . $task->title . ' event',
+                        ], 401);
+                    }
+                } else {
+                    if ($task->user_id === Auth::id()) {
+                        $canDelete = true;
+                    } else {
+                        return response()->json([
+                            'code' => 401,
+                            'message' => 'You do not have permission to delete this event',
+                        ], 401);
+                    }
+                }
+            }
+
+            if ($canDelete) {
+                Task::whereIn('id', $ids)->forceDelete();
+
+                // Return response  
+                return response()->json([
+                    'code' => 200,
+                    'message' => 'Force delete tasks successfully',
+                ], 200);
+            }
+        } catch (\Throwable $th) {
+            // Xử lý ngoại lệ  
+            return response()->json([
+                'code' => 500,
+                'message' => 'An error occurred while deleting tasks',
+                'error' => $th->getMessage()
+            ], 500);
+        }
+
+        // Trả lại phản hồi nếu không có quyền hoặc không có task nào để xóa  
+        return response()->json([
+            'code' => 400,
+            'message' => 'No tasks were found to delete or you do not have permission.',
+        ], 400);
+    }
+
+    public function restoreTask(Request $request)
+    {
+        $request->validate([
+            'ids' => 'required|array',
+            'ids.*' => 'integer|exists:tasks,id',
+        ]);
+
+        $ids = $request->input('ids');
+
+        try {
+            $tasks = Task::onlyTrashed()->whereIn('id', $ids)->get();
+
+            if ($tasks->isEmpty()) {
+                return response()->json([
+                    'code' => 404,
+                    'message' => 'No tasks found to restore.',
+                ], 404);
+            }
+
+            foreach ($tasks as $task) {
+                $canRestore = false;
+
+                if (!empty($task->tag_id)) {
+                    $tag = Tag::where('id', $task->tag_id)->first();
+                    $sharedUsers = collect($tag->shared_user);
+                    $currentUser = $sharedUsers->firstWhere('user_id', Auth::id());
+
+                    if ($task->user_id === Auth::id() || ($currentUser && $currentUser['role'] == "editor")) {
+                        $canRestore = true;
+                    } else {
+                        return response()->json([
+                            'code' => 401,
+                            'message' => 'You do not have permission to restore this task.',
+                        ], 401);
+                    }
+                } else {
+                    if ($task->user_id === Auth::id()) {
+                        $canRestore = true;
+                    } else {
+                        return response()->json([
+                            'code' => 401,
+                            'message' => 'You do not have permission to restore this task.',
+                        ], 401);
+                    }
+                }
+            }
+
+            foreach ($tasks as $task) {
+                $task->restore();
+            }
+
+            return response()->json([
+                'code' => 200,
+                'message' => 'Tasks restored successfully.',
+            ], 200);
+        } catch (\Throwable $th) {
+            // Xử lý ngoại lệ  
+            return response()->json([
+                'code' => 500,
+                'message' => 'An error occurred while restoring tasks.',
+                'error' => $th->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function getTrashedTasks()
+    {
+        if (Auth::check()) {
+            $user_id = Auth::user()->id;
+        }
+
+        $tasks = Task::select('tasks.*', 'tags.name as tag_name')
+            ->leftJoin('tags', 'tasks.tag_id', '=', 'tags.id')
+            ->onlyTrashed()
+            ->get();
+
+        foreach ($tasks as $task) {
+            $timezone_code = $task->timezone_code;
+
+            $task->rrule = [
+                'freq'              => $task->freq,
+                'interval'          => $task->interval,
+                'until'             => Carbon::parse($task->until, 'UTC'),
+                'count'             => $task->count,
+                'byweekday'         => $task->byweekday,
+                'bymonthday'        => $task->bymonthday,
+                'bymonth'           => $task->bymonth,
+                'bysetpos'          => $task->bysetpos,
+            ];
+
+            $task->start_time   = Carbon::parse($task->start_time, 'UTC');
+            $task->end_time     = Carbon::parse($task->end_time, 'UTC');
+
+            if ($task->exclude_time && count($task->exclude_time) > 0) {
+                $cal_exclude_time = array_map(function ($date) use ($timezone_code) {
+                    return Carbon::parse($date, 'UTC');
+                }, $task->exclude_time);
+
+                $task->exclude_time = $cal_exclude_time;
+            }
+
+            if ($task->attendees) {
+                foreach ($task->attendees as $attendee) {
+                    $user = User::select('first_name', 'last_name', 'email', 'avatar')
+                        ->where('id', $attendee['user_id'])
+                        ->first();
+
+                    if ($user) {
+                        $attendeesDetails[] = [
+                            'user_id'    => $attendee['user_id'],
+                            'first_name' => $user->first_name,
+                            'last_name'  => $user->last_name,
+                            'email'      => $user->email,
+                            'avatar'     => $user->avatar,
+                            'status'     => $attendee['status'],
+                            'role'       => $attendee['role'],
+                        ];
+                    }
+                }
+
+                $task->attendees = $attendeesDetails;
+
+                $attendeesDetails = [];
+            }
+
+            unset(
+                $task->freq,
+                $task->interval,
+                $task->until,
+                $task->count,
+                $task->byweekday,
+                $task->bymonthday,
+                $task->bymonth,
+                $task->bysetpos
+            );
+        }
+
+        // Trả về view và truyền dữ liệu vào
+        return response()->json([
+            'code'      =>  200,
+            'message'   =>  'Fetching Data successfully',
+            'data'      =>  $tasks,
+        ], 200);
     }
 
     public function acceptInvite(Request $request, $uuid)
@@ -1857,7 +2162,7 @@ class TaskController extends Controller
                                     ->orWhereNull('until'); // Nếu until là NULL, nó lặp vô hạn
                             });
                     })
-                    ->orWhere(function ($q) use ($now, $next24Hours) {  
+                    ->orWhere(function ($q) use ($now, $next24Hours) {
                         $q->where('is_repeat', 0) // Đưa điều kiện này vào để lấy bản ghi có is_repeat = 0  
                             ->whereBetween('start_time', [$now, $next24Hours]); // Thời gian cũng được kiểm tra  
                     });
@@ -1916,18 +2221,18 @@ class TaskController extends Controller
                         $task->exclude_time,
                     );
                 }
-            }else{
+            } else {
                 $validTasks[] = $task;
             }
         }
 
-        if (empty($validTasks)) {  
+        if (empty($validTasks)) {
             $validTasks = []; // Trả về mảng rỗng nếu không có giá trị  
-        }else {  
+        } else {
             usort($validTasks, function ($a, $b) {
                 return Carbon::parse($a->start_time)->timestamp <=> Carbon::parse($b->start_time)->timestamp;
             });
-        }  
+        }
 
         // Trả về view và truyền dữ liệu vào
         return response()->json([
