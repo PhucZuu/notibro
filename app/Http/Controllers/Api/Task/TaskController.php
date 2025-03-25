@@ -2200,7 +2200,16 @@ class TaskController extends Controller
                         ->setDate($nextOccurrence->year, $nextOccurrence->month, $nextOccurrence->day)
                         ->tz('UTC');
 
-                    $validTasks[] = $task;
+                    $task->rrule = [
+                        'freq'              => $task->freq,
+                        'interval'          => $task->interval,
+                        'until'             => Carbon::parse($task->until, 'UTC'),
+                        'count'             => $task->count,
+                        'byweekday'         => $task->byweekday,
+                        'bymonthday'        => $task->bymonthday,
+                        'bymonth'           => $task->bymonth,
+                        'bysetpos'          => $task->bysetpos,
+                    ];
 
                     unset(
                         $task->freq,
@@ -2222,8 +2231,35 @@ class TaskController extends Controller
                     );
                 }
             } else {
-                $validTasks[] = $task;
+                $task->start_time = Carbon::parse($task->start_time)->tz('UTC');
+                $task->end_time = Carbon::parse($task->start_time)->tz('UTC');
             }
+
+            if ($task->attendees) {
+                foreach ($task->attendees as $attendee) {
+                    $user = User::select('first_name', 'last_name', 'email', 'avatar')
+                        ->where('id', $attendee['user_id'])
+                        ->first();
+
+                    if ($user) {
+                        $attendeesDetails[] = [
+                            'user_id'    => $attendee['user_id'],
+                            'first_name' => $user->first_name,
+                            'last_name'  => $user->last_name,
+                            'email'      => $user->email,
+                            'avatar'     => $user->avatar,
+                            'status'     => $attendee['status'],
+                            'role'       => $attendee['role'],
+                        ];
+                    }
+                }
+
+                $task->attendees = $attendeesDetails;
+
+                $attendeesDetails = [];
+            }
+
+            $validTasks[] = $task;
         }
 
         if (empty($validTasks)) {
