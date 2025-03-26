@@ -12,7 +12,7 @@ class AdminMiddleware
     {
         $user = Auth::user();
 
-        if ($user && $user->roles->where('name', 'admin')->isNotEmpty()) {
+        if ($user && $user->roles->whereIn('name', ['admin', 'super admin'])->isNotEmpty()) {
             return $next($request);
         }
 
