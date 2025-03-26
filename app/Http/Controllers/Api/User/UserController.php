@@ -11,9 +11,11 @@ use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
-    public function getAllUser()
+    public function getAllUser(Request $request)
     {
-        $users = $this->fetchUsersQuery()
+        $searchEmail = $request->query('email');
+    
+        $users = $this->fetchUsersQuery(false, $searchEmail)
             ->paginate(10)
             ->map([$this, 'mapUserData']);
     
@@ -31,50 +33,53 @@ class UserController extends Controller
         ], 200);
     }
     
-    public function getBanUsers()
+    public function getBanUsers(Request $request)
     {
-        $users = $this->fetchUsersQuery(true)
+        $searchEmail = $request->query('email');
+    
+        $users = $this->fetchUsersQuery(true, $searchEmail)
             ->paginate(10)
             ->map([$this, 'mapUserData']);
-
+    
         if ($users->isEmpty()) {
             return response()->json([
                 'code'    => 404,
                 "message" => 'No deleted users found',
             ], 404);
         }
-
+    
         return response()->json([
             'code'    => 200,
             'message' => "Retrieve deleted user list successfully",
             'data'    => $users,
         ], 200);
-    }
+    }    
 
-    public function fetchUsersQuery($onlySoftDeleted = false)
+    public function fetchUsersQuery($onlySoftDeleted = false, $searchEmail = null)
     {
         $currentUser = auth()->user()->load('roles');
         $currentUserRoles = $currentUser->roles->pluck('name')->toArray();
-
-        // Bắt đầu query
+    
         $query = User::with(['roles' => function ($query) {
             $query->select('roles.id', 'roles.name');
         }]);
-
-        // Lọc theo trạng thái soft delete
+    
         if ($onlySoftDeleted) {
             $query->onlyTrashed();
         } else {
             $query->whereNull('deleted_at');
         }
-
-        // Nếu không phải super admin, ẩn admin và super admin
+    
         if (!in_array('super admin', $currentUserRoles)) {
             $query->whereDoesntHave('roles', function ($query) {
                 $query->whereIn('name', ['admin', 'super admin']);
             });
         }
-
+    
+        if ($searchEmail) {
+            $query->where('email', 'like', '%' . $searchEmail . '%');
+        }
+    
         return $query;
     }
 
