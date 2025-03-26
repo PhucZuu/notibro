@@ -13,47 +13,97 @@ class UserController extends Controller
 {
     public function getAllUser()
     {
-        $users = User::with(['roles' => function ($query) {
-            $query->select('roles.id', 'roles.name');
-        }])->paginate(10)->map(function ($user) {
-            return [
-                'email' => $user->email,
-                'avatar' => $user->avatar,
-                'first_name' => $user->first_name,
-                'last_name' => $user->last_name,
-                'gender' => $user->gender,
-                'address' => $user->address,
-                'phone' => $user->phone,
-                'email_verified_at' => $user->email_verified_at,
-                'deleted_at' => $user->deleted_at,
-                'created_at' => $user->created_at,
-                'updated_at' => $user->updated_at,
-                'google_id' => $user->google_id,
-                'roles' => $user->roles->map(function ($role) {
-                    return [
-                        'role_id' => $role->id,
-                        'role_name' => $role->name,
-                    ];
-                })->toArray(),
-            ];
-        });
-
-
-
-        if (!$users) {
+        $users = $this->fetchUsersQuery()
+            ->paginate(10)
+            ->map([$this, 'mapUserData']);
+    
+        if ($users->isEmpty()) {
             return response()->json([
                 'code'    => 404,
-                "message" =>  'Users not found',
+                "message" => 'Users not found',
             ], 404);
         }
-
+    
         return response()->json([
             'code'    => 200,
             'message' => "Retrieve user list successfully",
             'data'    => $users,
         ], 200);
     }
+    
+    public function getBanUsers()
+    {
+        $users = $this->fetchUsersQuery(true)
+            ->paginate(10)
+            ->map([$this, 'mapUserData']);
 
+        if ($users->isEmpty()) {
+            return response()->json([
+                'code'    => 404,
+                "message" => 'No deleted users found',
+            ], 404);
+        }
+
+        return response()->json([
+            'code'    => 200,
+            'message' => "Retrieve deleted user list successfully",
+            'data'    => $users,
+        ], 200);
+    }
+
+    public function fetchUsersQuery($onlySoftDeleted = false)
+    {
+        $currentUser = auth()->user()->load('roles');
+        $currentUserRoles = $currentUser->roles->pluck('name')->toArray();
+
+        // Bắt đầu query
+        $query = User::with(['roles' => function ($query) {
+            $query->select('roles.id', 'roles.name');
+        }]);
+
+        // Lọc theo trạng thái soft delete
+        if ($onlySoftDeleted) {
+            $query->onlyTrashed();
+        } else {
+            $query->whereNull('deleted_at');
+        }
+
+        // Nếu không phải super admin, ẩn admin và super admin
+        if (!in_array('super admin', $currentUserRoles)) {
+            $query->whereDoesntHave('roles', function ($query) {
+                $query->whereIn('name', ['admin', 'super admin']);
+            });
+        }
+
+        return $query;
+    }
+
+    public function mapUserData($user)
+    {
+        return [
+            'id' => $user->id,
+            'email' => $user->email,
+            'avatar' => $user->avatar,
+            'first_name' => $user->first_name,
+            'last_name' => $user->last_name,
+            'gender' => $user->gender,
+            'address' => $user->address,
+            'phone' => $user->phone,
+            'email_verified_at' => $user->email_verified_at,
+            'deleted_at' => $user->deleted_at,
+            'created_at' => $user->created_at,
+            'updated_at' => $user->updated_at,
+            'google_id' => $user->google_id,
+            'roles' => $user->roles->map(function ($role) {
+                return [
+                    'role_id' => $role->id,
+                    'role_name' => $role->name,
+                ];
+            })->toArray(),
+        ];
+    }
+
+    
     public function show($id)
     {
         $user = User::find($id);

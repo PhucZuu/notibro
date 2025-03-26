@@ -110,6 +110,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware(['admin'])->prefix('admin')->group(function () {
         //User
         Route::get('/users',                [UserController::class, 'getAllUser']);
+        Route::get('/users/ban', [UserController::class, 'getBanUsers']);
         Route::get('/users/{id}',           [UserController::class, 'show']);
         Route::put('/users/{id}/permission', [UserController::class, 'changePermission']);
         Route::delete('/users/{id}/ban',    [UserController::class, 'ban']);
