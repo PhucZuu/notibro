@@ -413,38 +413,24 @@ class TaskController extends Controller
                             ->where('id', '!=', $new_task->id)
                             ->get();
 
+                        $allExcludeTimes = $task->exclude_time ?? [];
+
+                        $maxUntil = $new_task->until;
+
                         foreach ($relatedTasks as $relatedTask) {
                             $updatedStartTime = Carbon::parse($relatedTask->start_time)->setTime($data['start_time']->hour, $data['start_time']->minute, $data['start_time']->second);
                             $updatedEndTime = Carbon::parse($relatedTask->end_time)->setTime($data['end_time']->hour, $data['end_time']->minute, $data['end_time']->second);
 
                             if ($relatedTask->is_repeat) {
-                                $relatedTask->update([
-                                    'start_time'    => $updatedStartTime,
-                                    'end_time'      => $updatedEndTime,
-                                    'title'         => $data['title'],
-                                    'description'   => $data['description'],
-                                    'user_id'       => $data['user_id'],
-                                    'timezone_code' => $data['timezone_code'],
-                                    'color_code'    => $data['color_code'],
-                                    'tag_id'        => $data['tag_id'] ?? null,
-                                    'attendees'     => $data['attendees'],
-                                    'location'      => $data['location'],
-                                    'type'          => $data['type'],
-                                    'is_all_day'    => $data['is_all_day'],
-                                    'is_busy'       => $data['is_busy'],
-                                    'is_reminder'   => $data['is_reminder'],
-                                    'reminder'      => $data['reminder'],
-                                    'is_repeat'     => $data['is_repeat'],
-                                    'freq'          => $data['freq'],
-                                    'interval'      => $data['interval'],
-                                    'until'         => $data['until'],
-                                    'count'         => $data['count'],
-                                    'byweekday'     => $data['byweekday'],
-                                    'bymonthday'    => $data['bymonthday'],
-                                    'bymonth'       => $data['bymonth'],
-                                    'link'          => $data['link'],
-                                    'is_private'    => $data['is_private'],
-                                ]);
+
+                                $relatedExcludeTimes = $relatedTask->exclude_time ?? [];
+                                $allExcludeTimes = array_merge($allExcludeTimes, $relatedExcludeTimes);
+
+                                if ($relatedTask->until && (!$maxUntil || Carbon::parse($relatedTask->until)->greaterThan(Carbon::parse($maxUntil)))) {
+                                    $maxUntil = $relatedTask->until;
+                                }
+
+                                $relatedTask->forceDelete();
                             } else {
                                 $relatedTask->update([
                                     'start_time'    => $updatedStartTime,
@@ -476,7 +462,13 @@ class TaskController extends Controller
                         }
 
                         // create new task -> create new group
-                        app(TaskGroupChatController::class)->createGroup($new_task->id, $new_task->user_id);
+                        // app(TaskGroupChatController::class)->createGroup($new_task->id, $new_task->user_id);
+
+                        // Remove same excude time and save it to new task
+                        $allExcludeTimes = array_unique($allExcludeTimes);
+                        $new_task->exclude_time = array_values($allExcludeTimes);
+
+                        $new_task->until = $maxUntil;
 
                         $new_task->parent_id = $task->parent_id ?? $task->id;
                         $new_task->save();
@@ -834,27 +826,47 @@ class TaskController extends Controller
                         //Send REALTIME
                         // $returnTaskDel = $relatedTasks;
 
+                        $allExcludeTimes = $new_task->exclude_time ?? [];
+
+                        $maxUntil = $new_task->until;
+
                         foreach ($relatedTasks as $relatedTask) {
                             $updatedStartTime = Carbon::parse($relatedTask->start_time)->setTime($data['start_time']->hour, $data['start_time']->minute, $data['start_time']->second);
                             $updatedEndTime = Carbon::parse($relatedTask->end_time)->setTime($data['end_time']->hour, $data['end_time']->minute, $data['end_time']->second);
 
-                            $relatedTask->update([
-                                'start_time'    => $updatedStartTime,
-                                'end_time'      => $updatedEndTime,
-                                'is_all_day'    => $data['is_all_day'] ?? $relatedTask->is_all_day,
-                            ]);
+                            if ($relatedTask->is_repeat) {
 
-                            $returnTaskUpdate[] = $relatedTask;
+                                $relatedExcludeTimes = $relatedTask->exclude_time ?? [];
+                                $allExcludeTimes = array_merge($allExcludeTimes, $relatedExcludeTimes);
+
+                                if ($relatedTask->until && (!$maxUntil || Carbon::parse($relatedTask->until)->greaterThan(Carbon::parse($maxUntil)))) {
+                                    $maxUntil = $relatedTask->until;
+                                }
+
+                                $relatedTask->forceDelete();
+                            } else {
+                                $relatedTask->update([
+                                    'start_time'    => $updatedStartTime,
+                                    'end_time'      => $updatedEndTime,
+                                    'is_all_day'    => $data['is_all_day'] ?? $relatedTask->is_all_day,
+                                ]);
+
+                                $returnTaskUpdate[] = $relatedTask;
+                            }
                         }
 
                         if (!$returnTaskUpdate) {
                             $this->sendRealTimeUpdate($returnTaskUpdate, 'update');
                         }
 
-                        app(TaskGroupChatController::class)->createGroup($new_task->id, $new_task->user_id);
+                        // app(TaskGroupChatController::class)->createGroup($new_task->id, $new_task->user_id);
+
+                        $allExcludeTimes = array_unique($allExcludeTimes);
+                        $new_task->exclude_time = array_values($allExcludeTimes);
+
+                        $new_task->until = $maxUntil;
 
                         $new_task->parent_id = $task->parent_id ?? $task->id;
-                        Log::info($new_task->parent_id);
                         $new_task->save();
 
                         //Send REALTIME
@@ -1335,6 +1347,10 @@ class TaskController extends Controller
             $currentUser = $sharedUsers->firstWhere('user_id', Auth::id());
         }
 
+        $setting = Setting::select('timezone_code')
+            ->where('user_id', '=', Auth::id())
+            ->first();
+
         if ($task->user_id  === Auth::id() || ($currentUser && $currentUser['role'] == "editor")) {
             switch ($code) {
                 case 'DEL_N':
@@ -1375,11 +1391,18 @@ class TaskController extends Controller
 
                         // add current date to exclude_time
                         if (!in_array($currentDate, $excludeTime)) {
-                            $excludeTime[] = Carbon::parse($currentDate, $task->timezone_code)->setTimezone('UTC');
+                            $excludeTime[] = Carbon::parse($currentDate, $setting->timezone_code)->setTimezone('UTC');
                         }
 
-                        $updatedStartTime = Carbon::parse($task->start_time)->setDate($excludeTime->start_time->year, $excludeTime->start_time->month, $excludeTime->start_time->day);
-                        $updatedEndTime = Carbon::parse($task->end_time)->setDate($excludeTime->end_time->year, $excludeTime->end_time->month, $excludeTime->end_time->day);
+                        $taskStartTime = Carbon::parse($task->start_time);
+                        $taskEndTime = Carbon::parse($task->end_time);
+
+                        $updatedStartTime = Carbon::parse($currentDate, $setting->timezone_code)
+                                            ->setTime($taskStartTime->hour, $taskStartTime->minute, $taskStartTime->second)
+                                            ->setTimezone('UTC');
+                        $updatedEndTime = Carbon::parse($currentDate, $setting->timezone_code)
+                                            ->setTime($taskEndTime->hour, $taskEndTime->minute, $taskEndTime->second)
+                                            ->setTimezone('UTC');
 
                         $new_task = Task::create([
                             'start_time'    => $updatedStartTime,
@@ -1400,7 +1423,7 @@ class TaskController extends Controller
                             'link'          => $task->link,
                             'is_private'    => $task->is_private,
                             'parent_id'     => $task->parent_id ?? $task->id,
-                        ]);
+                        ])->delete();
 
                         // $returnTaskDel[] = $new_task;
 
@@ -1603,7 +1626,7 @@ class TaskController extends Controller
         $canDelete = false;
 
         try {
-            $tasks = Task::whereIn('id', $ids)->get();
+            $tasks = Task::withTrashed()->whereIn('id', $ids)->get();
 
             foreach ($tasks as $task) {
                 if (!empty($task->tag_id)) {
