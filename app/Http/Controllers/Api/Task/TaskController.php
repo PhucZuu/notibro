@@ -504,6 +504,9 @@ class TaskController extends Controller
                                 ->get();
 
                             foreach ($relatedTasks as $relatedTask) {
+                                $updatedStartTime = Carbon::parse($relatedTask->start_time)->setTime($data['start_time']->hour, $data['start_time']->minute, $data['start_time']->second);
+                                $updatedEndTime = Carbon::parse($relatedTask->end_time)->setTime($data['end_time']->hour, $data['end_time']->minute, $data['end_time']->second);
+
                                 if ($relatedTask->is_repeat) {
                                     $relatedTask->update([
                                         'parent_id'     => $parentTask->id,
@@ -530,6 +533,8 @@ class TaskController extends Controller
                                         'bymonth'       => $data['bymonth'],
                                         'link'          => $data['link'],
                                         'is_private'    => $data['is_private'],
+                                        'start_time'    => $updatedStartTime,
+                                        'end_time'      => $updatedEndTime,
                                     ]);
                                 } else {
                                     $relatedTask->update([
@@ -549,25 +554,31 @@ class TaskController extends Controller
                                         'reminder'      => $data['reminder'],
                                         'link'          => $data['link'],
                                         'is_private'    => $data['is_private'],
+                                        'start_time'    => $updatedStartTime,
+                                        'end_time'      => $updatedEndTime,
                                     ]);
                                 }
 
                                 $returnTask[] = $relatedTask;
                             }
 
+                            $parentStartTime = is_string($parentTask->start_time)
+                                ? Carbon::parse($parentTask->start_time)
+                                : $parentTask->start_time;
+
+                            $parentEndTime = is_string($parentTask->end_time)
+                                ? Carbon::parse($parentTask->end_time)
+                                : $parentTask->end_time;
+
+                            $data['start_time'] = Carbon::parse($data['start_time'])->setDate($parentStartTime->year, $parentStartTime->month, $parentStartTime->day);
+                            $data['end_time'] = Carbon::parse($data['end_time'])->setDate($parentEndTime->year, $parentEndTime->month, $parentEndTime->day);
+
                             unset($data['parent_id'], $data['until']);
                             $parentTask->update($data);
                             $returnTask[] = $parentTask;
 
-                            $returnTask[] = $task;
+                            // $returnTask[] = $task;
                         } else {
-                            Log::info("Đây là task cha else  {$task}");
-                            //Update current Task
-                            unset($data['parent_id'], $data['until']);
-                            $task->update($data);
-
-                            $returnTask[] = $task;
-
                             // Update all child Task
                             $relatedTasks = Task::where(function ($query) use ($task) {
                                 $query->where('parent_id', $task->id);
@@ -577,10 +588,11 @@ class TaskController extends Controller
                                 }
                             })
                                 ->get();
-                            // $relatedTasks = Task::where('parent_id', $task->id)
-                            //     ->get();
 
                             foreach ($relatedTasks as $relatedTask) {
+                                $updatedStartTime = Carbon::parse($relatedTask->start_time)->setTime($data['start_time']->hour, $data['start_time']->minute, $data['start_time']->second);
+                                $updatedEndTime = Carbon::parse($relatedTask->end_time)->setTime($data['end_time']->hour, $data['end_time']->minute, $data['end_time']->second);
+
                                 if ($relatedTask->is_repeat) {
                                     $relatedTask->update([
                                         'parent_id'     => $task->id,
@@ -605,6 +617,8 @@ class TaskController extends Controller
                                         'byweekday'     => $data['byweekday'],
                                         'bymonthday'    => $data['bymonthday'],
                                         'bymonth'       => $data['bymonth'],
+                                        'start_time'    => $updatedStartTime,
+                                        'end_time'      => $updatedEndTime,
                                     ]);
                                 } else {
                                     $relatedTask->update([
@@ -622,10 +636,29 @@ class TaskController extends Controller
                                         'is_busy'       => $data['is_busy'],
                                         'is_reminder'   => $data['is_reminder'],
                                         'reminder'      => $data['reminder'],
+                                        'start_time'    => $updatedStartTime,
+                                        'end_time'      => $updatedEndTime,
                                     ]);
                                 }
                                 $returnTask[] = $relatedTask;
                             }
+
+                            //Update current Task
+                            $parentStartTime = is_string($task->start_time)
+                                ? Carbon::parse($task->start_time)
+                                : $task->start_time;
+
+                            $parentEndTime = is_string($task->end_time)
+                                ? Carbon::parse($task->end_time)
+                                : $task->end_time;
+
+                            $data['start_time'] = Carbon::parse($data['start_time'])->setDate($parentStartTime->year, $parentStartTime->month, $parentStartTime->day);
+                            $data['end_time'] = Carbon::parse($data['end_time'])->setDate($parentEndTime->year, $parentEndTime->month, $parentEndTime->day);
+
+                            unset($data['parent_id'], $data['until']);
+                            $task->update($data);
+
+                            $returnTask[] = $task;
                         }
 
                         //Send API
@@ -900,6 +933,9 @@ class TaskController extends Controller
                                 ->get();
 
                             foreach ($relatedTasks as $relatedTask) {
+                                $updatedStartTime = Carbon::parse($relatedTask->start_time)->setTime($data['start_time']->hour, $data['start_time']->minute, $data['start_time']->second);
+                                $updatedEndTime = Carbon::parse($relatedTask->end_time)->setTime($data['end_time']->hour, $data['end_time']->minute, $data['end_time']->second);
+
                                 if ($relatedTask->is_repeat) {
                                     $relatedTask->update([
                                         'title'         => $parentTask->title,
@@ -923,7 +959,8 @@ class TaskController extends Controller
                                         'byweekday'     => $parentTask->byweekday,
                                         'bymonthday'    => $parentTask->bymonthday,
                                         'bymonth'       => $parentTask->bymonth,
-
+                                        'start_time'    => $updatedStartTime,
+                                        'end_time'      => $updatedEndTime,
                                     ]);
                                 } else {
                                     $relatedTask->update([
@@ -941,29 +978,38 @@ class TaskController extends Controller
                                         'is_busy'       => $parentTask->is_busy,
                                         'is_reminder'   => $parentTask->is_reminder,
                                         'reminder'      => $parentTask->reminder,
-
+                                        'start_time'    => $updatedStartTime,
+                                        'end_time'      => $updatedEndTime,
                                     ]);
                                 }
 
                                 $returnTask[] = $relatedTask;
                             }
 
+                            $parentStartTime = is_string($parentTask->start_time)
+                                ? Carbon::parse($parentTask->start_time)
+                                : $parentTask->start_time;
+
+                            $parentEndTime = is_string($parentTask->end_time)
+                                ? Carbon::parse($parentTask->end_time)
+                                : $parentTask->end_time;
+
+                            $data['start_time'] = Carbon::parse($data['start_time'])->setDate($parentStartTime->year, $parentStartTime->month, $parentStartTime->day);
+                            $data['end_time'] = Carbon::parse($data['end_time'])->setDate($parentEndTime->year, $parentEndTime->month, $parentEndTime->day);
+
                             $parentTask->update($data);
                             $returnTask[] = $parentTask;
 
                             $returnTask[] = $task;
                         } else {
-                            Log::info("Đây là task cha else  {$task}");
-                            //Update current Task
-                            $task->update($data);
-
-                            $returnTask[] = $task;
-
                             // Update all child Task
                             $relatedTasks = Task::where('parent_id', $task->id)
                                 ->get();
 
                             foreach ($relatedTasks as $relatedTask) {
+                                $updatedStartTime = Carbon::parse($relatedTask->start_time)->setTime($data['start_time']->hour, $data['start_time']->minute, $data['start_time']->second);
+                                $updatedEndTime = Carbon::parse($relatedTask->end_time)->setTime($data['end_time']->hour, $data['end_time']->minute, $data['end_time']->second);
+
                                 if ($relatedTask->is_repeat) {
                                     $relatedTask->update([
                                         'parent_id'     => $task->id,
@@ -988,7 +1034,8 @@ class TaskController extends Controller
                                         'byweekday'     => $task->byweekday,
                                         'bymonthday'    => $task->bymonthday,
                                         'bymonth'       => $task->bymonth,
-
+                                        'start_time'    => $updatedStartTime,
+                                        'end_time'      => $updatedEndTime,
                                     ]);
                                 } else {
                                     $relatedTask->update([
@@ -1006,11 +1053,29 @@ class TaskController extends Controller
                                         'is_busy'       => $task->is_busy,
                                         'is_reminder'   => $task->is_reminder,
                                         'reminder'      => $task->reminder,
+                                        'start_time'    => $updatedStartTime,
+                                        'end_time'      => $updatedEndTime,
                                     ]);
                                 }
 
                                 $returnTask[] = $relatedTask;
                             }
+
+                            $parentStartTime = is_string($task->start_time)
+                                ? Carbon::parse($task->start_time)
+                                : $task->start_time;
+
+                            $parentEndTime = is_string($task->end_time)
+                                ? Carbon::parse($task->end_time)
+                                : $task->end_time;
+
+                            $data['start_time'] = Carbon::parse($data['start_time'])->setDate($parentStartTime->year, $parentStartTime->month, $parentStartTime->day);
+                            $data['end_time'] = Carbon::parse($data['end_time'])->setDate($parentEndTime->year, $parentEndTime->month, $parentEndTime->day);
+
+                            //Update current Task
+                            $task->update($data);
+
+                            $returnTask[] = $task;
                         }
 
                         //Send API
@@ -1398,11 +1463,11 @@ class TaskController extends Controller
                         $taskEndTime = Carbon::parse($task->end_time);
 
                         $updatedStartTime = Carbon::parse($currentDate, $setting->timezone_code)
-                                            ->setTime($taskStartTime->hour, $taskStartTime->minute, $taskStartTime->second)
-                                            ->setTimezone('UTC');
+                            ->setTime($taskStartTime->hour, $taskStartTime->minute, $taskStartTime->second)
+                            ->setTimezone('UTC');
                         $updatedEndTime = Carbon::parse($currentDate, $setting->timezone_code)
-                                            ->setTime($taskEndTime->hour, $taskEndTime->minute, $taskEndTime->second)
-                                            ->setTimezone('UTC');
+                            ->setTime($taskEndTime->hour, $taskEndTime->minute, $taskEndTime->second)
+                            ->setTimezone('UTC');
 
                         $new_task = Task::create([
                             'start_time'    => $updatedStartTime,
