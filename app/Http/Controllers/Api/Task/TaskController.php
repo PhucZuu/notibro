@@ -498,6 +498,8 @@ class TaskController extends Controller
 
                         Log::info("Đây là task cha {$parentTask}");
 
+                        $duration = Carbon::parse($data['start_time'])->diff(Carbon::parse(time: $data['end_time'])); 
+
                         if ($parentTask) {
                             $relatedTasks = Task::where('parent_id', $parentTask->id)
                                 ->orWhere('parent_id', $task->parent_id)
@@ -505,7 +507,7 @@ class TaskController extends Controller
 
                             foreach ($relatedTasks as $relatedTask) {
                                 $updatedStartTime = Carbon::parse($relatedTask->start_time)->setTime($data['start_time']->hour, $data['start_time']->minute, $data['start_time']->second);
-                                $updatedEndTime = Carbon::parse($relatedTask->end_time)->setTime($data['end_time']->hour, $data['end_time']->minute, $data['end_time']->second);
+                                $updatedEndTime = Carbon::parse($updatedStartTime)->copy()->add($duration);
 
                                 if ($relatedTask->is_repeat) {
                                     $relatedTask->update([
@@ -571,13 +573,11 @@ class TaskController extends Controller
                                 : $parentTask->end_time;
 
                             $data['start_time'] = Carbon::parse($data['start_time'])->setDate($parentStartTime->year, $parentStartTime->month, $parentStartTime->day);
-                            $data['end_time'] = Carbon::parse($data['end_time'])->setDate($parentEndTime->year, $parentEndTime->month, $parentEndTime->day);
+                            $data['end_time'] = Carbon::parse($data['start_time'])->copy()->add($duration);
 
                             unset($data['parent_id'], $data['until']);
                             $parentTask->update($data);
                             $returnTask[] = $parentTask;
-
-                            // $returnTask[] = $task;
                         } else {
                             // Update all child Task
                             $relatedTasks = Task::where(function ($query) use ($task) {
@@ -591,7 +591,7 @@ class TaskController extends Controller
 
                             foreach ($relatedTasks as $relatedTask) {
                                 $updatedStartTime = Carbon::parse($relatedTask->start_time)->setTime($data['start_time']->hour, $data['start_time']->minute, $data['start_time']->second);
-                                $updatedEndTime = Carbon::parse($relatedTask->end_time)->setTime($data['end_time']->hour, $data['end_time']->minute, $data['end_time']->second);
+                                $updatedEndTime = Carbon::parse($updatedStartTime)->copy()->add($duration);
 
                                 if ($relatedTask->is_repeat) {
                                     $relatedTask->update([
@@ -653,7 +653,7 @@ class TaskController extends Controller
                                 : $task->end_time;
 
                             $data['start_time'] = Carbon::parse($data['start_time'])->setDate($parentStartTime->year, $parentStartTime->month, $parentStartTime->day);
-                            $data['end_time'] = Carbon::parse($data['end_time'])->setDate($parentEndTime->year, $parentEndTime->month, $parentEndTime->day);
+                            $data['end_time'] = Carbon::parse($data['start_time'])->copy()->add($duration);
 
                             unset($data['parent_id'], $data['until']);
                             $task->update($data);
@@ -927,6 +927,8 @@ class TaskController extends Controller
 
                         Log::info("Đây là task cha {$parentTask}");
 
+                        $duration = Carbon::parse($data['start_time'])->diff(Carbon::parse(time: $data['end_time'])); 
+
                         if ($parentTask) {
                             $relatedTasks = Task::where('parent_id', $parentTask->id)
                                 ->orWhere('parent_id', $task->parent_id)
@@ -934,7 +936,7 @@ class TaskController extends Controller
 
                             foreach ($relatedTasks as $relatedTask) {
                                 $updatedStartTime = Carbon::parse($relatedTask->start_time)->setTime($data['start_time']->hour, $data['start_time']->minute, $data['start_time']->second);
-                                $updatedEndTime = Carbon::parse($relatedTask->end_time)->setTime($data['end_time']->hour, $data['end_time']->minute, $data['end_time']->second);
+                                $updatedEndTime = Carbon::parse($updatedStartTime)->copy()->add($duration);
 
                                 if ($relatedTask->is_repeat) {
                                     $relatedTask->update([
@@ -995,7 +997,7 @@ class TaskController extends Controller
                                 : $parentTask->end_time;
 
                             $data['start_time'] = Carbon::parse($data['start_time'])->setDate($parentStartTime->year, $parentStartTime->month, $parentStartTime->day);
-                            $data['end_time'] = Carbon::parse($data['end_time'])->setDate($parentEndTime->year, $parentEndTime->month, $parentEndTime->day);
+                            $data['end_time'] = Carbon::parse($data['start_time'])->copy()->add($duration);
 
                             $parentTask->update($data);
                             $returnTask[] = $parentTask;
@@ -1008,7 +1010,7 @@ class TaskController extends Controller
 
                             foreach ($relatedTasks as $relatedTask) {
                                 $updatedStartTime = Carbon::parse($relatedTask->start_time)->setTime($data['start_time']->hour, $data['start_time']->minute, $data['start_time']->second);
-                                $updatedEndTime = Carbon::parse($relatedTask->end_time)->setTime($data['end_time']->hour, $data['end_time']->minute, $data['end_time']->second);
+                                $updatedEndTime = Carbon::parse($updatedStartTime)->copy()->add($duration);
 
                                 if ($relatedTask->is_repeat) {
                                     $relatedTask->update([
@@ -1070,7 +1072,7 @@ class TaskController extends Controller
                                 : $task->end_time;
 
                             $data['start_time'] = Carbon::parse($data['start_time'])->setDate($parentStartTime->year, $parentStartTime->month, $parentStartTime->day);
-                            $data['end_time'] = Carbon::parse($data['end_time'])->setDate($parentEndTime->year, $parentEndTime->month, $parentEndTime->day);
+                            $data['end_time'] = Carbon::parse($data['start_time'])->copy()->add($duration);
 
                             //Update current Task
                             $task->update($data);
@@ -2278,6 +2280,7 @@ class TaskController extends Controller
         foreach ($tasks as $task) {
             if ($task->is_repeat) {
                 $nextOccurrence = $this->serviceNextOcc->getNextOccurrence($task, $now);
+                Log::info('nextOccurrence', [$nextOccurrence]);
 
                 if ($nextOccurrence && $nextOccurrence->greaterThanOrEqualTo($now) && $nextOccurrence->lessThanOrEqualTo($next24Hours)) {
                     // $timezone = $task->timezone_code ?? 'UTC';
