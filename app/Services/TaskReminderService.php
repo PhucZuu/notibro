@@ -17,7 +17,7 @@ class TaskReminderService
         Log::info('Bắt đầu taskMailRemindSchedule');
         $now = Carbon::now();
         $next24Hours = $now->copy()->addHours(24);
-    
+
         // Lấy danh sách task có nhắc nhở
         $tasks = Task::where('is_reminder', true)
             ->whereNotNull('reminder')
@@ -27,14 +27,14 @@ class TaskReminderService
                     // Nếu task không lặp lại, kiểm tra start_time trực tiếp
                     return Carbon::parse($task->start_time)->between($now, $next24Hours);
                 }
-    
+
                 // Nếu task có lặp lại, tìm lần xuất hiện tiếp theo
                 $nextOccurrence = $this->getNextOccurrence($task, $now);
                 return $nextOccurrence && $nextOccurrence->between($now, $next24Hours);
             });
-    
+
         Log::info('Số lượng task cần xử lý: ' . $tasks->count());
-    
+
         foreach ($tasks as $task) {
             Log::info("Xử lý task ID: {$task->id}");
             foreach ($task->reminder as $reminder) {
@@ -44,7 +44,7 @@ class TaskReminderService
                 }
             }
         }
-    }    
+    }
 
     private function processEmailReminder($task, $reminder, $now)
     {
@@ -55,7 +55,7 @@ class TaskReminderService
             Log::info("Không có lần xuất hiện tiếp theo cho task ID: {$task->id}");
             return;
         }
-    
+
         $reminderTime = Carbon::parse($nextOccurrence)->subMinutes($reminder['set_time']);
         if (!$now->isSameMinute($reminderTime)) {
             Log::info("Không phải thời gian nhắc nhở cho task ID: {$task->id}, Remind time:{$reminderTime},Now:{$now}");
@@ -144,24 +144,69 @@ class TaskReminderService
 
     protected function getNextWeeklyOccurrence($task, $now)
     {
-        Log::info("Bắt đầu getNextWeeklyOccurrence cho task ID: {$task->id}");
         $weekdays = $task->byweekday ?? [];
+
         $startTime = Carbon::parse($task->start_time);
-        $validDays = array_map(fn($d) => ['SU' => 0, 'MO' => 1, 'TU' => 2, 'WE' => 3, 'TH' => 4, 'FR' => 5, 'SA' => 6][$d] ?? null, $weekdays);
-        $validDays = array_filter($validDays);
 
-        $nextOccurrence = Carbon::now();
         $maxCount = $task->count;
-        $occurrenceCount = 0;
 
-        while (!in_array($nextOccurrence->dayOfWeek, $validDays)) {
-            $nextOccurrence->addDay();
-            if ($maxCount !== null && ++$occurrenceCount > $maxCount) {
-                return null;
+        $until = isset($task->until) ? Carbon::parse($task->until) : null;
+
+        $dayMapping = [
+            'SU' => 0,
+            'MO' => 1,
+            'TU' => 2,
+            'WE' => 3,
+            'TH' => 4,
+            'FR' => 5,
+            'SA' => 6
+        ];
+
+        if (empty($weekdays)) {
+            return $this->getNextInterval($task, $now, 'weeks');
+        } else {
+            // Chuyển đổi các ngày từ ký hiệu sang số thứ tự  
+            $validDays = array_map(fn($d) => $dayMapping[$d] ?? null, $weekdays);
+            Log::info("Task đã nhận đưuọc danh sách ngày hợp lệ: " . implode(',', $validDays));
+            $validDays = array_values(array_filter(array_map(function ($d) use ($dayMapping) {
+                return $dayMapping[$d] ?? null;
+            }, $weekdays))); // Loại bỏ null nếu có  
+            Log::info("Task đã nhận đưuọc danh sách ngày hợp lệ: " . implode(',', $validDays));
+
+            // Khởi tạo ngày tiếp theo từ thời điểm hiện tại  
+            $nextOccurrence = $startTime->copy();
+
+            $maxCount = $task->count;
+
+            $occurrenceCount = 0;
+
+            // Tìm ngày tiếp theo cho tới khi nó nằm trong danh sách ngày hợp lệ hoặc vượt quá maxCount nếu có  
+            while (true) {
+                if ($until && $nextOccurrence->greaterThan($until)) {
+                    return null; // Không có ngày hợp lệ trước khi đến until  
+                }
+
+                // Tìm chỉ số của ngày trong tuần  
+                $currentDayOfWeek = $nextOccurrence->dayOfWeek;
+
+                // Nếu ngày hiện tại trong danh sách hợp lệ, thì tăng số lần lặp lại  
+                if (in_array($currentDayOfWeek, $validDays)) {
+                    $occurrenceCount++;
+
+                    // Nếu đã đạt giới hạn và maxCount không phải null thì thoát ra  
+                    if ($maxCount !== null && $occurrenceCount >= $maxCount) {
+                        return null; // Hoặc có thể trả về thông báo hoặc giá trị nào đó nếu cần   
+                    }
+
+                    if ($nextOccurrence->greaterThan($now)) {
+                        return $nextOccurrence; // Trả về ngày tiếp theo nếu nó lớn hơn thời điểm hiện tại  
+                    }
+                }
+
+                // Tăng thêm một ngày  
+                $nextOccurrence->addDay();
             }
         }
-
-        return $nextOccurrence;
     }
 
     protected function getNextMonthlyOccurrence($task, $now)

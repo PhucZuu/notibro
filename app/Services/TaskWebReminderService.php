@@ -155,7 +155,7 @@ class TaskWebReminderService
     protected function getNextMonthlyOccurence($task, $now)
     {
         $startTime = Carbon::parse($task->start_time);
-        $endTime = $task->end_time ? Carbon::parse($task->end_time) : null;
+        $endTime = $task->until ? Carbon::parse($task->until) : null;
         $interval = $task->interval ?? 1;
         $count = $task->count ?? null;
         $monthDays = $task->bymonthday ?? [$startTime->day];
@@ -199,8 +199,8 @@ class TaskWebReminderService
         $startTime = Carbon::parse($task->start_time);
 
         $maxCount = $task->count;
- 
-        $occurrenceCount = 0;
+
+        $until = isset($task->until) ? Carbon::parse($task->until) : null;
 
         $dayMapping = [
             'SU' => 0,
@@ -213,14 +213,18 @@ class TaskWebReminderService
         ];
  
         if (empty($weekdays)) {
-            $this->getNextInterval($task, $now, 'weeks');
+            return $this->getNextInterval($task, $now, 'weeks');
         } else {
             // Chuyển đổi các ngày từ ký hiệu sang số thứ tự  
             $validDays = array_map(fn($d) => $dayMapping[$d] ?? null, $weekdays);
-            $validDays = array_filter($validDays); // Loại bỏ null nếu có  
+            Log::info("Task đã nhận đưuọc danh sách ngày hợp lệ: " . implode(',', $validDays));
+            $validDays = array_values(array_filter(array_map(function($d) use ($dayMapping) {  
+                return $dayMapping[$d] ?? null;  
+            }, $weekdays))); // Loại bỏ null nếu có  
+            Log::info("Task đã nhận đưuọc danh sách ngày hợp lệ: " . implode(',', $validDays));
 
             // Khởi tạo ngày tiếp theo từ thời điểm hiện tại  
-            $nextOccurrence = Carbon::now();
+            $nextOccurrence = $startTime->copy();
 
             $maxCount = $task->count;
 
@@ -228,6 +232,10 @@ class TaskWebReminderService
 
             // Tìm ngày tiếp theo cho tới khi nó nằm trong danh sách ngày hợp lệ hoặc vượt quá maxCount nếu có  
             while (true) {
+                if ($until && $nextOccurrence->greaterThan($until)) {  
+                    return null; // Không có ngày hợp lệ trước khi đến until  
+                }
+
                 // Tìm chỉ số của ngày trong tuần  
                 $currentDayOfWeek = $nextOccurrence->dayOfWeek;
 
@@ -239,13 +247,15 @@ class TaskWebReminderService
                     if ($maxCount !== null && $occurrenceCount >= $maxCount) {
                         return null; // Hoặc có thể trả về thông báo hoặc giá trị nào đó nếu cần   
                     }
+
+                    if($nextOccurrence->greaterThan($now)) {
+                        return $nextOccurrence; // Trả về ngày tiếp theo nếu nó lớn hơn thời điểm hiện tại  
+                    }
                 }
 
                 // Tăng thêm một ngày  
                 $nextOccurrence->addDay();
             }
-
-            
         }
     }
 }
