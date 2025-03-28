@@ -58,85 +58,82 @@ class StatController extends Controller
     {
         try {
             $userId = Auth::id();
-
-            $query = Task::selectRaw('DATE(start_time) as day, COUNT(*) as task_count')
-                ->where('user_id', $userId);
-
-            if ($request->filled(['start_date', 'end_date'])) {
-                $query->whereBetween('start_time', [
-                    Carbon::parse($request->start_date)->startOfDay(),
-                    Carbon::parse($request->end_date)->endOfDay()
-                ]);
-            }
-
-            $day = $query->groupBy('day')
-                ->orderByDesc('task_count')
-                ->first();
-
+    
+            $startDate = $request->filled('start_date') ? Carbon::parse($request->start_date)->startOfDay() : Carbon::now()->startOfWeek();
+            $endDate = $request->filled('end_date') ? Carbon::parse($request->end_date)->endOfDay() : Carbon::now()->endOfWeek();
+    
+            $days = Task::selectRaw('DATE(start_time) as day, COUNT(*) as task_count')
+                ->where('user_id', $userId)
+                ->whereBetween('start_time', [$startDate, $endDate])
+                ->groupBy('day')
+                ->orderBy('day')
+                ->get();
+    
             return response()->json([
                 'code' => 200,
-                'message' => 'Busiest day retrieved successfully',
-                'data' => $day ? [
-                    'day' => $day->day,
-                    'task_count' => $day->task_count
-                ] : []
+                'message' => 'Task count per day retrieved successfully',
+                'data' => $days
             ], 200);
-
+    
         } catch (\Exception $e) {
             Log::error($e);
             return response()->json([
                 'code' => 500,
-                'message' => 'An error occurred while retrieving busiest day',
+                'message' => 'An error occurred while retrieving task counts by day',
             ], 500);
         }
     }
+    
 
     // 3.Chuỗi ngày làm việc liên tiếp (đã hoàn thành task)
     public function workStreak(Request $request)
     {
         try {
             $userId = Auth::id();
-
-            $query = Task::where('user_id', $userId)
-                ->where('is_done', true);
-
-            if ($request->filled(['start_date', 'end_date'])) {
-                $query->whereBetween('start_time', [
-                    Carbon::parse($request->start_date)->startOfDay(),
-                    Carbon::parse($request->end_date)->endOfDay()
-                ]);
-            }
-
-            $dates = $query->orderBy('start_time')
+    
+            $startDate = $request->filled('start_date') ? Carbon::parse($request->start_date)->startOfDay() : Carbon::now()->startOfWeek();
+            $endDate = $request->filled('end_date') ? Carbon::parse($request->end_date)->endOfDay() : Carbon::now()->endOfWeek();
+    
+            $dates = Task::where('user_id', $userId)
+                ->where('is_done', true)
+                ->whereBetween('start_time', [$startDate, $endDate])
+                ->orderBy('start_time')
                 ->pluck('start_time')
                 ->map(fn($dt) => Carbon::parse($dt)->toDateString())
                 ->unique()
                 ->values();
-
+    
+            // Tính streak
             $maxStreak = $dates->isNotEmpty() ? 1 : 0;
             $currentStreak = 1;
-
+            $streakData = [];
+    
             for ($i = 1; $i < $dates->count(); $i++) {
                 $prev = Carbon::parse($dates[$i - 1]);
                 $curr = Carbon::parse($dates[$i]);
-
+    
                 if ($curr->diffInDays($prev) == 1) {
                     $currentStreak++;
-                    $maxStreak = max($maxStreak, $currentStreak);
                 } else {
                     $currentStreak = 1;
                 }
+    
+                $maxStreak = max($maxStreak, $currentStreak);
+                $streakData[] = [
+                    'date' => $curr->toDateString(),
+                    'streak' => $currentStreak
+                ];
             }
-
+    
             return response()->json([
                 'code' => 200,
-                'message' => 'Work streak retrieved successfully',
+                'message' => 'Work streak calculated successfully',
                 'data' => [
                     'max_streak' => $maxStreak,
-                    'unit' => 'days'
+                    'streak_by_date' => $streakData
                 ]
             ], 200);
-
+    
         } catch (\Exception $e) {
             Log::error($e);
             return response()->json([
@@ -145,52 +142,41 @@ class StatController extends Controller
             ], 500);
         }
     }
+    
 
     // 4.Tổng số task đã tạo, có thể group theo tag nếu truyền group_by_tag
     public function totalTasks(Request $request)
     {
         try {
             $userId = Auth::id();
-
-            $query = Task::where('user_id', $userId);
-
-            if ($request->filled(['start_date', 'end_date'])) {
-                $query->whereBetween('start_time', [
-                    Carbon::parse($request->start_date)->startOfDay(),
-                    Carbon::parse($request->end_date)->endOfDay()
-                ]);
-            }
-
-            if ($request->boolean('group_by_tag')) {
-                $tasks = $query->with('tag')
-                    ->get()
-                    ->groupBy(fn($task) => optional($task->tag)->name ?? 'No Tag')
-                    ->map(fn($group) => $group->count());
-
-                return response()->json([
-                    'code' => 200,
-                    'message' => 'Task count grouped by tag retrieved successfully',
-                    'data' => $tasks
-                ], 200);
-            } else {
-                $count = $query->count();
-
-                return response()->json([
-                    'code' => 200,
-                    'message' => 'Total task count retrieved successfully',
-                    'data' => [
-                        'total_tasks' => $count
-                    ]
-                ], 200);
-            }
+    
+            $startDate = $request->filled('start_date') ? Carbon::parse($request->start_date)->startOfDay() : Carbon::now()->startOfWeek();
+            $endDate = $request->filled('end_date') ? Carbon::parse($request->end_date)->endOfDay() : Carbon::now()->endOfWeek();
+    
+            $query = Task::where('user_id', $userId)
+                ->whereBetween('start_time', [$startDate, $endDate]);
+    
+            // Mặc định là nhóm theo tag
+            $tasks = $query->with('tag')
+                ->get()
+                ->groupBy(fn($task) => optional($task->tag)->name ?? 'No Tag')
+                ->map(fn($group) => $group->count());
+    
+            return response()->json([
+                'code' => 200,
+                'message' => 'Task count grouped by tag retrieved successfully',
+                'data' => $tasks
+            ], 200);
+    
         } catch (\Exception $e) {
             Log::error($e);
-
+    
             return response()->json([
                 'code' => 500,
                 'message' => 'An error occurred while retrieving total task count',
             ], 500);
         }
     }
+    
 
 }

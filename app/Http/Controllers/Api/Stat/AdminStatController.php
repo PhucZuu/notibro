@@ -17,12 +17,10 @@ class AdminStatController extends Controller
         try {
             $query = User::query();
     
-            if ($request->filled(['start_date', 'end_date'])) {
-                $query->whereBetween('created_at', [
-                    Carbon::parse($request->start_date)->startOfDay(),
-                    Carbon::parse($request->end_date)->endOfDay()
-                ]);
-            }
+            $start = $request->filled('start_date') ? Carbon::parse($request->start_date)->startOfDay() : Carbon::now()->startOfWeek();
+            $end = $request->filled('end_date') ? Carbon::parse($request->end_date)->endOfDay() : Carbon::now()->endOfWeek();
+    
+            $query->whereBetween('created_at', [$start, $end]);
     
             $count = $query->count();
     
@@ -42,21 +40,19 @@ class AdminStatController extends Controller
         }
     }
     
-
+    
     // 2. Tổng số task toàn hệ thống 
     public function totalTasks(Request $request)
     {
         try {
             $query = Task::whereHas('user', function ($q) {
-                $q->whereNull('deleted_at'); // Chỉ tính task của user chưa bị xóa mềm
+                $q->whereNull('deleted_at');
             });
     
-            if ($request->filled(['start_date', 'end_date'])) {
-                $query->whereBetween('start_time', [
-                    Carbon::parse($request->start_date)->startOfDay(),
-                    Carbon::parse($request->end_date)->endOfDay()
-                ]);
-            }
+            $start = $request->filled('start_date') ? Carbon::parse($request->start_date)->startOfDay() : Carbon::now()->startOfWeek();
+            $end = $request->filled('end_date') ? Carbon::parse($request->end_date)->endOfDay() : Carbon::now()->endOfWeek();
+    
+            $query->whereBetween('start_time', [$start, $end]);
     
             $count = $query->count();
     
@@ -74,7 +70,8 @@ class AdminStatController extends Controller
                 'message' => 'An error occurred while retrieving task count'
             ], 500);
         }
-    }    
+    }
+    
 
     // 3. Top người tạo task 
     public function topTaskCreators(Request $request)
