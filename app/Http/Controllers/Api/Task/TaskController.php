@@ -139,7 +139,7 @@ class TaskController extends Controller
             ->where('user_id', '=', $user_id)
             ->first();
 
-        $tasks = Task::select('tasks.*', 'tags.name as tag_name')
+        $tasks = Task::select('tasks.*', 'tags.name as tag_name', 'tags.color_code as tag_color_code')
             ->leftJoin('tags', 'tasks.tag_id', '=', 'tags.id')
             ->where(function ($query) use ($user_id) {
                 $query->where('tasks.user_id', $user_id)
@@ -528,7 +528,7 @@ class TaskController extends Controller
                                         'is_repeat'     => $data['is_repeat'],
                                         'freq'          => $data['freq'],
                                         'interval'      => $data['interval'],
-                                        'until'         => $data['until'],
+                                        'until'         => !empty($data['until']) ? $data['until'] : $relatedTask->until,
                                         'count'         => $data['count'],
                                         'byweekday'     => $data['byweekday'],
                                         'bymonthday'    => $data['bymonthday'],
@@ -612,7 +612,7 @@ class TaskController extends Controller
                                         'is_repeat'     => $data['is_repeat'],
                                         'freq'          => $data['freq'],
                                         'interval'      => $data['interval'],
-                                        'until'         => $data['until'],
+                                        'until'         => !empty($data['until']) ? $data['until'] : $relatedTask->until,
                                         'count'         => $data['count'],
                                         'byweekday'     => $data['byweekday'],
                                         'bymonthday'    => $data['bymonthday'],
