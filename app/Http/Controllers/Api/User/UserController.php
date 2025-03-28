@@ -240,8 +240,8 @@ class UserController extends Controller
             'first_name' => ['required', 'max:255'],
             'last_name'  => ['required', 'max:255'],
             'gender'     => ['required', Rule::in(['male', 'female'])],
-            'address'    => ['required', 'max:255'],
-            'phone'      => ['required', 'regex:/^0[0-9]{9}$/'],
+            'address'    => ['nullable', 'max:255'],
+            'phone'      => ['nullable', 'regex:/^0[0-9]{9}$/'],
         ]);
 
         $user = User::find(auth()->id());
