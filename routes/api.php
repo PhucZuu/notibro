@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\Stat\AdminStatController;
 use App\Http\Controllers\Api\Color\ColorController;
 use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\Auth\AuthGoogleController;
@@ -9,6 +10,7 @@ use App\Http\Controllers\Api\OpenAI\OpenAIController;
 use App\Http\Controllers\Api\Package\StoragePackageController;
 use App\Http\Controllers\Api\Role\RoleController;
 use App\Http\Controllers\Api\Setting\SettingController;
+use App\Http\Controllers\Api\Stat\StatController;
 use App\Http\Controllers\Api\Tag\TagController;
 use App\Http\Controllers\Api\Task\TaskController;
 use App\Http\Controllers\Api\Timezone\TimezoneController;
@@ -102,6 +104,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/tags/{id}', [TagController::class, 'destroy']);
     Route::post('/tags/{id}/leave', [TagController::class, 'leaveTag']);
 
+    //Stat for user
+        Route::get('/stats/completion-rate', [StatController::class, 'completionRate']);
+        Route::get('/stats/busiest-day', [StatController::class, 'busiestDay']);
+        Route::get('/stats/work-streak', [StatController::class, 'workStreak']);
+        Route::get('/stats/total-tasks', [StatController::class, 'totalTasks']);
+
     // Get list guest
     Route::get('/guest', [UserController::class,'guest']);
 
@@ -153,5 +161,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('packages/{id}', [StoragePackageController::class, 'destroy']); 
         Route::delete('packages/{id}/force', [StoragePackageController::class, 'forceDelete']);
 
+        //Stat for admin
+        Route::get('/stats/total-users', [AdminStatController::class, 'totalUsers']);
+        Route::get('/stats/total-tasks', [AdminStatController::class, 'totalTasks']);
+        Route::get('/stats/task-count-by-user', [AdminStatController::class, 'topTaskCreators']);
     });
 });
