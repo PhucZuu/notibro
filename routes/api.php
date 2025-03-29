@@ -5,10 +5,12 @@ use App\Http\Controllers\Api\Color\ColorController;
 use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\Auth\AuthGoogleController;
 use App\Http\Controllers\Api\Chat\TaskGroupChatController;
+use App\Http\Controllers\Api\FileEntries\FileEntryController;
 use App\Http\Controllers\Api\Notification\NotificationController;
 use App\Http\Controllers\Api\OpenAI\OpenAIController;
 use App\Http\Controllers\Api\Package\StoragePackageController;
 use App\Http\Controllers\Api\Role\RoleController;
+use App\Http\Controllers\Api\S3UploadFile\S3SUploadController;
 use App\Http\Controllers\Api\Setting\SettingController;
 use App\Http\Controllers\Api\Stat\StatController;
 use App\Http\Controllers\Api\Tag\TagController;
@@ -114,6 +116,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/guest', [UserController::class,'guest']);
 
     Route::get('/tasks/filter', [TaskController::class, 'search']);
+
+    // S3 upload
+    Route::post('/s3/upload', [S3SUploadController::class, 'createPresignedUrl']);
+
+    // File entries
+    Route::post('/file-entry/store/file', [FileEntryController::class, 'saveFile']);
+    Route::get('/file-entry/{taskId}/files', [FileEntryController::class, 'getListFile']);
     
     Route::middleware(['admin'])->prefix('admin')->group(function () {
         //User
