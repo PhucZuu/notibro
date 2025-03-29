@@ -2277,6 +2277,8 @@ class TaskController extends Controller
                 return $task;
             });
 
+        $validTasks = [];
+
         foreach ($tasks as $task) {
             if ($task->is_repeat) {
                 $nextOccurrence = $this->serviceNextOcc->getNextOccurrence($task, $now);
@@ -2320,10 +2322,16 @@ class TaskController extends Controller
                         $task->updated_at,
                         $task->exclude_time,
                     );
+
+                    $validTasks[] = $task;
                 }
             } else {
                 $task->start_time = Carbon::parse($task->start_time)->tz('UTC');
-                $task->end_time = Carbon::parse($task->start_time)->tz('UTC');
+                $task->end_time = Carbon::parse($task->end_time)->tz('UTC');
+
+                if ($task->start_time->greaterThanOrEqualTo($now) && $task->start_time->lessThanOrEqualTo($next24Hours)) {  
+                    $validTasks[] = $task; // Chỉ thêm task hợp lệ vào mảng  
+                }  
             }
 
             if ($task->attendees) {
@@ -2349,8 +2357,6 @@ class TaskController extends Controller
 
                 $attendeesDetails = [];
             }
-
-            $validTasks[] = $task;
         }
 
         if (empty($validTasks)) {

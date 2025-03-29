@@ -211,26 +211,51 @@ class TaskReminderService
 
     protected function getNextMonthlyOccurrence($task, $now)
     {
-        Log::info("Bắt đầu getNextMonthlyOccurrence cho task ID: {$task->id}");
         $startTime = Carbon::parse($task->start_time);
+        $until = $task->until ? Carbon::parse($task->until) : null;
         $interval = $task->interval ?? 1;
         $count = $task->count ?? null;
         $monthDays = $task->bymonthday ?? [$startTime->day];
 
+        // Sắp xếp để đảm bảo ngày trong tháng được kiểm tra theo thứ tự  
+        sort($monthDays);
+
+        // Đặt nextOccurrence là thời gian bắt đầu  
         $nextOccurrence = $startTime->copy();
         $occurrenceCount = 0;
 
-        while (true) {
-            if ($nextOccurrence->greaterThan($now) && in_array($nextOccurrence->day, $monthDays)) {
-                break;
+        while ($occurrenceCount === 0 || $nextOccurrence->lessThanOrEqualTo($now)) {
+            // Thiết lập cờ để kiểm tra nếu ngày hợp lệ đã được tìm thấy  
+            $validDayFound = false;
+
+            // Kiểm tra từng ngày trong $monthDays  
+            foreach ($monthDays as $day) {
+                $testDate = $nextOccurrence->copy()->day($day);
+                if ($testDate->greaterThan($now) && $testDate->greaterThanOrEqualTo($startTime)) {
+                    $nextOccurrence = $testDate;
+                    $validDayFound = true; // Ngày hợp lệ đã tìm thấy  
+                    break; // Thoát khỏi vòng lặp nếu tìm thấy ngày hợp lệ  
+                }
             }
 
-            $nextOccurrence->addMonths($interval);
+            // Nếu không tìm thấy ngày hợp lệ, chuyển sang tháng tiếp theo  
+            if (!$validDayFound) {
+                $nextOccurrence->addMonths($interval);
+                continue; // Tiếp tục vòng lặp  
+            }
 
-            if ($count && ++$occurrenceCount > $count) {
-                Log::error("Số lần xuất hiện vượt quá giới hạn cho task ID: {$task->id}");
+            // Kiểm tra điều kiện 'until'  
+            if ($until && $nextOccurrence->greaterThan($until)) {
                 return null;
             }
+
+            // Kiểm tra số lần lặp  
+            $occurrenceCount++;
+            if ($count && $occurrenceCount > $count) {
+                return null;
+            }
+
+            // Log::info(" {$nextOccurrence} - case Monthly");
         }
 
         return $nextOccurrence;
