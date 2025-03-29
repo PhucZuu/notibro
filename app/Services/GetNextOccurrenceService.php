@@ -11,7 +11,6 @@ class GetNextOccurrenceService
     public function getNextOccurrence($task, $now)
     {
         if (!$task->is_repeat) {
-            Log::info("Task không lặp lại thời điểm task đến hạn {$task->start_time}");
             return Carbon::parse($task->start_time);
         }
 
@@ -92,38 +91,50 @@ class GetNextOccurrenceService
     protected function getNextMonthlyOccurence($task, $now)
     {
         $startTime = Carbon::parse($task->start_time);
-        $until = $task->until ? Carbon::parse($task->end_time) : null;
+        $until = $task->until ? Carbon::parse($task->until) : null;
         $interval = $task->interval ?? 1;
         $count = $task->count ?? null;
         $monthDays = $task->bymonthday ?? [$startTime->day];
 
+        // Sắp xếp để đảm bảo ngày trong tháng được kiểm tra theo thứ tự  
+        sort($monthDays);
+
+        // Đặt nextOccurrence là thời gian bắt đầu  
         $nextOccurrence = $startTime->copy();
         $occurrenceCount = 0;
 
-        while (true) {
-            if ($nextOccurrence->greaterThan($now) && in_array($nextOccurrence->day, $monthDays)) {
-                break;
-            }
+        while ($occurrenceCount === 0 || $nextOccurrence->lessThanOrEqualTo($now)) {
+            // Thiết lập cờ để kiểm tra nếu ngày hợp lệ đã được tìm thấy  
+            $validDayFound = false;
 
-            $nextOccurrence = $nextOccurrence->addMonths($interval);
-
-            while (!in_array($nextOccurrence->day, $monthDays)) {
-                $nextOccurrence = $nextOccurrence->addDays();
-
-                if ($nextOccurrence->addDay()) {
-                    $nextOccurrence = $nextOccurrence->addMonths($interval);
+            // Kiểm tra từng ngày trong $monthDays  
+            foreach ($monthDays as $day) {
+                $testDate = $nextOccurrence->copy()->day($day);
+                if ($testDate->greaterThan($now) && $testDate->greaterThanOrEqualTo($startTime)) {
+                    $nextOccurrence = $testDate;
+                    $validDayFound = true; // Ngày hợp lệ đã tìm thấy  
+                    break; // Thoát khỏi vòng lặp nếu tìm thấy ngày hợp lệ  
                 }
             }
 
+            // Nếu không tìm thấy ngày hợp lệ, chuyển sang tháng tiếp theo  
+            if (!$validDayFound) {
+                $nextOccurrence->addMonths($interval);
+                continue; // Tiếp tục vòng lặp  
+            }
+
+            // Kiểm tra điều kiện 'until'  
             if ($until && $nextOccurrence->greaterThan($until)) {
                 return null;
             }
 
+            // Kiểm tra số lần lặp  
             $occurrenceCount++;
-
             if ($count && $occurrenceCount > $count) {
                 return null;
             }
+
+            // Log::info(" {$nextOccurrence} - case Monthly");
         }
 
         return $nextOccurrence;
@@ -148,15 +159,15 @@ class GetNextOccurrenceService
             'FR' => 5,
             'SA' => 6
         ];
- 
+
         if (empty($weekdays)) {
             return $this->getNextInterval($task, $now, 'weeks');
         } else {
             // Chuyển đổi các ngày từ ký hiệu sang số thứ tự  
             $validDays = array_map(fn($d) => $dayMapping[$d] ?? null, $weekdays);
             Log::info("Task đã nhận đưuọc danh sách ngày hợp lệ: " . implode(',', $validDays));
-            $validDays = array_values(array_filter(array_map(function($d) use ($dayMapping) {  
-                return $dayMapping[$d] ?? null;  
+            $validDays = array_values(array_filter(array_map(function ($d) use ($dayMapping) {
+                return $dayMapping[$d] ?? null;
             }, $weekdays))); // Loại bỏ null nếu có  
             Log::info("Task đã nhận đưuọc danh sách ngày hợp lệ: " . implode(',', $validDays));
 
@@ -169,7 +180,7 @@ class GetNextOccurrenceService
 
             // Tìm ngày tiếp theo cho tới khi nó nằm trong danh sách ngày hợp lệ hoặc vượt quá maxCount nếu có  
             while (true) {
-                if ($until && $nextOccurrence->greaterThan($until)) {  
+                if ($until && $nextOccurrence->greaterThan($until)) {
                     return null; // Không có ngày hợp lệ trước khi đến until  
                 }
 
@@ -185,7 +196,7 @@ class GetNextOccurrenceService
                         return null; // Hoặc có thể trả về thông báo hoặc giá trị nào đó nếu cần   
                     }
 
-                    if($nextOccurrence->greaterThan($now)) {
+                    if ($nextOccurrence->greaterThan($now)) {
                         return $nextOccurrence; // Trả về ngày tiếp theo nếu nó lớn hơn thời điểm hiện tại  
                     }
                 }
