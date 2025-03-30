@@ -82,6 +82,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/tasks/trash/forceDestroy', [TaskController::class, 'forceDestroy']);
     Route::put('/tasks/trash/restoreTask', [TaskController::class, 'restoreTask']);
     Route::get('/tasks/getTrashedTasks', [TaskController::class, 'getTrashedTasks']);
+    Route::put('/tasks/{id}/attendeeLeaveTask', [TaskController::class, 'attendeeLeaveTask']);
 
     // GROUP CHAT TASK
 

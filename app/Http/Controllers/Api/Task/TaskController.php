@@ -498,7 +498,7 @@ class TaskController extends Controller
 
                         Log::info("Đây là task cha {$parentTask}");
 
-                        $duration = Carbon::parse($data['start_time'])->diff(Carbon::parse(time: $data['end_time'])); 
+                        $duration = Carbon::parse($data['start_time'])->diff(Carbon::parse(time: $data['end_time']));
 
                         if ($parentTask) {
                             $relatedTasks = Task::where('parent_id', $parentTask->id)
@@ -927,7 +927,7 @@ class TaskController extends Controller
 
                         Log::info("Đây là task cha {$parentTask}");
 
-                        $duration = Carbon::parse($data['start_time'])->diff(Carbon::parse(time: $data['end_time'])); 
+                        $duration = Carbon::parse($data['start_time'])->diff(Carbon::parse(time: $data['end_time']));
 
                         if ($parentTask) {
                             $relatedTasks = Task::where('parent_id', $parentTask->id)
@@ -1109,6 +1109,321 @@ class TaskController extends Controller
                 'code' => 401,
                 'message' => 'You do not have permission to edit this event',
             ]);
+        }
+    }
+
+    public function attendeeLeaveTask(Request $request, $id)
+    {
+        $code = $request->code;
+
+        $data = $request->validate([
+            'updated_date'      => 'nullable',
+            'atteendee_id'      => 'required|integer',
+            'timezone_code'     => 'required',
+        ]);
+
+        // $data = $this->handleLogicData($data);
+
+        $task = Task::find($id);
+
+        //Kiểm tra xem có tìm được task với id truyền vào không
+        if (!$task) {
+            return response()->json([
+                'code'    => 404,
+                'message' => 'Failed to get task',
+                'error'   => 'Cannot get task',
+            ], 404);
+        }
+
+        // Lấy danh sách attendees hiện tại từ JSON  
+        $atteendees = json_decode($task->atteendees, true) ?? [];
+
+        // Loại bỏ attendee theo id  
+        $atteendees = array_filter($atteendees, function ($attendee) use ($data) {
+            return $attendee['user_id'] !== $data['atteendee_id'];
+        });
+
+        // Dữ liệu dùng gửi thông báo
+        $user = auth()->user();
+        $owner = User::find($task->user_id);
+
+        switch ($code) {
+            //Update when event dont have reapet
+            case 'EDIT_N':
+                try {
+                    $task->update(['atteendees' => json_encode($atteendees)]);
+
+                    //Send REALTIME
+                    $returnTask[] = $task;
+
+                    $this->sendRealTimeUpdate($returnTask, 'update');
+
+                    $owner->notify(new NotificationEvent(
+                        $task->user_id,
+                        "Tài khoản {$user->first_name} {$user->last_name} vừa mới rời khỏi {$task->type} {$task->title} của bạn",
+                        "",
+                        "leave_task"
+                    ));
+
+                    return response()->json([
+                        'code'    => 200,
+                        'message' => 'Task updated successfully',
+                        'data'    => $task,
+                    ], 200);
+                } catch (\Exception $e) {
+                    Log::error($e->getMessage());
+
+                    return response()->json([
+                        'code'    => 500,
+                        'message' => 'Failed to updated task',
+                    ], 500);
+                }
+
+            case 'EDIT_1':
+                try {
+                    // $data['parent_id'] = $task->parent_id ?? $task->id;
+
+                    $new_task = Task::create([
+                        'parent_id'     => $task->parent_id ?? $task->id,
+                        'start_time'    => $task->start_time,
+                        'end_time'      => $task->end_time,
+                        'title'         => $task->title,
+                        'description'   => $task->description,
+                        'user_id'       => $task->user_id,
+                        'timezone_code' => $task->timezone_code,
+                        'color_code'    => $task->color_code,
+                        'tag_id'        => $task->tag_id,
+                        'attendees'     => json_encode($atteendees),
+                        'location'      => $task->location,
+                        'type'          => $task->type,
+                        'is_all_day'    => $task->is_all_day,
+                        'is_busy'       => $task->is_busy,
+                        'is_reminder'   => $task->is_reminder,
+                        'reminder'      => $task->reminder,
+                    ]);
+
+                    //Send REALTIME
+                    $returnTaskCre[] = $new_task;
+
+                    $this->sendRealTimeUpdate($returnTaskCre, 'create');
+
+                    $exclude_time = $task->exclude_time ?? [];
+
+                    if (!is_array($exclude_time)) {
+                        $exclude_time = json_decode($exclude_time, true) ?? [];
+                    }
+
+                    $exclude_time[] = Carbon::createFromFormat('Y-m-d H:i:s', $data['updated_date'], $data['timezone_code'])->setTimezone('UTC');
+
+                    $task->exclude_time = $exclude_time;
+                    $task->save();
+
+                    //Send REALTIME
+                    $returnTask[] = $task;
+
+                    $this->sendRealTimeUpdate($returnTask, 'update');
+
+                    $owner->notify(new NotificationEvent(
+                        $task->user_id,
+                        "Tài khoản {$user->first_name} {$user->last_name} vừa mới rời khỏi ngày {$data['updated_date']} {$task->type} {$task->title} của bạn",
+                        "",
+                        "leave_task"
+                    ));
+
+                    return response()->json([
+                        'code'    => 200,
+                        'message' => 'Task updated successfully',
+                        'data'    => $new_task,
+                    ], 200);
+                } catch (\Exception $e) {
+                    Log::error($e->getMessage());
+
+                    return response()->json([
+                        'code'    => 500,
+                        'message' => 'Failed to updated task',
+                    ], 500);
+                }
+
+            case 'EDIT_1B':
+                try {
+                    $preNewTask = $task->replicate();
+
+                    unset($preNewTask->uuid);
+                    $preNewTask->atteedees = json_encode($atteendees);
+
+                    //Add new task for following change
+                    $new_task = Task::create($preNewTask->toArray());
+                    Log::info($new_task);
+
+                    $task->until = Carbon::parse($data['updated_date'])->setTime(0, 0, 0)->subDay();
+
+                    $task->save();
+
+                    //Send REALTIME
+                    $returnTaskUpdate[] = $task;
+
+                    // Delete all task that have parent_id = $task->id and start_time > $ta
+                    $relatedTasks = Task::where(function ($query) use ($task) {
+                        $query->where('parent_id', $task->id);
+                        // Kiểm tra nếu parent_id của task hiện tại không phải là null  
+                        if ($task->parent_id !== null) {
+                            $query->orWhere('parent_id', $task->parent_id);
+                        }
+                    })
+                        ->where('start_time', '>=', $task->until)
+                        ->where('id', '!=', $new_task->id)
+                        ->get();
+
+                    //Send REALTIME
+
+                    $allExcludeTimes = $new_task->exclude_time ?? [];
+
+                    $maxUntil = $new_task->until;
+
+                    foreach ($relatedTasks as $relatedTask) {
+                        if ($relatedTask->is_repeat) {
+                            $relatedExcludeTimes = $relatedTask->exclude_time ?? [];
+                            $allExcludeTimes = array_merge($allExcludeTimes, $relatedExcludeTimes);
+
+                            if ($relatedTask->until && (!$maxUntil || Carbon::parse($relatedTask->until)->greaterThan(Carbon::parse($maxUntil)))) {
+                                $maxUntil = $relatedTask->until;
+                            }
+
+                            $relatedTask->forceDelete();
+                        } else {
+                            $relatedTask->update([
+                                'atteendees' => json_encode($atteendees),
+                            ]);
+
+                            $returnTaskUpdate[] = $relatedTask;
+                        }
+                    }
+
+                    if (!$returnTaskUpdate) {
+                        $this->sendRealTimeUpdate($returnTaskUpdate, 'update');
+                    }
+
+
+                    $allExcludeTimes = array_unique($allExcludeTimes);
+                    $new_task->exclude_time = array_values($allExcludeTimes);
+
+                    $new_task->until = $maxUntil;
+
+                    $new_task->parent_id = $task->parent_id ?? $task->id;
+                    $new_task->save();
+
+                    //Send REALTIME
+                    $returnTask[] = $new_task;
+
+                    $this->sendRealTimeUpdate($returnTask, 'create');
+
+                    $owner->notify(new NotificationEvent(
+                        $task->user_id,
+                        "Tài khoản {$user->first_name} {$user->last_name} vừa mới rời khỏi {$task->type} {$task->title} của bạn từ ngày {$data['updated_date']}",
+                        "",
+                        "leave_task"
+                    ));
+
+                    return response()->json([
+                        'code'    => 200,
+                        'message' => 'Task updated successfully',
+                        'data'    => $new_task,
+                    ], 200);
+                } catch (\Exception $e) {
+                    Log::error($e->getMessage());
+
+                    return response()->json([
+                        'code'    => 500,
+                        'message' => 'Failed to updated task',
+                    ], 500);
+                }
+
+            case 'EDIT_A':
+                try {
+                    $parentTask = Task::find($task->parent_id);
+                    $duration = Carbon::parse($data['start_time'])->diff(Carbon::parse(time: $data['end_time']));
+
+                    if ($parentTask) {
+                        $relatedTasks = Task::where('parent_id', $parentTask->id)
+                            ->orWhere('parent_id', $task->parent_id)
+                            ->get();
+
+                        foreach ($relatedTasks as $relatedTask) {
+                            if ($relatedTask->is_repeat) {
+                                $relatedTask->update([
+                                    'attendees'     => json_encode($atteendees),
+                                ]);
+                            } else {
+                                $relatedTask->update([
+                                    'attendees'     => json_encode($atteendees),
+                                ]);
+                            }
+
+                            $returnTask[] = $relatedTask;
+                        }
+
+                        $parentTask->update(['attendees'     => json_encode($atteendees),]);
+                        $returnTask[] = $parentTask;
+
+                        $returnTask[] = $task;
+                    } else {
+                        // Update all child Task
+                        $relatedTasks = Task::where('parent_id', $task->id)
+                            ->get();
+
+                        foreach ($relatedTasks as $relatedTask) {
+                            $updatedStartTime = Carbon::parse($relatedTask->start_time)->setTime($data['start_time']->hour, $data['start_time']->minute, $data['start_time']->second);
+                            $updatedEndTime = Carbon::parse($updatedStartTime)->copy()->add($duration);
+
+                            if ($relatedTask->is_repeat) {
+                                $relatedTask->update([
+                                    'attendees'     => json_encode($atteendees),
+                                ]);
+                            } else {
+                                $relatedTask->update([
+                                    'attendees'     => json_encode($atteendees),
+                                ]);
+                            }
+
+                            $returnTask[] = $relatedTask;
+                        }
+
+                        //Update current Task
+                        $task->update(['attendees'     => json_encode($atteendees),]);
+
+                        $returnTask[] = $task;
+                    }
+
+                    //Send API
+                    $this->sendRealTimeUpdate($returnTask, 'update');
+
+                    $owner->notify(new NotificationEvent(
+                        $task->user_id,
+                        "Tài khoản {$user->first_name} {$user->last_name} vừa mới rời khỏi chuỗi {$task->type} {$task->title} của bạn",
+                        "",
+                        "leave_task"
+                    ));
+
+                    return response()->json([
+                        'code'    => 200,
+                        'message' => 'Task updated successfully',
+                        'data'    => $task,
+                    ], 200);
+                } catch (\Exception $e) {
+                    Log::error($e->getMessage());
+
+                    return response()->json([
+                        'code'    => 500,
+                        'message' => 'Failed to updated task',
+                    ], 500);
+                }
+
+            default:
+                return response()->json([
+                    'code'      =>  400,
+                    'message'   =>  'Invalid code',
+                    'data'      =>  ''
+                ]);
         }
     }
 
@@ -2239,7 +2554,7 @@ class TaskController extends Controller
         }
 
         $now = Carbon::now();
-        $next24Hours = $now->copy()->addHours(24);
+        $next24Hours = $now->copy()->addDay();
 
         $tasks = Task::with('tag:id,name')
             ->whereNotNull('reminder')
@@ -2288,6 +2603,8 @@ class TaskController extends Controller
                     // $timezone = $task->timezone_code ?? 'UTC';
                     // $task->start_time = $nextOccurrence->copy()->tz($timezone)->toDateTimeString();
 
+                    Log::info('nextOccurrence', [$nextOccurrence, $now, $next24Hours]);
+
                     $task->start_time = $nextOccurrence->copy()->tz('UTC');
                     $task->end_time = Carbon::parse($task->end_time)
                         ->setDate($nextOccurrence->year, $nextOccurrence->month, $nextOccurrence->day)
@@ -2324,14 +2641,16 @@ class TaskController extends Controller
                     );
 
                     $validTasks[] = $task;
+
+                    Log::info('validTasks', [$validTasks]);
                 }
             } else {
                 $task->start_time = Carbon::parse($task->start_time)->tz('UTC');
                 $task->end_time = Carbon::parse($task->end_time)->tz('UTC');
 
-                if ($task->start_time->greaterThanOrEqualTo($now) && $task->start_time->lessThanOrEqualTo($next24Hours)) {  
+                if ($task->start_time->greaterThanOrEqualTo($now) && $task->start_time->lessThanOrEqualTo($next24Hours)) {
                     $validTasks[] = $task; // Chỉ thêm task hợp lệ vào mảng  
-                }  
+                }
             }
 
             if ($task->attendees) {

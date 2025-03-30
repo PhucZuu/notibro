@@ -165,7 +165,7 @@ class GetNextOccurrenceService
         } else {
             // Chuyển đổi các ngày từ ký hiệu sang số thứ tự  
             $validDays = array_map(fn($d) => $dayMapping[$d] ?? null, $weekdays);
-            Log::info("Task đã nhận đưuọc danh sách ngày hợp lệ: " . implode(',', $validDays));
+
             $validDays = array_values(array_filter(array_map(function ($d) use ($dayMapping) {
                 return $dayMapping[$d] ?? null;
             }, $weekdays))); // Loại bỏ null nếu có  
