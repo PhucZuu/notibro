@@ -10,9 +10,10 @@ use Illuminate\Support\Facades\Log;
 
 class RoleController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $roles = Role::query()->get(); // hoặc Role::all();
+        $perPage = $request->query('per_page', 10); // số item mỗi trang, mặc định là 10
+        $roles = Role::query()->paginate($perPage);
     
         if ($roles->isEmpty()) {
             return response()->json([
@@ -27,24 +28,27 @@ class RoleController extends Controller
             'data'    => $roles,
         ], 200);
     }
+    
 
-    public function trashed()
+    public function trashed(Request $request)
     {
-        $roles = Role::onlyTrashed()->get();
-
+        $perPage = $request->query('per_page', 10); // số item mỗi trang
+        $roles = Role::onlyTrashed()->paginate($perPage);
+    
         if ($roles->isEmpty()) {
             return response()->json([
                 'code'    => 404,
                 'message' => "No trashed roles found"
             ], 404);
         }
-
+    
         return response()->json([
             'code'    => 200,
             'message' => "Retrieve trashed roles successfully",
             'data'    => $roles,
         ], 200);
     }
+    
 
     public function show($id)
     {
