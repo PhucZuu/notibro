@@ -14,14 +14,17 @@ class UserController extends Controller
     public function getAllUser(Request $request)
     {
         $searchEmail = $request->query('email');
-        $perPage = $request->query('per_page', 10);
     
         $users = $this->fetchUsersQuery(false, $searchEmail)
-            ->paginate($perPage);
+            ->paginate(10)
+            ->map([$this, 'mapUserData']);
     
-        $users->setCollection(
-            $users->getCollection()->map([$this, 'mapUserData'])
-        );
+        if ($users->isEmpty()) {
+            return response()->json([
+                'code'    => 404,
+                "message" => 'Users not found',
+            ], 404);
+        }
     
         return response()->json([
             'code'    => 200,
@@ -30,26 +33,27 @@ class UserController extends Controller
         ], 200);
     }
     
-    
     public function getBanUsers(Request $request)
     {
         $searchEmail = $request->query('email');
-        $perPage = $request->query('per_page', 10);
     
         $users = $this->fetchUsersQuery(true, $searchEmail)
-            ->paginate($perPage);
+            ->paginate(10)
+            ->map([$this, 'mapUserData']);
     
-        $users->setCollection(
-            $users->getCollection()->map([$this, 'mapUserData'])
-        );
+        if ($users->isEmpty()) {
+            return response()->json([
+                'code'    => 404,
+                "message" => 'No deleted users found',
+            ], 404);
+        }
     
         return response()->json([
             'code'    => 200,
             'message' => "Retrieve deleted user list successfully",
             'data'    => $users,
         ], 200);
-    }
-     
+    }    
 
     public function fetchUsersQuery($onlySoftDeleted = false, $searchEmail = null)
     {
@@ -103,7 +107,8 @@ class UserController extends Controller
             })->toArray(),
         ];
     }
-   
+
+    
     public function show($id)
     {
         $user = User::find($id);
@@ -352,21 +357,19 @@ class UserController extends Controller
     public function guest(Request $request)
     {
         $search = $request->query('search');
-        $perPage = $request->query('per_page', 10);
-    
+
         $query = User::select('id','email')->where('id', '!=', auth()->id());
-    
+
         if ($search) {
             $query->where('email','like','%'. $search .'%');
         }
-    
-        $users = $query->paginate($perPage);
-    
+
+        $users = $query->get();
+
         return response()->json([
             'code'    => 200,
             'message' => 'Retrieve user list successfully',
             'data'    => $users,
         ], 200);
     }
-    
 }
