@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\FileEntries;
 
+use App\Http\Controllers\Api\S3UploadFile\S3SUploadController;
 use App\Http\Controllers\Controller;
 use App\Models\FileEntry;
 use App\Models\Task;
@@ -74,7 +75,7 @@ class FileEntryController extends Controller
 
             $taskExists = Task::where('id', $taskId)->exists();
             if (!$taskExists) {
-                return response()->json(['error' => 'Task not found.'], 404);
+                return response()->json(['data' => '[]'], 200);
             }
 
             $files = FileEntry::select(['id', 'file_name', 'client_name', 'extension', 'size', 'task_id', 'owner_id', 'created_at'])
@@ -82,7 +83,7 @@ class FileEntryController extends Controller
                 ->get();
 
             if ($files->isEmpty()) {
-                abort(404, 'No files found.');
+                return response()->json(['data' => '[]'], 200);
             }
 
             return response()->json(['files' => $files], 200);
@@ -90,6 +91,35 @@ class FileEntryController extends Controller
             Log::error("Error fetching files for task $taskId: " . $th->getMessage());
             return response()->json([
                 'error'   => 'Failed to fetch files',
+                'message' => $th->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function deleteFiles(Request $request)
+    {
+        $request->validate([
+            'file_names' => 'required|array',
+            'file_names.*' => 'required|uuid|max:255',
+        ]);
+
+        $fileDels = $request->input('file_names');
+
+        $delS3Success = app(S3SUploadController::class)->deleteFileFromS3($fileDels);
+
+        try {
+            // Xóa file trong database
+            $deleted = FileEntry::whereIn('file_name', $fileDels)->delete();
+    
+            if ($deleted > 0) {
+                return response()->json(['message' => 'Files deleted successfully.'], 200);
+            }
+    
+            return response()->json(['messages' => 'Files not found.'], 200);
+        } catch (\Throwable $th) {
+            Log::error('Error deleting files: ' . $th->getMessage());
+            return response()->json([
+                'error'   => 'Failed to delete files',
                 'message' => $th->getMessage(),
             ], 500);
         }
