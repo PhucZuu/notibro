@@ -123,6 +123,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // File entries
     Route::post('/file-entry/store/file', [FileEntryController::class, 'saveFile']);
     Route::get('/file-entry/{taskId}/files', [FileEntryController::class, 'getListFile']);
+    Route::delete('/file-entry/delete', [FileEntryController::class, 'deleteFiles']);
     
     Route::middleware(['admin'])->prefix('admin')->group(function () {
         //User
