@@ -14,17 +14,14 @@ class UserController extends Controller
     public function getAllUser(Request $request)
     {
         $searchEmail = $request->query('email');
+        $perPage = $request->query('per_page', 10);
     
         $users = $this->fetchUsersQuery(false, $searchEmail)
-            ->paginate(10)
-            ->map([$this, 'mapUserData']);
+            ->paginate($perPage);
     
-        if ($users->isEmpty()) {
-            return response()->json([
-                'code'    => 404,
-                "message" => 'Users not found',
-            ], 404);
-        }
+        $users->setCollection(
+            $users->getCollection()->map([$this, 'mapUserData'])
+        );
     
         return response()->json([
             'code'    => 200,
@@ -33,27 +30,26 @@ class UserController extends Controller
         ], 200);
     }
     
+    
     public function getBanUsers(Request $request)
     {
         $searchEmail = $request->query('email');
+        $perPage = $request->query('per_page', 10);
     
         $users = $this->fetchUsersQuery(true, $searchEmail)
-            ->paginate(10)
-            ->map([$this, 'mapUserData']);
+            ->paginate($perPage);
     
-        if ($users->isEmpty()) {
-            return response()->json([
-                'code'    => 404,
-                "message" => 'No deleted users found',
-            ], 404);
-        }
+        $users->setCollection(
+            $users->getCollection()->map([$this, 'mapUserData'])
+        );
     
         return response()->json([
             'code'    => 200,
             'message' => "Retrieve deleted user list successfully",
             'data'    => $users,
         ], 200);
-    }    
+    }
+    
 
     public function fetchUsersQuery($onlySoftDeleted = false, $searchEmail = null)
     {
