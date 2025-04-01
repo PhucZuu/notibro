@@ -45,35 +45,28 @@ class S3SUploadController extends Controller
         }
 
         $presignedUrls = [];
-        $bucket = env('MINIO_BUCKET');
-        $expiry = env('PRESIGNED_URL_EXPIRY', 3600); // Mặc định 1 giờ
 
         foreach ($files as $file) {
-            $uuid = Str::uuid()->toString();
-            $extension = $file->getClientOriginalExtension();
-            $size = $file->getSize();
-            $client_name = $file->getClientOriginalName();
-            $mime = $file->getMimeType();
-            $path = "uploads/{$uuid}/{$uuid}";
-
+            $infoUrl = $this->getInfoUrl($file);
             try {
                 $command = $this->s3Client->getCommand('PutObject', [
-                    'Bucket' => $bucket,
-                    'Key'    => $path,
-                    'ContentType' => $mime
+                    'Bucket' => $infoUrl['bucket'],
+                    'Key'    => $infoUrl['path'],
+                    'ContentType' => $infoUrl['mime'],
+                    'ACL' => 'public-read',
                 ]);
 
-                $presignedRequest = $this->s3Client->createPresignedRequest($command, "+" . $expiry . " seconds");
+                $presignedRequest = $this->s3Client->createPresignedRequest($command, "+" . $infoUrl['expiry'] . " seconds");
 
                 $presignedUrls[] = [
                     'url'  => (string) $presignedRequest->getUri(),
-                    'path' => $path,
+                    'path' => $infoUrl['path'],
                     'metadata' => [
-                        'file_name'   => "{$uuid}.{$extension}",
-                        'client_name' => $client_name,
-                        'extension'   => $extension,
-                        'size'        => $size,
-                        'mime'        => $mime,
+                        'file_name'   => $infoUrl['uuid'],
+                        'client_name' => $infoUrl['client_name'],
+                        'extension'   => $infoUrl['extension'],
+                        'size'        => $infoUrl['size'],
+                        'mime'        => $infoUrl['mime'],
                     ],
                 ];
             } catch (AwsException $e) {
@@ -88,5 +81,50 @@ class S3SUploadController extends Controller
         return response()->json([
             'presigned_urls' => $presignedUrls,
         ], 200);
+    }
+    protected function getInfoUrl($file)
+    {   
+        $bucket = env('MINIO_BUCKET');
+        $expiry = env('PRESIGNED_URL_EXPIRY', 3600); // Mặc định 1 giờ
+        $uuid = Str::uuid()->toString();
+        $extension = $file->getClientOriginalExtension();
+        $size = $file->getSize();
+        $client_name = $file->getClientOriginalName();
+        $mime = $file->getMimeType();
+        $path = "uploads/{$uuid}/{$uuid}";
+
+        return [
+            'uuid' => $uuid,
+            'extension' => $extension,
+            'size' => $size,
+            'client_name' => $client_name,
+            'mime' => $mime,
+            'path' => $path,
+            'bucket' => $bucket,
+            'expiry' => $expiry,
+        ];
+    }
+
+    public function deleteFileFromS3( array $fileNames)
+    {
+        $bucket = env('MINIO_BUCKET');
+        try {
+            foreach ($fileNames as $file) {
+                $filePath = "uploads/{$file}";
+    
+                // Xóa file trên MinIO
+                $this->s3Client->deleteObject([
+                    'Bucket' => $bucket,
+                    'Key'    => $filePath,
+                ]);
+    
+                Log::info("Deleted file: " . $filePath);
+            }
+
+            return true;
+        } catch (AwsException $e) {
+            Log::error("Failed to delete files from MinIO: " . $e->getMessage());
+            return false;
+        }
     }
 }
