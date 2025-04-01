@@ -15,27 +15,28 @@ class AdminStatController extends Controller
     public function totalUsers(Request $request)
     {
         try {
-            $query = User::query();
-    
             $start = $request->filled('start_date') ? Carbon::parse($request->start_date)->startOfDay() : Carbon::now()->startOfWeek();
             $end = $request->filled('end_date') ? Carbon::parse($request->end_date)->endOfDay() : Carbon::now()->endOfWeek();
-    
-            $query->whereBetween('created_at', [$start, $end]);
-    
-            $count = $query->count();
-    
+
+            // Lấy số lượng user đăng ký theo từng ngày
+            $dailyStats = User::whereBetween('created_at', [$start, $end])
+                ->selectRaw('DATE(created_at) as date, COUNT(*) as count')
+                ->groupBy('date')
+                ->orderBy('date')
+                ->get();
+
             return response()->json([
                 'code' => 200,
-                'message' => 'Total users retrieved successfully',
+                'message' => 'Statistics retrieved successfully',
                 'data' => [
-                    'total_users' => $count
+                    'stats' => $dailyStats
                 ]
             ]);
         } catch (\Exception $e) {
             Log::error($e);
             return response()->json([
                 'code' => 500,
-                'message' => 'An error occurred while retrieving user count'
+                'message' => 'An error occurred'
             ], 500);
         }
     }
@@ -45,35 +46,36 @@ class AdminStatController extends Controller
     public function totalTasks(Request $request)
     {
         try {
-            $query = Task::whereHas('user', function ($q) {
-                $q->whereNull('deleted_at');
-            });
-    
             $start = $request->filled('start_date') ? Carbon::parse($request->start_date)->startOfDay() : Carbon::now()->startOfWeek();
             $end = $request->filled('end_date') ? Carbon::parse($request->end_date)->endOfDay() : Carbon::now()->endOfWeek();
     
-            $query->whereBetween('start_time', [$start, $end]);
-    
-            $count = $query->count();
+            // Lấy số lượng task theo từng ngày, chỉ tính task của user chưa bị xóa (deleted_at is null)
+            $dailyStats = Task::whereHas('user', function ($q) {
+                    $q->whereNull('deleted_at');
+                })
+                ->whereBetween('start_time', [$start, $end])
+                ->selectRaw('DATE(start_time) as date, COUNT(*) as count')
+                ->groupBy('date')
+                ->orderBy('date')
+                ->get();
     
             return response()->json([
                 'code' => 200,
-                'message' => 'Total tasks retrieved successfully',
+                'message' => 'Statistics retrieved successfully',
                 'data' => [
-                    'total_tasks' => $count
+                    'stats' => $dailyStats
                 ]
             ]);
         } catch (\Exception $e) {
             Log::error($e);
             return response()->json([
                 'code' => 500,
-                'message' => 'An error occurred while retrieving task count'
+                'message' => 'An error occurred while retrieving task statistics'
             ], 500);
         }
-    }
-    
+    }    
 
-    // 3. Top người tạo task 
+    // 3. Top 10 người tạo task nhiều nhất 
     public function topTaskCreators(Request $request)
     {
         try {
