@@ -86,7 +86,9 @@ class FileEntryController extends Controller
                 return response()->json(['data' => '[]'], 200);
             }
 
-            return response()->json(['files' => $files], 200);
+            $fileUrls = app(S3SUploadController::class)->getUrlPreviewFile($files);
+
+            return response()->json(['files' => $fileUrls], 200);
         } catch (\Throwable $th) {
             Log::error("Error fetching files for task $taskId: " . $th->getMessage());
             return response()->json([

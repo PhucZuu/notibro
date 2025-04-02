@@ -9,7 +9,7 @@ use Aws\S3\S3Client;
 use Aws\Exception\AwsException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
-
+use PhpParser\Node\Expr\FuncCall;
 
 class S3SUploadController extends Controller
 {
@@ -83,7 +83,7 @@ class S3SUploadController extends Controller
         ], 200);
     }
     protected function getInfoUrl($file)
-    {   
+    {
         $bucket = env('MINIO_BUCKET');
         $expiry = env('PRESIGNED_URL_EXPIRY', 3600); // Mặc định 1 giờ
         $uuid = Str::uuid()->toString();
@@ -105,19 +105,19 @@ class S3SUploadController extends Controller
         ];
     }
 
-    public function deleteFileFromS3( array $fileNames)
+    public function deleteFileFromS3(array $fileNames)
     {
         $bucket = env('MINIO_BUCKET');
         try {
             foreach ($fileNames as $file) {
                 $filePath = "uploads/{$file}";
-    
+
                 // Xóa file trên MinIO
                 $this->s3Client->deleteObject([
                     'Bucket' => $bucket,
                     'Key'    => $filePath,
                 ]);
-    
+
                 Log::info("Deleted file: " . $filePath);
             }
 
@@ -125,6 +125,85 @@ class S3SUploadController extends Controller
         } catch (AwsException $e) {
             Log::error("Failed to delete files from MinIO: " . $e->getMessage());
             return false;
+        }
+    }
+
+    public function getUrlPreviewFile($files)
+    {
+        $bucket = env('MINIO_BUCKET');
+        $expiry = "+28800 seconds"; // 8 giờ
+        $urls = [];
+
+        try {
+            foreach ($files as $file) {
+                $command = $this->s3Client->getCommand('GetObject', [
+                    'Bucket' => $bucket,
+                    'Key'    => "uploads/{$file->file_name}/{$file->file_name}",
+                ]);
+
+                $presignedRequest = $this->s3Client->createPresignedRequest($command, $expiry);
+
+                $urls[] = [
+                    'id'         => $file->id,
+                    'file_name'  => $file->file_name,
+                    'client_name' => $file->client_name,
+                    'extension'  => $file->extension,
+                    'size'       => $file->size,
+                    'owner_id'   => $file->owner_id,
+                    'created_at' => $file->created_at,
+                    'url'        => (string) $presignedRequest->getUri(),
+                ];
+            }
+
+            return $urls;
+        } catch (AwsException $e) {
+            Log::error("Failed to generate presigned URLs: " . $e->getMessage());
+            return response()->json([
+                'error' => 'Failed to generate presigned URLs',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function getUrlDownloadFile(Request $request)
+    {
+        $request->validate([
+            'file_name' => 'required|uuid|max:255',
+        ]);
+
+        $fileName = $request->input('file_name');
+        $bucket = env('MINIO_BUCKET');
+        $expiry = "+3600 seconds";
+
+        try {
+
+            $this->s3Client->headObject([
+                'Bucket' => $bucket,
+                'Key'    => "uploads/{$fileName}/{$fileName}",
+            ]);
+
+            $command = $this->s3Client->getCommand('GetObject', [
+                'Bucket' => $bucket,
+                'Key'    => "uploads/{$fileName}/{$fileName}",
+            ]);
+
+            $presignedRequest = $this->s3Client->createPresignedRequest($command, $expiry);
+
+            return response()->json([
+                'urlDowload' => (string) $presignedRequest->getUri(),
+            ], 200);
+        } catch (AwsException $e) {
+            if ($e->getStatusCode() === 404) {
+                return response()->json([
+                    'error' => 'File not found',
+                ], 404);
+            }
+
+            Log::error("Failed to generate presigned URL for download: " . $e->getMessage());
+            return response()->json([
+                'error' => 'Failed to generate presigned URL for download',
+                'message' => $e->getMessage(),
+            ], 500);
         }
     }
 }
