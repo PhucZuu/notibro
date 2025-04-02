@@ -120,6 +120,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // S3 upload
     Route::post('/s3/upload', [S3SUploadController::class, 'createPresignedUrl']);
+    Route::get('/s3/dowload', [S3SUploadController::class, 'getUrlDownloadFile']);
 
     // File entries
     Route::post('/file-entry/store/file', [FileEntryController::class, 'saveFile']);
