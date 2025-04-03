@@ -85,7 +85,7 @@ class TaskReminderService
 
         // Gửi email
         try {
-            Mail::to($user->email)->send(new TaskReminderMail($user, $task, $reminderTime));
+            Mail::to($user->email)->queue(new TaskReminderMail($user, $task, $reminderTime));
             Log::info("Đã gửi email nhắc nhở task {$task->id} đến user {$user->id}");
             Cache::put($cacheKey, true, now()->addHours(24));
         } catch (\Exception $e) {
