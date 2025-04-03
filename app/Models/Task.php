@@ -49,6 +49,7 @@ class Task extends Model
         'parent_id',
         'link',
         'is_private',
+        'default_permission',
         // 'is_trash',
     ];
 
@@ -185,6 +186,7 @@ class Task extends Model
 
         // Định nghĩa mô tả rõ ràng hơn cho từng cột
         $descriptions = [
+            // 'uuid'          => 'uuidv4',
             'tag_id'        => 'nullable|integer',
             'color_code'    => 'required|string|max:10|in:#ff4d4f,#52c41a,#1890ff,#faad14,#722ed1,#bfbfbf,#fa541c,#eb2f96,#a97c50,#13c2c2,#237804,#003a8c',
             'timezone_code' => 'required|string|max:50',
@@ -195,9 +197,9 @@ class Task extends Model
             'is_reminder'   => 'required|boolean|in:0,1',
             'reminder'      => 'nullable|array',
             'is_done'       => 'required|boolean|in:0,1',
-            'attendees'     => 'nullable|array',
+            // 'attendees'     => 'nullable|array',
             'location'      => 'nullable|string|max:255',
-            'type'          => 'required|in:meeting,event,task',
+            'type'          => 'required|in:event,task,appointment',
             'is_all_day'    => 'nullable|boolean|in:0,1',
             'is_repeat'     => 'nullable|boolean|in:0,1',
             'is_busy'       => 'required|boolean|in:0,1',
