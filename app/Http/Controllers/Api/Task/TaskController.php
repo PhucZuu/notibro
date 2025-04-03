@@ -93,6 +93,10 @@ class TaskController extends Controller
             $data['until'] = Carbon::createFromFormat('Y-m-d H:i:s', $data['until'], $data['timezone_code'])->setTimezone('UTC');
         }
 
+        if (!empty($data['updated_date']) && !empty($data['timezone_code'])) {
+            $data['updated_date'] = Carbon::createFromFormat('Y-m-d H:i:s', $data['updated_date'], $data['timezone_code'])->setTimezone('UTC');
+        }
+
         if (!empty($data['exclude_time']) && !empty($data['timezone_code'])) {
             $startHour = $data['start_time']->hour;
             $startMinute = $data['start_time']->minute;
@@ -262,6 +266,7 @@ class TaskController extends Controller
             'exclude_time'      => 'nullable', //JSON
             'link'              => 'nullable',
             'is_private'        => 'nullable',
+            'default_permission' => 'nullable',
         ]);
 
         // $data['user_id'] = Auth::id();
@@ -346,6 +351,8 @@ class TaskController extends Controller
                             'reminder'      => $data['reminder'],
                             'link'          => $data['link'],
                             'is_private'    => $data['is_private'],
+                            'is_done'       => $data['is_done'],
+                            'default_permission' => $data['default_permission'] ?? 'viewer',
                         ]);
 
                         //Send REALTIME
@@ -415,6 +422,8 @@ class TaskController extends Controller
 
                         $allExcludeTimes = $task->exclude_time ?? [];
 
+                        $allAttendees = $task->attendees ?? [];
+
                         $maxUntil = $new_task->until;
 
                         foreach ($relatedTasks as $relatedTask) {
@@ -422,9 +431,15 @@ class TaskController extends Controller
                             $updatedEndTime = Carbon::parse($relatedTask->end_time)->setTime($data['end_time']->hour, $data['end_time']->minute, $data['end_time']->second);
 
                             if ($relatedTask->is_repeat) {
-
                                 $relatedExcludeTimes = $relatedTask->exclude_time ?? [];
                                 $allExcludeTimes = array_merge($allExcludeTimes, $relatedExcludeTimes);
+
+                                //Add all attendees to new task
+                                $allAttendees = array_merge($allAttendees, $relatedTask->attendees ?? []);
+                                $allAttendees = array_values(array_reduce($allAttendees, function ($carry, $attendee) {
+                                    $carry[$attendee['user_id']] = $attendee; // Ghi đè để giữ bản ghi cuối cùng
+                                    return $carry;
+                                }, []));
 
                                 if ($relatedTask->until && (!$maxUntil || Carbon::parse($relatedTask->until)->greaterThan(Carbon::parse($maxUntil)))) {
                                     $maxUntil = $relatedTask->until;
@@ -450,6 +465,8 @@ class TaskController extends Controller
                                     'reminder'      => $data['reminder'],
                                     'link'          => $data['link'],
                                     'is_private'    => $data['is_private'],
+                                    'is_done'       => $data['is_done'],
+                                    'default_permission' => $data['default_permission'] ?? 'viewer',
                                 ]);
                             }
 
@@ -535,6 +552,8 @@ class TaskController extends Controller
                                         'bymonth'       => $data['bymonth'],
                                         'link'          => $data['link'],
                                         'is_private'    => $data['is_private'],
+                                        'is_done'       => $data['is_done'],
+                                        'default_permission' => $data['default_permission'] ?? 'viewer',
                                         'start_time'    => $updatedStartTime,
                                         'end_time'      => $updatedEndTime,
                                     ]);
@@ -556,6 +575,8 @@ class TaskController extends Controller
                                         'reminder'      => $data['reminder'],
                                         'link'          => $data['link'],
                                         'is_private'    => $data['is_private'],
+                                        'is_done'       => $data['is_done'],
+                                        'default_permission' => $data['default_permission'] ?? 'viewer',
                                         'start_time'    => $updatedStartTime,
                                         'end_time'      => $updatedEndTime,
                                     ]);
@@ -610,6 +631,10 @@ class TaskController extends Controller
                                         'is_reminder'   => $data['is_reminder'],
                                         'reminder'      => $data['reminder'],
                                         'is_repeat'     => $data['is_repeat'],
+                                        'is_private'    => $data['is_private'],
+                                        'is_done'       => $data['is_done'],
+                                        'link'          => $data['link'],
+                                        'default_permission' => $data['default_permission'] ?? 'viewer',
                                         'freq'          => $data['freq'],
                                         'interval'      => $data['interval'],
                                         'until'         => !empty($data['until']) ? $data['until'] : $relatedTask->until,
@@ -636,6 +661,10 @@ class TaskController extends Controller
                                         'is_busy'       => $data['is_busy'],
                                         'is_reminder'   => $data['is_reminder'],
                                         'reminder'      => $data['reminder'],
+                                        'is_private'    => $data['is_private'],
+                                        'is_done'       => $data['is_done'],
+                                        'link'          => $data['link'],
+                                        'default_permission' => $data['default_permission'] ?? 'viewer',
                                         'start_time'    => $updatedStartTime,
                                         'end_time'      => $updatedEndTime,
                                     ]);
@@ -777,7 +806,11 @@ class TaskController extends Controller
                             'is_all_day'    => $data['is_all_day'] ?? $task->is_all_day,
                             'is_busy'       => $task->is_busy,
                             'is_reminder'   => $task->is_reminder,
+                            'is_private'    => $task->is_private,
+                            'is_done'       => $task->is_done,
+                            'link'          => $task->link,
                             'reminder'      => $task->reminder,
+                            'default_permission' => $task->default_permission ?? 'viewer',
                         ]);
 
                         //Send REALTIME
@@ -861,6 +894,8 @@ class TaskController extends Controller
 
                         $allExcludeTimes = $new_task->exclude_time ?? [];
 
+                        $allAttendees = $new_task->attendees ?? [];
+
                         $maxUntil = $new_task->until;
 
                         foreach ($relatedTasks as $relatedTask) {
@@ -871,6 +906,13 @@ class TaskController extends Controller
 
                                 $relatedExcludeTimes = $relatedTask->exclude_time ?? [];
                                 $allExcludeTimes = array_merge($allExcludeTimes, $relatedExcludeTimes);
+
+                                //Add all attendees to new task
+                                $allAttendees = array_merge($allAttendees, $relatedTask->attendees ?? []);
+                                $allAttendees = array_values(array_reduce($allAttendees, function ($carry, $attendee) {
+                                    $carry[$attendee['user_id']] = $attendee; // Ghi đè để giữ bản ghi cuối cùng
+                                    return $carry;
+                                }, []));
 
                                 if ($relatedTask->until && (!$maxUntil || Carbon::parse($relatedTask->until)->greaterThan(Carbon::parse($maxUntil)))) {
                                     $maxUntil = $relatedTask->until;
@@ -954,6 +996,10 @@ class TaskController extends Controller
                                         'is_reminder'   => $parentTask->is_reminder,
                                         'reminder'      => $parentTask->reminder,
                                         'is_repeat'     => $parentTask->is_repeat,
+                                        'is_private'    => $parentTask->is_private,
+                                        'is_done'       => $parentTask->is_done,
+                                        'link'          => $parentTask->link,
+                                        'default_permission' => $parentTask->default_permission ?? 'viewer',
                                         'freq'          => $parentTask->freq,
                                         'interval'      => $parentTask->interval,
                                         'until'         => $parentTask->until,
@@ -979,7 +1025,11 @@ class TaskController extends Controller
                                         'is_all_day'    => $parentTask->is_all_day,
                                         'is_busy'       => $parentTask->is_busy,
                                         'is_reminder'   => $parentTask->is_reminder,
+                                        'is_done'       => $parentTask->is_done,
+                                        'link'          => $parentTask->link,
                                         'reminder'      => $parentTask->reminder,
+                                        'is_repeat'     => $parentTask->is_repeat,
+                                        'default_permission' => $parentTask->default_permission ?? 'viewer',
                                         'start_time'    => $updatedStartTime,
                                         'end_time'      => $updatedEndTime,
                                     ]);
@@ -1029,6 +1079,10 @@ class TaskController extends Controller
                                         'is_reminder'   => $task->is_reminder,
                                         'reminder'      => $task->reminder,
                                         'is_repeat'     => $task->is_repeat,
+                                        'is_private'    => $task->is_private,
+                                        'is_done'       => $task->is_done,
+                                        'link'          => $task->link,
+                                        'default_permission' => $task->default_permission ?? 'viewer',
                                         'freq'          => $task->freq,
                                         'interval'      => $task->interval,
                                         'until'         => $task->until,
@@ -1055,6 +1109,11 @@ class TaskController extends Controller
                                         'is_busy'       => $task->is_busy,
                                         'is_reminder'   => $task->is_reminder,
                                         'reminder'      => $task->reminder,
+                                        'is_repeat'     => $task->is_repeat,
+                                        'is_private'    => $task->is_private,
+                                        'is_done'       => $task->is_done,
+                                        'link'          => $task->link,
+                                        'default_permission' => $task->default_permission ?? 'viewer',
                                         'start_time'    => $updatedStartTime,
                                         'end_time'      => $updatedEndTime,
                                     ]);
@@ -1120,9 +1179,13 @@ class TaskController extends Controller
             'updated_date'      => 'nullable',
             'atteendee_id'      => 'required|integer',
             'timezone_code'     => 'required',
+            'start_time'        => 'required|date_format:Y-m-d H:i:s',
+            'end_time'          => 'nullable|date_format:Y-m-d H:i:s',
         ]);
 
-        // $data = $this->handleLogicData($data);
+        Log::info($data);
+
+        $data = $this->handleLogicData($data);
 
         $task = Task::find($id);
 
@@ -1136,12 +1199,12 @@ class TaskController extends Controller
         }
 
         // Lấy danh sách attendees hiện tại từ JSON  
-        $atteendees = json_decode($task->atteendees, true) ?? [];
+        $attendees = $task->attendees ?? [];
 
         // Loại bỏ attendee theo id  
-        $atteendees = array_filter($atteendees, function ($attendee) use ($data) {
-            return $attendee['user_id'] !== $data['atteendee_id'];
-        });
+        $attendees = array_values(array_filter($attendees, function ($attendee) use ($data) {
+            return isset($attendee['user_id']) && $attendee['user_id'] != $data['atteendee_id'];
+        }));
 
         // Dữ liệu dùng gửi thông báo
         $user = auth()->user();
@@ -1151,12 +1214,16 @@ class TaskController extends Controller
             //Update when event dont have reapet
             case 'EDIT_N':
                 try {
-                    $task->update(['atteendees' => json_encode($atteendees)]);
+                    Log::info($attendees);
+
+                    $task->update(['attendees' => $attendees]);
 
                     //Send REALTIME
                     $returnTask[] = $task;
 
                     $this->sendRealTimeUpdate($returnTask, 'update');
+
+                    Log::info($task->attendees);
 
                     $owner->notify(new NotificationEvent(
                         $task->user_id,
@@ -1181,25 +1248,27 @@ class TaskController extends Controller
 
             case 'EDIT_1':
                 try {
-                    // $data['parent_id'] = $task->parent_id ?? $task->id;
-
                     $new_task = Task::create([
                         'parent_id'     => $task->parent_id ?? $task->id,
-                        'start_time'    => $task->start_time,
-                        'end_time'      => $task->end_time,
+                        'start_time'    => $data['start_time'],
+                        'end_time'      => $data['end_time'],
                         'title'         => $task->title,
                         'description'   => $task->description,
                         'user_id'       => $task->user_id,
                         'timezone_code' => $task->timezone_code,
                         'color_code'    => $task->color_code,
                         'tag_id'        => $task->tag_id,
-                        'attendees'     => json_encode($atteendees),
+                        'attendees'     => $attendees,
                         'location'      => $task->location,
                         'type'          => $task->type,
                         'is_all_day'    => $task->is_all_day,
                         'is_busy'       => $task->is_busy,
                         'is_reminder'   => $task->is_reminder,
                         'reminder'      => $task->reminder,
+                        'is_done'       => $task->is_done,
+                        'link'          => $task->link,
+                        'is_private'    => $task->is_private,
+                        'default_permission' => $task->default_permission ?? 'viewer',
                     ]);
 
                     //Send REALTIME
@@ -1210,10 +1279,15 @@ class TaskController extends Controller
                     $exclude_time = $task->exclude_time ?? [];
 
                     if (!is_array($exclude_time)) {
-                        $exclude_time = json_decode($exclude_time, true) ?? [];
+                        $exclude_time = $exclude_time ?? [];
                     }
 
-                    $exclude_time[] = Carbon::createFromFormat('Y-m-d H:i:s', $data['updated_date'], $data['timezone_code'])->setTimezone('UTC');
+                    Log::info($data['updated_date']);
+
+                    $exclude_time[] = $data['updated_date'];
+                    $exclude_time = array_unique($exclude_time);
+
+                    Log::info($exclude_time);
 
                     $task->exclude_time = $exclude_time;
                     $task->save();
@@ -1249,13 +1323,12 @@ class TaskController extends Controller
                     $preNewTask = $task->replicate();
 
                     unset($preNewTask->uuid);
-                    $preNewTask->atteedees = json_encode($atteendees);
+                    $preNewTask->atteedees = $attendees;
 
                     //Add new task for following change
                     $new_task = Task::create($preNewTask->toArray());
-                    Log::info($new_task);
 
-                    $task->until = Carbon::parse($data['updated_date'])->setTime(0, 0, 0)->subDay();
+                    $task->until = Carbon::parse($data['updated_date'])->setTime(0, 0, 0);
 
                     $task->save();
 
@@ -1280,19 +1353,37 @@ class TaskController extends Controller
 
                     $maxUntil = $new_task->until;
 
+                    $nearestTask = null;
+                    $nearestStartTimeDiff = null;
+
                     foreach ($relatedTasks as $relatedTask) {
                         if ($relatedTask->is_repeat) {
+                            Log::info('relatedTask->start_time' . $relatedTask->start_time);
+
                             $relatedExcludeTimes = $relatedTask->exclude_time ?? [];
                             $allExcludeTimes = array_merge($allExcludeTimes, $relatedExcludeTimes);
 
-                            if ($relatedTask->until && (!$maxUntil || Carbon::parse($relatedTask->until)->greaterThan(Carbon::parse($maxUntil)))) {
-                                $maxUntil = $relatedTask->until;
+                            $diff = abs(Carbon::parse($relatedTask->start_time)->diffInMinutes(Carbon::parse($new_task->start_time)));
+                            log::info('diff' . $diff);
+
+                            if (is_null($nearestStartTimeDiff) || $diff < $nearestStartTimeDiff) {
+                                $nearestStartTimeDiff = $diff;
+                                $nearestTask = $relatedTask;
                             }
 
-                            $relatedTask->forceDelete();
+                            if ($relatedTask->until && (!$maxUntil || Carbon::parse($relatedTask->until)->greaterThan(Carbon::parse($maxUntil)))) {
+                                $maxUntil = $relatedTask->until;
+                                Log::info('maxUntil' . $maxUntil);
+                            }
+
+                            $relatedTask->update([
+                                'attendees' => $attendees,
+                            ]);
+
+                            $returnTaskUpdate[] = $relatedTask;
                         } else {
                             $relatedTask->update([
-                                'atteendees' => json_encode($atteendees),
+                                'attendees' => $attendees,
                             ]);
 
                             $returnTaskUpdate[] = $relatedTask;
@@ -1303,13 +1394,19 @@ class TaskController extends Controller
                         $this->sendRealTimeUpdate($returnTaskUpdate, 'update');
                     }
 
-
                     $allExcludeTimes = array_unique($allExcludeTimes);
                     $new_task->exclude_time = array_values($allExcludeTimes);
 
-                    $new_task->until = $maxUntil;
+                    if ($nearestTask) {
+                        $new_task->until = Carbon::parse($nearestTask->start_time)->subDay();
+                    } else {
+                        $new_task->until = $maxUntil;
+                    }
 
                     $new_task->parent_id = $task->parent_id ?? $task->id;
+                    $new_task->start_time = $data['start_time'];
+                    $new_task->end_time = $data['end_time'];
+                    $new_task->attendees = $attendees;
                     $new_task->save();
 
                     //Send REALTIME
@@ -1341,7 +1438,6 @@ class TaskController extends Controller
             case 'EDIT_A':
                 try {
                     $parentTask = Task::find($task->parent_id);
-                    $duration = Carbon::parse($data['start_time'])->diff(Carbon::parse(time: $data['end_time']));
 
                     if ($parentTask) {
                         $relatedTasks = Task::where('parent_id', $parentTask->id)
@@ -1349,20 +1445,34 @@ class TaskController extends Controller
                             ->get();
 
                         foreach ($relatedTasks as $relatedTask) {
+                            $relatedAttendees = $relatedTask->attendees ?? [];
+
+                            // Loại bỏ attendee theo id  
+                            $relatedAttendees = array_values(array_filter($relatedAttendees, function ($attendee) use ($data) {
+                                return isset($attendee['user_id']) && $attendee['user_id'] != $data['atteendee_id'];
+                            }));
+
                             if ($relatedTask->is_repeat) {
                                 $relatedTask->update([
-                                    'attendees'     => json_encode($atteendees),
+                                    'attendees'     => $relatedAttendees
                                 ]);
                             } else {
                                 $relatedTask->update([
-                                    'attendees'     => json_encode($atteendees),
+                                    'attendees'     => $relatedAttendees
                                 ]);
                             }
 
                             $returnTask[] = $relatedTask;
                         }
 
-                        $parentTask->update(['attendees'     => json_encode($atteendees),]);
+                        $parentAttendees = $parentTask->attendees ?? [];
+
+                        // Loại bỏ attendee theo id  
+                        $parentAttendees = array_values(array_filter($relatedAttendees, function ($attendee) use ($data) {
+                            return isset($attendee['user_id']) && $attendee['user_id'] != $data['atteendee_id'];
+                        }));
+
+                        $parentTask->update(['attendees'     => $parentAttendees]);
                         $returnTask[] = $parentTask;
 
                         $returnTask[] = $task;
@@ -1372,16 +1482,20 @@ class TaskController extends Controller
                             ->get();
 
                         foreach ($relatedTasks as $relatedTask) {
-                            $updatedStartTime = Carbon::parse($relatedTask->start_time)->setTime($data['start_time']->hour, $data['start_time']->minute, $data['start_time']->second);
-                            $updatedEndTime = Carbon::parse($updatedStartTime)->copy()->add($duration);
+                            $relatedAttendees = $relatedTask->attendees ?? [];
+
+                            // Loại bỏ attendee theo id  
+                            $relatedAttendees = array_values(array_filter($relatedAttendees, function ($attendee) use ($data) {
+                                return isset($attendee['user_id']) && $attendee['user_id'] != $data['atteendee_id'];
+                            }));
 
                             if ($relatedTask->is_repeat) {
                                 $relatedTask->update([
-                                    'attendees'     => json_encode($atteendees),
+                                    'attendees'     => $relatedAttendees
                                 ]);
                             } else {
                                 $relatedTask->update([
-                                    'attendees'     => json_encode($atteendees),
+                                    'attendees'     => $relatedAttendees
                                 ]);
                             }
 
@@ -1389,7 +1503,7 @@ class TaskController extends Controller
                         }
 
                         //Update current Task
-                        $task->update(['attendees'     => json_encode($atteendees),]);
+                        $task->update(['attendees'     => $attendees]);
 
                         $returnTask[] = $task;
                     }
@@ -1660,7 +1774,7 @@ class TaskController extends Controller
                 ));
             }
 
-            if (!empty($data['tag_id'])) {
+            if (!empty($data['tag_id']) && $task->type == 'event') {
                 // $tag = Tag::where('id', $data['tag_id'])->first();
                 $users = User::whereIn('id', collect($tag->shared_user)->pluck('user_id'))->get();
 
