@@ -367,7 +367,8 @@ class TaskController extends Controller
                             $exclude_time = json_decode($exclude_time, true) ?? [];
                         }
 
-                        $exclude_time[] = Carbon::createFromFormat('Y-m-d H:i:s', $data['updated_date'], $data['timezone_code'])->setTimezone('UTC');
+                        // $exclude_time[] = Carbon::createFromFormat('Y-m-d H:i:s', $data['updated_date'], $data['timezone_code'])->setTimezone('UTC')->setTime($data['start_time']->hour, $data['start_time']->minute, $data['start_time']->second);
+                        $exclude_time[] = $data['updated_date'];
 
                         $task->exclude_time = $exclude_time;
                         $task->save();
@@ -399,7 +400,8 @@ class TaskController extends Controller
                         $new_task = Task::create($data);
                         Log::info("New task created with ID: " . $new_task->id);
 
-                        $task->until = Carbon::parse($data['updated_date'])->setTime(0, 0, 0)->subDay();
+                        // $task->until = Carbon::parse($data['updated_date'])->setTime(0, 0, 0)->subDay();
+                        $task->until = Carbon::parse($data['updated_date'])->subDay();
 
                         $task->save();
 
@@ -545,7 +547,7 @@ class TaskController extends Controller
                                         'is_repeat'     => $data['is_repeat'],
                                         'freq'          => $data['freq'],
                                         'interval'      => $data['interval'],
-                                        'until'         => !empty($data['until']) ? $data['until'] : $relatedTask->until,
+                                        // 'until'         => !empty($data['until']) ? $data['until'] : $relatedTask->until,
                                         'count'         => $data['count'],
                                         'byweekday'     => $data['byweekday'],
                                         'bymonthday'    => $data['bymonthday'],
@@ -556,6 +558,7 @@ class TaskController extends Controller
                                         'default_permission' => $data['default_permission'] ?? 'viewer',
                                         'start_time'    => $updatedStartTime,
                                         'end_time'      => $updatedEndTime,
+                                        'exclude_time' => $relatedTask->exclude_time,
                                     ]);
                                 } else {
                                     $relatedTask->update([
@@ -597,6 +600,7 @@ class TaskController extends Controller
                             $data['end_time'] = Carbon::parse($data['start_time'])->copy()->add($duration);
 
                             unset($data['parent_id'], $data['until']);
+                            $data['exclude_time'] = $parentTask->exclude_time;
                             $parentTask->update($data);
                             $returnTask[] = $parentTask;
                         } else {
@@ -637,7 +641,7 @@ class TaskController extends Controller
                                         'default_permission' => $data['default_permission'] ?? 'viewer',
                                         'freq'          => $data['freq'],
                                         'interval'      => $data['interval'],
-                                        'until'         => !empty($data['until']) ? $data['until'] : $relatedTask->until,
+                                        // 'until'         => !empty($data['until']) ? $data['until'] : $relatedTask->until,
                                         'count'         => $data['count'],
                                         'byweekday'     => $data['byweekday'],
                                         'bymonthday'    => $data['bymonthday'],
@@ -685,6 +689,7 @@ class TaskController extends Controller
                             $data['end_time'] = Carbon::parse($data['start_time'])->copy()->add($duration);
 
                             unset($data['parent_id'], $data['until']);
+                            $data['exclude_time'] = $task->exclude_time;
                             $task->update($data);
 
                             $returnTask[] = $task;
@@ -824,7 +829,8 @@ class TaskController extends Controller
                             $exclude_time = json_decode($exclude_time, true) ?? [];
                         }
 
-                        $exclude_time[] = Carbon::createFromFormat('Y-m-d H:i:s', $data['updated_date'], $data['timezone_code'])->setTimezone('UTC');
+                        // $exclude_time[] = Carbon::createFromFormat('Y-m-d H:i:s', $data['updated_date'], $data['timezone_code'])->setTimezone('UTC');
+                        $exclude_time[] = $data['updated_date'];
 
                         $task->exclude_time = $exclude_time;
                         $task->save();
@@ -867,7 +873,7 @@ class TaskController extends Controller
                         if ($data['start_time']->isSameDay($data['updated_date'])) {
                             $task->until = Carbon::parse($data['updated_date'])->setTime(0, 0, 0);
                         } else {
-                            $task->until = Carbon::parse($data['updated_date'])->setTime(0, 0, 0)->subDay();
+                            $task->until = Carbon::parse($data['updated_date'])->subDay();
                         }
 
                         $task->save();
@@ -1949,7 +1955,7 @@ class TaskController extends Controller
                         $preUntil = $task->until;
 
                         // Giảm đi 1 ngày để xóa đc task
-                        $task->until = Carbon::parse($request->date)->subDay()->startOfDay();
+                        $task->until = Carbon::parse($request->date)->subDay();
 
                         $task->save();
 
@@ -1985,55 +1991,57 @@ class TaskController extends Controller
                         $returnTaskDel = [];
 
                         foreach ($relatedTasks as $relatedTask) {
-                            if ($relatedTask->is_repeat) {
-                                $relatedTask->create([
-                                    'parent_id'     => $task->parent_id ?? $task->id,
-                                    'title'         => $task->title,
-                                    'description'   => $task->description,
-                                    'user_id'       => $task->user_id,
-                                    'timezone_code' => $task->timezone_code,
-                                    'color_code'    => $task->color_code,
-                                    'tag_id'        => $task->tag_id ?? null,
-                                    'attendees'     => $task->attendees,
-                                    'location'      => $task->location,
-                                    'type'          => $task->type,
-                                    'is_all_day'    => $task->is_all_day,
-                                    'is_busy'       => $task->is_busy,
-                                    'is_reminder'   => $task->is_reminder,
-                                    'reminder'      => $task->reminder,
-                                    'is_repeat'     => $task->is_repeat,
-                                    'freq'          => $task->freq,
-                                    'interval'      => $task->interval,
-                                    'until'         => $preUntil,
-                                    'count'         => $task->count,
-                                    'byweekday'     => $task->byweekday,
-                                    'bymonthday'    => $task->bymonthday,
-                                    'bymonth'       => $task->bymonth,
-                                    'link'          => $task->link,
-                                    'is_private'    => $task->is_private,
-                                ]);
-                            } else {
-                                $relatedTask->create([
-                                    'parent_id'     => $task->parent_id ?? $task->id,
-                                    'title'         => $task->title,
-                                    'description'   => $task->description,
-                                    'user_id'       => $task->user_id,
-                                    'timezone_code' => $task->timezone_code,
-                                    'color_code'    => $task->color_code,
-                                    'tag_id'        => $task->tag_id ?? null,
-                                    'attendees'     => $task->attendees,
-                                    'location'      => $task->location,
-                                    'type'          => $task->type,
-                                    'is_all_day'    => $task->is_all_day,
-                                    'is_busy'       => $task->is_busy,
-                                    'is_reminder'   => $task->is_reminder,
-                                    'reminder'      => $task->reminder,
-                                    'link'          => $task->link,
-                                    'is_private'    => $task->is_private,
-                                ]);
-                            }
+                            // if ($relatedTask->is_repeat) {
+                            //     $relatedTask->create([
+                            //         'parent_id'     => $task->parent_id ?? $task->id,
+                            //         'title'         => $task->title,
+                            //         'description'   => $task->description,
+                            //         'user_id'       => $task->user_id,
+                            //         'timezone_code' => $task->timezone_code,
+                            //         'color_code'    => $task->color_code,
+                            //         'tag_id'        => $task->tag_id ?? null,
+                            //         'attendees'     => $task->attendees,
+                            //         'location'      => $task->location,
+                            //         'type'          => $task->type,
+                            //         'is_all_day'    => $task->is_all_day,
+                            //         'is_busy'       => $task->is_busy,
+                            //         'is_reminder'   => $task->is_reminder,
+                            //         'reminder'      => $task->reminder,
+                            //         'is_repeat'     => $task->is_repeat,
+                            //         'freq'          => $task->freq,
+                            //         'interval'      => $task->interval,
+                            //         'until'         => $preUntil,
+                            //         'count'         => $task->count,
+                            //         'byweekday'     => $task->byweekday,
+                            //         'bymonthday'    => $task->bymonthday,
+                            //         'bymonth'       => $task->bymonth,
+                            //         'link'          => $task->link,
+                            //         'is_private'    => $task->is_private,
+                            //         'start_time'    => $relatedTask->start_time,
+                            //         'end_time'      => $relatedTask->end_time,
+                            //     ]);
+                            // } else {
+                            //     $relatedTask->create([
+                            //         'parent_id'     => $task->parent_id ?? $task->id,
+                            //         'title'         => $task->title,
+                            //         'description'   => $task->description,
+                            //         'user_id'       => $task->user_id,
+                            //         'timezone_code' => $task->timezone_code,
+                            //         'color_code'    => $task->color_code,
+                            //         'tag_id'        => $task->tag_id ?? null,
+                            //         'attendees'     => $task->attendees,
+                            //         'location'      => $task->location,
+                            //         'type'          => $task->type,
+                            //         'is_all_day'    => $task->is_all_day,
+                            //         'is_busy'       => $task->is_busy,
+                            //         'is_reminder'   => $task->is_reminder,
+                            //         'reminder'      => $task->reminder,
+                            //         'link'          => $task->link,
+                            //         'is_private'    => $task->is_private,
+                            //     ]);
+                            // }
 
-                            $relatedTask->delete();
+                            $relatedTask->forceDelete();
 
                             $returnTaskDel[] = $relatedTask;
                         }
