@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Mail\OtpMail;
 use App\Models\Role;
 use App\Models\Setting;
+use App\Models\Tag;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -76,6 +77,16 @@ class AuthController extends Controller
             $data['password'] = Hash::make($request->password);
 
             $user = User::create($data);
+
+            Tag::create([
+                'user_id' => $user->id,
+                'name'     => "$user->first_name $user->last_name",
+                'color_code'    => "#1890ff",
+                'description' => null,
+                'shared_user' => [],
+                'created_at' => Carbon::now(),
+                'updated_at' => Carbon::now(),
+            ]);
 
             Setting::create([
                 'user_id' => $user->id

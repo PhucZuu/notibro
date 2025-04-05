@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class UserController extends Controller
@@ -222,6 +223,10 @@ class UserController extends Controller
             ], 404);
         }
 
+        if ($user->avatar && !Str::startsWith($user->avatar, ['http://', 'https://'])) {
+            $user->avatar = Storage::url($user->avatar);
+        }
+
         return response()->json([
             'code'    => 200,
             'message' => 'Retrieve user successfully',
@@ -237,20 +242,28 @@ class UserController extends Controller
             'last_name'  => ['required', 'max:255'],
             'gender'     => ['required', Rule::in(['male', 'female'])],
             'address'    => ['nullable', 'max:255'],
-            'phone'      => ['nullable', 'regex:/^0[0-9]{9}$/'],
+            'phone'      => ['nullable', 'sometimes', 'regex:/^0[0-9]{9}$/'],
         ]);
 
         $user = User::find(auth()->id());
 
+        $flag = false;
+        $oldAvatar = $user->avatar;
+
         try {
             if ($request->hasFile('avatar')) {
+                $flag = true;
                 $info['avatar'] = Storage::put('images', $request->file('avatar'));
             }
 
             $user->update($info);
 
-            if ($request->hasFile('avatar') && $user->avatar && Storage::exists($user->avatar)) {
-                Storage::delete($user->avatar);
+            if ($flag && Storage::exists($oldAvatar)) {
+                Storage::delete($oldAvatar);
+            }
+
+            if ($user->avatar && !Str::startsWith($user->avatar, ['http://', 'https://'])) {
+                $user->avatar = Storage::url($user->avatar);
             }
 
             return response()->json([
