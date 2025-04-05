@@ -9,6 +9,7 @@ use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Str;
 
 class NewTaskGroupChatMessages implements ShouldBroadcast
 {
@@ -32,6 +33,13 @@ class NewTaskGroupChatMessages implements ShouldBroadcast
 
     public function broadcastWith()
     {
+        // Xử lý URL cho avatar
+        if ($this->message->user->avatar) {
+            if (!Str::startsWith($this->message->user->avatar, ['http://', 'https://'])) {
+                $this->message->user->avatar = asset('storage/' . $this->message->user->avatar);
+            }
+        }
+
         return [
             'id' => $this->message->id,
             'group_id' => $this->message->group_id,
@@ -42,7 +50,7 @@ class NewTaskGroupChatMessages implements ShouldBroadcast
             'user' => [
                 'first_name' => $this->message->user->first_name,
                 'last_name' => $this->message->user->last_name,
-                'avatar' => $this->message->user->avatar ? $this->message->user->avatar : null,
+                'avatar' => $this->message->user->avatar,
             ],
             'reply_to' => $this->message->reply_to,
             'reply_message' => $this->message->replyMessage ? [
