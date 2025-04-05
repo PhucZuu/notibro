@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\Auth;
 use App\Events\Chat\NewTaskGroupChatMessages;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class TaskGroupChatController extends Controller
 {
@@ -181,6 +183,10 @@ class TaskGroupChatController extends Controller
         // Load thông tin người gửi và tin nhắn gốc (nếu có)
         $message->load(['user:id,first_name,last_name,avatar', 'replyMessage']);
 
+        if ($message->user->avatar && !Str::startsWith($message->user->avatar, ['http://', 'https://'])) {
+            $message->user->avatar = Storage::url($message->user->avatar);
+        }
+
         // 🔥 Gửi event real-time qua Pusher
         broadcast(new NewTaskGroupChatMessages($message))->toOthers();
 
@@ -197,7 +203,7 @@ class TaskGroupChatController extends Controller
                 'user' => [
                     'first_name' => $message->user->first_name,
                     'last_name' => $message->user->last_name,
-                    'avatar' => $message->user->avatar ? $message->user->avatar : null,
+                    'avatar' => $message->user->avatar,
                 ],
                 'reply_to' => $message->reply_to,
                 'reply_message' => $message->replyMessage ? [
@@ -236,6 +242,15 @@ class TaskGroupChatController extends Controller
             ])
             ->orderBy('created_at', 'asc')
             ->get();
+        
+        foreach ($messages as $message) {
+            if ($message->user->avatar && !Str::startsWith($message->user->avatar, ['http://', 'https://'])) {
+                $message->user->avatar = Storage::url($message->user->avatar);
+            }
+            if ($message->file) {
+                $message->file = asset('storage/' . $message->file);
+            }
+        }
 
         return response()->json([
             'group' => [
