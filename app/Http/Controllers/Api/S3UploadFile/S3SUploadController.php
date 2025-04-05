@@ -165,16 +165,11 @@ class S3SUploadController extends Controller
         }
     }
 
-    public function getUrlDownloadFile(Request $request)
+    public function getUrlDownloadFile(Request $request, $fileName)
     {
-        $request->validate([
-            'file_name' => 'required|uuid|max:255',
-        ]);
-
-        $fileName = $request->input('file_name');
+        // $fileName = $request->query('file_name');
         $bucket = env('MINIO_BUCKET');
         $expiry = "+3600 seconds";
-
         try {
 
             $this->s3Client->headObject([
