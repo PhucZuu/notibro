@@ -70,7 +70,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/notifications/unread', [NotificationController::class, 'unread']);
     Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead']);
-
+    Route::delete('/notifications/{id}/delete-one', [NotificationController::class, 'destroy']);
+    Route::delete('/notifications/delete-all', [NotificationController::class, 'destroyAll']);
+    
     // TASK
     Route::get('/tasks', [TaskController::class, 'index']);
     Route::get('/tasks/upComingTasks', [TaskController::class, 'getUpComingTasks']);

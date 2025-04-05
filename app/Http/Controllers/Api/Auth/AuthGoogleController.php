@@ -10,6 +10,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Laravel\Socialite\Facades\Socialite;
 use App\Http\Controllers\Controller;
+use App\Models\Tag;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -55,6 +56,19 @@ class AuthGoogleController extends Controller
                     $user->roles()->attach($role->id);
                 }
             }
+
+            if($user->tags->isEmpty()) {
+                Tag::create([
+                    'user_id' => $user->id,
+                    'name'     => "$user->first_name $user->last_name",
+                    'color_code'    => "#1890ff",
+                    'description' => null,
+                    'shared_user' => [],
+                    'created_at' => Carbon::now(),
+                    'updated_at' => Carbon::now(),
+                ]);
+            }
+
             DB::commit();
 
             $token = $user->createToken('access_token')->plainTextToken;
