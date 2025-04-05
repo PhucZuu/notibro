@@ -77,7 +77,7 @@ class TaskReminderService
             return;
         }
 
-        $cacheKey = "task_notified_{$task->id}_{$user->id}_{$reminderTime->timestamp}";
+        $cacheKey = "task_notified_email{$task->id}{$user->id}{$reminderTime->timestamp}";
         if (Cache::has($cacheKey)) {
             Log::warning("Đã gửi email trước đó: {$cacheKey}");
             return;
