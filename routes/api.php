@@ -61,9 +61,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/event/{uuid}/refuse', [TaskController::class,'refuseInvite']);
     Route::get('/event/{uuid}/invite', [TaskController::class,'show']);
 
-    Route::post('/tags/{id}/accept', [TagController::class, 'acceptTagInvite']);
-    Route::post('/tags/{id}/refuse', [TagController::class, 'declineTagInvite']);
-    Route::get('/tags/{id}/invite', [TagController::class, 'show']);
+    Route::post('/tags/{uuid}/accept', [TagController::class, 'acceptTagInvite']);
+    Route::post('/tags/{uuid}/refuse', [TagController::class, 'declineTagInvite']);
+    Route::get('/tags/{uuid}/invite', [TagController::class, 'show']);
 
     // Notifications
     Route::get('/notifications', [NotificationController::class, 'index']);
@@ -104,7 +104,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/tags', [TagController::class, 'index']);
     Route::get('/tags/sharedTags', [TagController::class, 'getSharedTag']);
     Route::post('/tags', [TagController::class, 'store']);
-    Route::get('/tags/{id}', [TagController::class, 'show']);
+    Route::get('/tags/{id}/show', [TagController::class, 'showOne']);
     Route::put('/tags/{id}', [TagController::class, 'update']);
     Route::delete('/tags/{id}', [TagController::class, 'destroy']);
     Route::post('/tags/{id}/leave', [TagController::class, 'leaveTag']);
