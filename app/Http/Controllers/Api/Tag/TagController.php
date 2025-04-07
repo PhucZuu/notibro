@@ -90,10 +90,10 @@ class TagController extends Controller
         }
     }
     
-    public function show($id)
+    public function show($uuid)
     {
         try {
-            $tag = Tag::find($id);
+            $tag = Tag::where('uuid', $uuid)->first();
     
             if (!$tag) {
                 return response()->json([
@@ -102,22 +102,54 @@ class TagController extends Controller
                 ], 404);
             }
     
+            return response()->json([
+                'code'    => 200,
+                'message' => 'Tag retrieved successfully',
+                'data'    => $tag,
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+    
+            return response()->json([
+                'code'    => 500,
+                'message' => 'An error occurred while retrieving the tag',
+            ], 500);
+        }
+    }
+
+    public function showOne($id)
+    {
+        try {
+            if (!Auth::check()) {
+                return response()->json([
+                    'code'    => 401,
+                    'message' => 'Unauthorized',
+                ], 401);
+            }
+
             $userId = Auth::id();
-    
+            $tag = Tag::find($id);
+
+            if (!$tag) {
+                return response()->json([
+                    'code'    => 404,
+                    'message' => 'Tag not found',
+                ], 404);
+            }
+
             $sharedUsers = collect($tag->shared_user ?? []);
-    
             $isInvited = $sharedUsers->firstWhere('user_id', $userId);
-    
+
             if ($tag->user_id !== $userId && (!$isInvited || $isInvited['status'] !== 'yes')) {
                 return response()->json([
                     'code'    => 403,
                     'message' => 'You are not invited to this tag',
                 ], 403);
             }
-    
+
             return response()->json([
                 'code'    => 200,
-                'message' => 'Tag invite details retrieved successfully',
+                'message' => 'Tag details retrieved successfully',
                 'data'    => [
                     'tag'     => $tag,
                     'invited' => $isInvited,
@@ -125,13 +157,14 @@ class TagController extends Controller
             ], 200);
         } catch (\Exception $e) {
             Log::error($e->getMessage());
-    
+
             return response()->json([
                 'code'    => 500,
-                'message' => 'An error occurred while retrieving the tag invite details',
+                'message' => 'An error occurred while retrieving the tag details',
             ], 500);
         }
-    }      
+    }
+
    
     public function store(Request $request)
     {
@@ -195,6 +228,10 @@ class TagController extends Controller
                 'reminder'     => $formattedReminder,
             ]);
     
+            $returnTag[] = $tag;
+
+            $this->sendRealTimeUpdate($returnTag, 'create');
+
             return response()->json([
                 'code'    => 201,
                 'message' => 'Tag created successfully',
@@ -285,6 +322,10 @@ class TagController extends Controller
     
             $tag->syncAttendeesWithTasks($oldSharedUsers);
     
+            $returnTag[] = $tag;
+
+            $this->sendRealTimeUpdate($returnTag, 'update');
+
             $newUserIds = collect($formattedSharedUsers)->pluck('user_id')->toArray();
             $addedUsers = array_diff($newUserIds, $oldSharedUsers);
     
@@ -334,7 +375,6 @@ class TagController extends Controller
         }
     }
     
-    
     public function destroy($id)
     {
         try {
@@ -347,13 +387,25 @@ class TagController extends Controller
                 ], 404);
             }
     
-            $tasks = $tag->tasks;
+            // Đếm tổng số tag của user hiện tại
+            $totalTags = Tag::where('user_id', Auth::id())->count();
     
-            foreach ($tasks as $task) {
+            if ($totalTags <= 1) {
+                return response()->json([
+                    'code'    => 403,
+                    'message' => 'Cannot delete the last remaining tag',
+                ], 403);
+            }
+    
+            $returnTag[] = clone $tag;
+    
+            foreach ($tag->tasks as $task) {
                 $task->delete();
             }
-
+    
             $tag->delete();
+    
+            $this->sendRealTimeUpdate($returnTag, 'delete');
     
             return response()->json([
                 'code'    => 200,
@@ -369,10 +421,12 @@ class TagController extends Controller
         }
     }
     
-    public function acceptTagInvite($id)
+    
+    
+    public function acceptTagInvite($uuid)
     {
         $userId = Auth::id();
-        $tag = Tag::find($id);
+        $tag = Tag::where('uuid', $uuid)->first();
     
         if (!$tag) {
             return response()->json(['code' => 404, 'message' => 'Tag not found'], 404);
@@ -405,11 +459,10 @@ class TagController extends Controller
         ], 200);
     }
     
-
-    public function declineTagInvite($id)
+    public function declineTagInvite($uuid)
     {
         $userId = Auth::id();
-        $tag = Tag::find($id);
+        $tag = Tag::where('uuid', $uuid)->first();
     
         if (!$tag) {
             return response()->json(['code' => 404, 'message' => 'Tag not found'], 404);
@@ -439,8 +492,8 @@ class TagController extends Controller
             'code' => 200,
             'message' => 'Successfully declined tag invitation',
         ], 200);
-    }    
-
+    }
+      
     public function leaveTag($id)
     {
         $userId = Auth::id();

@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 class Tag extends Model
 {
@@ -26,6 +27,15 @@ class Tag extends Model
         'reminder' => 'array',
     ];
 
+    protected static function boot()
+    {
+        parent::boot();
+        static::creating(function ($tag) {
+            if (!$tag->uuid) {
+                $tag->uuid = Str::uuid();
+            }
+        });
+    }
     public function user()
     {
         return $this->belongsTo(User::class);
