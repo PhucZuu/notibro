@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use App\Models\Task;
 use App\Models\User;
 use App\Notifications\NotificationEvent;
+use App\Services\GetAllOccurrenceService;
 use App\Services\GetNextOccurrenceService;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
@@ -25,11 +26,14 @@ class TaskController extends Controller
 {
     protected $serviceNextOcc;
 
+    protected $serviceGetAllOcc;
+
     public $URL_FRONTEND;
 
     public function __construct()
     {
         $this->serviceNextOcc = new GetNextOccurrenceService();
+        $this->serviceGetAllOcc = new GetAllOccurrenceService();
         $this->URL_FRONTEND = config('app.frontend_url');
     }
 
@@ -1692,6 +1696,65 @@ class TaskController extends Controller
             'code'    => 200,
             'message' => 'Fetching Data successfully',
             'data'    => $task,
+        ], 200);
+    }
+
+    public function checkPossibleStartTime(Request $request)
+    {
+        //validate request
+        $data = $request->validate([
+            'start_time' => 'required',
+            'end_time'   => 'required',
+            'timezone_code' => 'required',
+        ]);
+
+        $data = $this->handleLogicData($data);
+
+        $user_id = Auth::id();
+
+        $tasks = Task::where('is_all_day', '!=', 1)
+            ->where(function ($query) use ($data) {
+                $query->where('start_time', '<=', $data->start_time)
+                    ->orWhere(function ($q) use ($data) {
+                        $q->where('is_repeat', true)
+                            ->where(function ($subQuery) use ($data) {
+                                $subQuery->where('until', '>', $data->start_time)
+                                    ->orWhereNull('until');
+                            });
+                    });
+            })
+            ->where(function ($query) use ($user_id) {
+                $query->where('tasks.user_id', $user_id)
+                    ->orWhereRaw("
+                    EXISTS (
+                        SELECT 1 FROM JSON_TABLE(
+                            attendees, '$[*]' COLUMNS (
+                                user_id INT PATH '$.user_id',
+                                status VARCHAR(20) PATH '$.status'
+                            )
+                        ) AS jt
+                        WHERE jt.user_id = ?
+                    )
+                ", [$user_id]);
+            })
+            ->get();
+
+        foreach ($tasks as $task) {
+            $occurrences = $this->serviceGetAllOcc->getAllOccurrences($task);
+
+            foreach ($occurrences as $occurrence) {
+                if ($occurrence->start_time->equalTo($data['start_time'])) {
+                    return response()->json([
+                        'code'    => 422,
+                        'message' => 'Trùng thời gian với một task khác'
+                    ], 422);
+                }
+            }
+        }
+
+        return response()->json([
+            'code'    => 200,
+            'message' => 'Valid time range',
         ], 200);
     }
 
