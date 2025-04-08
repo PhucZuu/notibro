@@ -16,6 +16,8 @@ use App\Models\User;
 use App\Notifications\NotificationEvent;
 use App\Services\GetAllOccurrenceService;
 use App\Services\GetNextOccurrenceService;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -195,6 +197,10 @@ class TaskController extends Controller
                     $user = User::select('first_name', 'last_name', 'email', 'avatar')
                         ->where('id', $attendee['user_id'])
                         ->first();
+
+                    if ($user->avatar && !Str::startsWith($user->avatar, ['http://', 'https://'])) {
+                        $user->avatar = Storage::url($user->avatar);
+                    }
 
                     if ($user) {
                         $attendeesDetails[] = [
