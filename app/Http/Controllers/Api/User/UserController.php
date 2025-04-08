@@ -262,7 +262,7 @@ class UserController extends Controller
 
             $user->update($info);
 
-            if ($flag && Storage::exists($oldAvatar)) {
+            if ($flag && $oldAvatar && Storage::exists($oldAvatar)) {
                 Storage::delete($oldAvatar);
             }
 

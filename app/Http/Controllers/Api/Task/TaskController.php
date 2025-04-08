@@ -1720,11 +1720,11 @@ class TaskController extends Controller
 
         $tasks = Task::where('is_all_day', '!=', 1)
             ->where(function ($query) use ($data) {
-                $query->where('start_time', '<=', $data->start_time)
+                $query->where('start_time', '<=', $data['start_time'])
                     ->orWhere(function ($q) use ($data) {
                         $q->where('is_repeat', true)
                             ->where(function ($subQuery) use ($data) {
-                                $subQuery->where('until', '>', $data->start_time)
+                                $subQuery->where('until', '>', $data['start_time'])
                                     ->orWhereNull('until');
                             });
                     });
@@ -1747,13 +1747,13 @@ class TaskController extends Controller
 
         foreach ($tasks as $task) {
             $occurrences = $this->serviceGetAllOcc->getAllOccurrences($task);
-
+            
             foreach ($occurrences as $occurrence) {
-                if ($occurrence->start_time->equalTo($data['start_time'])) {
+                if ($occurrence->equalTo($data['start_time'])) {
                     return response()->json([
-                        'code'    => 422,
+                        'code'    => 477,
                         'message' => 'Trùng thời gian với một task khác'
-                    ], 422);
+                    ], 200);
                 }
             }
         }
