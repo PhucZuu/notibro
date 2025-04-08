@@ -116,6 +116,10 @@ class UserController extends Controller
                 "message" =>  'User not found',
             ], 404);
         }
+        
+        if ($user->avatar && !Str::startsWith($user->avatar, ['http://', 'https://'])) {
+            $user->avatar = Storage::url($user->avatar);
+        }
 
         return response()->json([
             'code' => 200,
