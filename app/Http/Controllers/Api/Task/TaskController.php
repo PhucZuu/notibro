@@ -173,7 +173,7 @@ class TaskController extends Controller
             $task->rrule = [
                 'freq'              => $task->freq,
                 'interval'          => $task->interval,
-                'until'             => Carbon::parse($task->until, 'UTC'),
+                'until'             => $task->until ? Carbon::parse($task->until, 'UTC') : null,
                 'count'             => $task->count,
                 'byweekday'         => $task->byweekday,
                 'bymonthday'        => $task->bymonthday,
@@ -2647,79 +2647,42 @@ class TaskController extends Controller
                 continue;
             }
 
-            // Xác định thời gian lặp
-            $repeatStart = Carbon::parse($task->start_time);
-            $repeatUntil = $task->until ? Carbon::parse($task->until) : null;
-            $interval = $task->interval ?? 1;
-            $count = $task->count ?? 1000;
-            $occurrences = 0;
+            $occurrences = $this->serviceGetAllOcc->getAllOccurrences($task);
 
-            // Nếu không có ngày `$start` và `$end`, lấy toàn bộ trong 5 năm để tránh vô hạn
-            if (empty($start) || empty($end)) {
-                $searchStart = $repeatStart;
-                $searchEnd = $repeatUntil ?? Carbon::now()->addYears(3);
-            } else {
-                $searchStart = Carbon::parse($start);
-                $searchEnd = Carbon::parse($end);
+            foreach ($occurrences as $occurrence) {
+                $task->start_time = $occurrence->copy()->tz('UTC');
+                $task->end_time = Carbon::parse($task->end_time)
+                    ->setDate($occurrence->year, $occurrence->month, $occurrence->day)
+                    ->tz('UTC');
+
+                $task->rrule = [
+                    'freq'              => $task->freq,
+                    'interval'          => $task->interval,
+                    'until'             => Carbon::parse($task->until, 'UTC'),
+                    'count'             => $task->count,
+                    'byweekday'         => $task->byweekday,
+                    'bymonthday'        => $task->bymonthday,
+                    'bymonth'           => $task->bymonth,
+                    'bysetpos'          => $task->bysetpos,
+                ];
+
+                unset(
+                    $task->freq,
+                    $task->interval,
+                    $task->until,
+                    $task->count,
+                    $task->byweekday,
+                    $task->bymonthday,
+                    $task->bymonth,
+                    $task->bysetpos
+                );
+
+                // Thêm vào danh sách các task đã mở rộng
+                $expandedTasks[] = clone $task;
             }
-
-            while ($repeatStart <= $searchEnd && $occurrences < $count) {
-                $formattedDate = $repeatStart->format('Y-m-d H:i:s');
-
-                // Bỏ qua nếu ngày nằm trong danh sách loại trừ
-                if (in_array($formattedDate, $task->exclude_time ?? [])) {
-                    $repeatStart = $this->nextRepeatDate($repeatStart, $task->freq, $interval);
-                    continue;
-                }
-
-                // Kiểm tra logic lặp lại theo từng kiểu tần suất
-                if ($task->freq == 'weekly' && !empty($task->byweekday)) {
-                    while (!in_array(strtoupper(substr($repeatStart->format('D'), 0, 2)), $task->byweekday)) {
-                        $repeatStart = $repeatStart->modify("+1 day");;
-                    }
-                }
-
-                if ($task->freq == 'monthly' && !empty($task->bymonthday)) {
-                    // Lưu lại tháng hiện tại để lặp qua tất cả các ngày trong bymonthday
-                    $currentMonth = $repeatStart->format('m');
-
-                    foreach ($task->bymonthday as $day) {
-                        // Tạo bản sao của $repeatStart để không làm thay đổi ngày gốc
-                        $tempDate = clone $repeatStart;
-                        $tempDate->setDate($tempDate->format('Y'), $currentMonth, $day);
-
-                        // Chỉ thêm vào danh sách nếu nằm trong khoảng tìm kiếm
-                        if ($tempDate >= $searchStart && $tempDate <= $searchEnd) {
-                            $newTask = clone $task;
-                            $newTask->start_time = $tempDate->format('Y-m-d H:i:s');
-                            $expandedTasks[] = $newTask;
-                        }
-                    }
-
-                    // Sau khi xử lý hết ngày trong tháng, chuyển sang tháng tiếp theo
-                    $repeatStart = $this->nextRepeatDate($repeatStart, $task->freq, $interval);
-                }
-
-                if ($task->freq == 'yearly' && !empty($task->bymonth)) {
-                    if (!in_array($repeatStart->month, $task->bymonth)) {
-                        $repeatStart = $this->nextRepeatDate($repeatStart, $task->freq, $interval);
-                        continue;
-                    }
-                }
-
-                // Chỉ thêm task nếu nó nằm trong phạm vi tìm kiếm
-                if ($repeatStart >= $searchStart && $repeatStart <= $searchEnd) {
-                    $newTask = clone $task;
-                    $newTask->start_time = $repeatStart->format('Y-m-d H:i:s');
-                    $expandedTasks[] = $newTask;
-                }
-
-                // Chuyển đến ngày tiếp theo
-                $repeatStart = $this->nextRepeatDate($repeatStart, $task->freq, $interval);
-                $occurrences++;
-            }
+            
         }
-
+        Log::info('expandedTasks', [$expandedTasks]);
         return response()->json([
             'code'    => 200,
             'message' => 'Success',
