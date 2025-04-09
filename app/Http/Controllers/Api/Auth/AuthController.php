@@ -34,6 +34,22 @@ class AuthController extends Controller
             ],401);
         }
 
+        if($user->email_verified_at === null) {
+            // Tạo mã OTP mới
+            $otp = random_int(100000, 999999);
+
+            // Lưu mã OTP vào cache
+            Cache::put('otp_' . $user->email, $otp, Carbon::now()->addMinutes(5));
+
+            // Gửi email chứa mã OTP
+            Mail::to($user->email)->queue(new OtpMail($otp));
+
+            return response()->json([
+                'code'    => 400,
+                'message' => 'Email is not verified',
+            ]);
+        }
+
         // Tạo token
         $accessToken = $user->createToken('access_token')->plainTextToken;
 
