@@ -90,6 +90,45 @@ class TagController extends Controller
         }
     }
     
+    public function getMyAndSharedEditorTags()
+    {
+        try {
+            $userId = Auth::id();
+    
+            // 1. Các tag do chính mình sở hữu
+            $ownedTags = Tag::where('user_id', $userId)->get();
+    
+            // 2. Các tag được share với mình, có role = editor và status = yes
+            $sharedEditorTags = Tag::whereJsonContains('shared_user', [['user_id' => $userId]])
+                ->get()
+                ->filter(function ($tag) use ($userId) {
+                    return collect($tag->shared_user)
+                        ->contains(function ($user) use ($userId) {
+                            return (int) $user['user_id'] === $userId
+                                && $user['role'] === 'editor'
+                                && $user['status'] === 'yes';
+                        });
+                })
+                ->values();
+    
+            return response()->json([
+                'code'    => 200,
+                'message' => 'Retrieved owned and shared-editor tags successfully',
+                'data'    => [
+                    'owned'            => $ownedTags,
+                    'shared_as_editor' => $sharedEditorTags
+                ]
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+    
+            return response()->json([
+                'code'    => 500,
+                'message' => 'An error occurred while retrieving tags',
+            ], 500);
+        }
+    }
+    
     public function show($uuid)
     {
         try {
@@ -261,41 +300,68 @@ class TagController extends Controller
     
         try {
             $userId = Auth::id();
-            $tag = Tag::where('id', $id)->where('user_id', $userId)->first();
+            $tag = Tag::find($id);
     
             if (!$tag) {
                 return response()->json([
                     'code'    => 404,
-                    'message' => 'Tag not found or unauthorized'
+                    'message' => 'Tag not found'
                 ], 404);
+            }
+    
+            // ✅ Kiểm tra quyền người dùng
+            $isOwner = $tag->user_id === $userId;
+    
+            $isEditor = collect($tag->shared_user ?? [])->contains(function ($user) use ($userId) {
+                return $user['user_id'] == $userId && $user['role'] === 'editor';
+            });
+    
+            if (!($isOwner || $isEditor)) {
+                return response()->json([
+                    'code'    => 403,
+                    'message' => 'You do not have permission to update this tag',
+                ], 403);
+            }
+    
+            // ✅ Nếu không phải chủ tag mà cố tình chỉnh shared_user → block
+            if (!$isOwner && $request->has('shared_user')) {
+                return response()->json([
+                    'code' => 403,
+                    'message' => 'Only the owner can update shared_user list',
+                ], 403);
             }
     
             $oldSharedUsers = collect($tag->shared_user ?? [])->pluck('user_id')->toArray();
     
-            $sharedUsersRaw = $validated['shared_user'] ?? [];
-            if (is_string($sharedUsersRaw)) {
-                $sharedUsersRaw = json_decode($sharedUsersRaw, true);
-                if (json_last_error() !== JSON_ERROR_NONE || !is_array($sharedUsersRaw)) {
-                    return response()->json(['code' => 400, 'message' => 'Invalid shared_user JSON'], 400);
+            // Parse & format shared_user nếu là chủ tag
+            if ($isOwner && isset($validated['shared_user'])) {
+                $sharedUsersRaw = $validated['shared_user'];
+                if (is_string($sharedUsersRaw)) {
+                    $sharedUsersRaw = json_decode($sharedUsersRaw, true);
+                    if (json_last_error() !== JSON_ERROR_NONE || !is_array($sharedUsersRaw)) {
+                        return response()->json(['code' => 400, 'message' => 'Invalid shared_user JSON'], 400);
+                    }
                 }
+    
+                $formattedSharedUsers = collect($sharedUsersRaw)->map(function ($user) use ($userId, $isOwner) {
+                    $userModel = User::find($user['user_id']);
+                    if (!$userModel) return null;
+    
+                    return [
+                        'user_id'    => $user['user_id'],
+                        'first_name' => $userModel->first_name,
+                        'last_name'  => $userModel->last_name,
+                        'email'      => $userModel->email,
+                        'avatar'     => $userModel->avatar,
+                        'status'     => $user['status'] ?? 'pending',
+                        'role'       => $isOwner ? ($user['role'] ?? 'viewer') : 'viewer',
+                    ];
+                })->filter()->values()->toArray();
+            } else {
+                $formattedSharedUsers = $tag->shared_user;
             }
     
-            $formattedSharedUsers = collect($sharedUsersRaw)->map(function ($user) {
-                $userModel = User::find($user['user_id']);
-                if (!$userModel) return null;
-    
-                return [
-                    'user_id'    => $user['user_id'],
-                    'first_name' => $userModel->first_name,
-                    'last_name'  => $userModel->last_name,
-                    'email'      => $userModel->email,
-                    'avatar'     => $userModel->avatar,
-                    'status'     => $user['status'] ?? 'pending',
-                    'role'       => $user['role'] ?? 'viewer',
-                ];
-            })->filter()->values()->toArray();
-    
-            // ✅ Parse & format reminder
+            // Parse & format reminder
             $reminderRaw = $validated['reminder'] ?? [];
             if (is_string($reminderRaw)) {
                 $reminderRaw = json_decode($reminderRaw, true);
@@ -312,6 +378,7 @@ class TagController extends Controller
                 ];
             })->filter(fn($r) => $r['type'] && $r['time'])->values()->toArray();
     
+            // Cập nhật tag
             $tag->update([
                 'name'         => $validated['name'],
                 'description'  => $validated['description'],
@@ -320,31 +387,33 @@ class TagController extends Controller
                 'reminder'     => $formattedReminder,
             ]);
     
-            $tag->syncAttendeesWithTasks($oldSharedUsers);
+            // $tag->syncAttendeesWithTasks($oldSharedUsers);
     
             $returnTag[] = $tag;
-
             $this->sendRealTimeUpdate($returnTag, 'update');
-
-            $newUserIds = collect($formattedSharedUsers)->pluck('user_id')->toArray();
-            $addedUsers = array_diff($newUserIds, $oldSharedUsers);
     
-            if (!empty($addedUsers)) {
-                $emails = User::whereIn('id', $addedUsers)->pluck('email');
+            // Gửi mail + thông báo nếu có người mới được mời
+            if ($isOwner) {
+                $newUserIds = collect($formattedSharedUsers)->pluck('user_id')->toArray();
+                $addedUsers = array_diff($newUserIds, $oldSharedUsers);
     
-                if ($emails->isNotEmpty()) {
-                    $this->sendMail(Auth::user()->email, $emails, $tag);
-                }
+                if (!empty($addedUsers)) {
+                    $emails = User::whereIn('id', $addedUsers)->pluck('email');
     
-                foreach ($addedUsers as $userId) {
-                    $user = User::find($userId);
-                    if ($user) {
-                        $user->notify(new NotificationEvent(
-                            $user->id,
-                            "Bạn đã được mời tham gia tag: {$tag->name}",
-                            "{$this->URL_FRONTEND}/tag/invite/{$tag->id}",
-                            "invite_to_tag"
-                        ));
+                    if ($emails->isNotEmpty()) {
+                        $this->sendMail(Auth::user()->email, $emails, $tag);
+                    }
+    
+                    foreach ($addedUsers as $userId) {
+                        $user = User::find($userId);
+                        if ($user) {
+                            $user->notify(new NotificationEvent(
+                                $user->id,
+                                "Bạn đã được mời tham gia tag: {$tag->name}",
+                                "{$this->URL_FRONTEND}/tag/invite/{$tag->id}",
+                                "invite_to_tag"
+                            ));
+                        }
                     }
                 }
             }
@@ -373,7 +442,7 @@ class TagController extends Controller
                 ],
             ], 500);
         }
-    }
+    } 
     
     public function destroy($id)
     {
