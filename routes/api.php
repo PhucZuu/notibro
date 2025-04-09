@@ -85,7 +85,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/tasks/trash/restoreTask', [TaskController::class, 'restoreTask']);
     Route::get('/tasks/getTrashedTasks', [TaskController::class, 'getTrashedTasks']);
     Route::put('/tasks/{id}/attendeeLeaveTask', [TaskController::class, 'attendeeLeaveTask']);
-    Route::post('/tasks/{id}/checkPossibleStartTime', [TaskController::class, 'checkPossibleStartTime']);
+    Route::post('/tasks/checkPossibleStartTime', [TaskController::class, 'checkPossibleStartTime']);
 
     // GROUP CHAT TASK
 
