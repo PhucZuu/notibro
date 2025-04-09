@@ -12,29 +12,24 @@ use Illuminate\Support\Facades\Log;
 class StatController extends Controller
 {
     // 1.Tính tỷ lệ task hoàn thành đúng hạn
-    public function completionRate(Request $request)
+    public function completionRate()
     {
         try {
             $userId = Auth::id();
-
-            $query = Task::where('user_id', $userId);
-
-            if ($request->filled(['start_date', 'end_date'])) {
-                $query->whereBetween('start_time', [
-                    Carbon::parse($request->start_date)->startOfDay(),
-                    Carbon::parse($request->end_date)->endOfDay()
-                ]);
-            }
-
+    
+            // Lấy tất cả task của user với type là 'task'
+            $query = Task::where('user_id', $userId)
+                ->where('type', 'task');
+    
             $total = $query->count();
-
-            $onTime = (clone $query)
+    
+            // Task đã hoàn thành
+            $done = (clone $query)
                 ->where('is_done', true)
-                ->whereColumn('end_time', '>=', 'start_time')
                 ->count();
-
-            $rate = $total > 0 ? round(($onTime / $total) * 100, 2) : 0;
-
+    
+            $rate = $total > 0 ? round(($done / $total) * 100, 2) : 0;
+    
             return response()->json([
                 'code' => 200,
                 'message' => 'Completion rate retrieved successfully',
@@ -43,7 +38,7 @@ class StatController extends Controller
                     'unit' => '%'
                 ]
             ], 200);
-
+    
         } catch (\Exception $e) {
             Log::error($e);
             return response()->json([
@@ -52,6 +47,7 @@ class StatController extends Controller
             ], 500);
         }
     }
+    
 
     // 2.Ngày bận rộn nhất (nhiều task nhất)
     public function busiestDay(Request $request)
@@ -59,22 +55,60 @@ class StatController extends Controller
         try {
             $userId = Auth::id();
     
-            $startDate = $request->filled('start_date') ? Carbon::parse($request->start_date)->startOfDay() : Carbon::now()->startOfWeek();
-            $endDate = $request->filled('end_date') ? Carbon::parse($request->end_date)->endOfDay() : Carbon::now()->endOfWeek();
+            $startDate = $request->filled('start_date')
+                ? Carbon::parse($request->start_date)->startOfDay()
+                : Carbon::now()->startOfWeek();
     
-            $days = Task::selectRaw('DATE(start_time) as day, COUNT(*) as task_count')
-                ->where('user_id', $userId)
-                ->whereBetween('start_time', [$startDate, $endDate])
-                ->groupBy('day')
-                ->orderBy('day')
+            $endDate = $request->filled('end_date')
+                ? Carbon::parse($request->end_date)->endOfDay()
+                : Carbon::now()->endOfWeek();
+    
+            // Lấy tất cả task có liên quan đến user (chủ sở hữu hoặc có trong attendees)
+            $tasks = Task::where(function ($q) use ($userId) {
+                    $q->where('user_id', $userId)
+                      ->orWhereJsonContains('attendees', [['user_id' => $userId]]);
+                })
+                ->where('start_time', '<=', $endDate)
+                ->where('end_time', '>=', $startDate)
                 ->get();
+    
+            // Lọc lại: chỉ lấy task mà user là chủ, hoặc là attendee có status = "yes"
+            $filteredTasks = $tasks->filter(function ($task) use ($userId) {
+                if ($task->user_id == $userId) {
+                    return true;
+                }
+    
+                $attendees = collect($task->attendees ?? []);
+                return $attendees->contains(function ($a) use ($userId) {
+                    return (int) $a['user_id'] === $userId && $a['status'] === 'yes';
+                });
+            });
+    
+            // Đếm số task mỗi ngày (dải theo từng ngày task diễn ra)
+            $taskDays = collect();
+    
+            foreach ($filteredTasks as $task) {
+                $start = Carbon::parse($task->start_time)->startOfDay();
+                $end = Carbon::parse($task->end_time)->endOfDay();
+    
+                for ($date = $start->copy(); $date->lte($end); $date->addDay()) {
+                    $key = $date->toDateString();
+                    $taskDays[$key] = ($taskDays[$key] ?? 0) + 1;
+                }
+            }
+    
+            $grouped = collect($taskDays)->map(function ($count, $day) {
+                return [
+                    'day' => $day,
+                    'task_count' => $count
+                ];
+            })->sortBy('day')->values();
     
             return response()->json([
                 'code' => 200,
-                'message' => 'Task count per day retrieved successfully',
-                'data' => $days
-            ], 200);
-    
+                'message' => 'Task count per day (owned + accepted shared)',
+                'data' => $grouped
+            ]);
         } catch (\Exception $e) {
             Log::error($e);
             return response()->json([
@@ -84,99 +118,5 @@ class StatController extends Controller
         }
     }
     
-
-    // 3.Chuỗi ngày làm việc liên tiếp (đã hoàn thành task)
-    public function workStreak(Request $request)
-    {
-        try {
-            $userId = Auth::id();
     
-            $startDate = $request->filled('start_date') ? Carbon::parse($request->start_date)->startOfDay() : Carbon::now()->startOfWeek();
-            $endDate = $request->filled('end_date') ? Carbon::parse($request->end_date)->endOfDay() : Carbon::now()->endOfWeek();
-    
-            $dates = Task::where('user_id', $userId)
-                ->where('is_done', true)
-                ->whereBetween('start_time', [$startDate, $endDate])
-                ->orderBy('start_time')
-                ->pluck('start_time')
-                ->map(fn($dt) => Carbon::parse($dt)->toDateString())
-                ->unique()
-                ->values();
-    
-            // Tính streak
-            $maxStreak = $dates->isNotEmpty() ? 1 : 0;
-            $currentStreak = 1;
-            $streakData = [];
-    
-            for ($i = 1; $i < $dates->count(); $i++) {
-                $prev = Carbon::parse($dates[$i - 1]);
-                $curr = Carbon::parse($dates[$i]);
-    
-                if ($curr->diffInDays($prev) == 1) {
-                    $currentStreak++;
-                } else {
-                    $currentStreak = 1;
-                }
-    
-                $maxStreak = max($maxStreak, $currentStreak);
-                $streakData[] = [
-                    'date' => $curr->toDateString(),
-                    'streak' => $currentStreak
-                ];
-            }
-    
-            return response()->json([
-                'code' => 200,
-                'message' => 'Work streak calculated successfully',
-                'data' => [
-                    'max_streak' => $maxStreak,
-                    'streak_by_date' => $streakData
-                ]
-            ], 200);
-    
-        } catch (\Exception $e) {
-            Log::error($e);
-            return response()->json([
-                'code' => 500,
-                'message' => 'An error occurred while calculating work streak',
-            ], 500);
-        }
-    }
-    
-
-    // 4.Tổng số task đã tạo, có thể group theo tag nếu truyền group_by_tag
-    public function totalTasks(Request $request)
-    {
-        try {
-            $userId = Auth::id();
-    
-            $startDate = $request->filled('start_date') ? Carbon::parse($request->start_date)->startOfDay() : Carbon::now()->startOfWeek();
-            $endDate = $request->filled('end_date') ? Carbon::parse($request->end_date)->endOfDay() : Carbon::now()->endOfWeek();
-    
-            $query = Task::where('user_id', $userId)
-                ->whereBetween('start_time', [$startDate, $endDate]);
-    
-            // Mặc định là nhóm theo tag
-            $tasks = $query->with('tag')
-                ->get()
-                ->groupBy(fn($task) => optional($task->tag)->name ?? 'No Tag')
-                ->map(fn($group) => $group->count());
-    
-            return response()->json([
-                'code' => 200,
-                'message' => 'Task count grouped by tag retrieved successfully',
-                'data' => $tasks
-            ], 200);
-    
-        } catch (\Exception $e) {
-            Log::error($e);
-    
-            return response()->json([
-                'code' => 500,
-                'message' => 'An error occurred while retrieving total task count',
-            ], 500);
-        }
-    }
-    
-
 }
