@@ -103,6 +103,7 @@ Route::middleware('auth:sanctum')->group(function () {
     //Tag
     Route::get('/tags', [TagController::class, 'index']);
     Route::get('/tags/sharedTags', [TagController::class, 'getSharedTag']);
+    Route::get('/tags/list', [TagController::class, 'getMyAndSharedEditorTags']);
     Route::post('/tags', [TagController::class, 'store']);
     Route::get('/tags/{id}/show', [TagController::class, 'showOne']);
     Route::put('/tags/{id}', [TagController::class, 'update']);
