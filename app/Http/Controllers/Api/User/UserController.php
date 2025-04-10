@@ -371,7 +371,7 @@ class UserController extends Controller
     {
         $search = $request->query('search');
 
-        $query = User::select('id','email','avatar')->where('id', '!=', auth()->id());
+        $query = User::select('id','email','avatar','first_name','last_name')->where('id', '!=', auth()->id());
 
         if ($search) {
             $query->where('email','like','%'. $search .'%');
