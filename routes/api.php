@@ -105,11 +105,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/tags', [TagController::class, 'index']);
     Route::get('/tags/sharedTags', [TagController::class, 'getSharedTag']);
     Route::get('/tags/list', [TagController::class, 'getMyAndSharedEditorTags']);
+    Route::get('/tags/shared/tasks', [TagController::class, 'getTasksFromSharedTags']);
     Route::post('/tags', [TagController::class, 'store']);
     Route::get('/tags/{id}/show', [TagController::class, 'showOne']);
     Route::put('/tags/{id}', [TagController::class, 'update']);
     Route::delete('/tags/{id}', [TagController::class, 'destroy']);
     Route::post('/tags/{id}/leave', [TagController::class, 'leaveTag']);
+    Route::delete('/tags/{tagId}/shared-user/{userId}', [TagController::class, 'removeUserFromTag']);
+
 
     //Stat for user
         Route::get('/stats/completion-rate', [StatController::class, 'completionRate']);
