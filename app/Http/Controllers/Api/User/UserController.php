@@ -371,7 +371,7 @@ class UserController extends Controller
     {
         $search = $request->query('search');
 
-        $query = User::select('id','email')->where('id', '!=', auth()->id());
+        $query = User::select('id','email','avatar')->where('id', '!=', auth()->id());
 
         if ($search) {
             $query->where('email','like','%'. $search .'%');
@@ -379,6 +379,11 @@ class UserController extends Controller
 
         $users = $query->get();
 
+        foreach ($users as $user) {
+            if ($user->avatar && !Str::startsWith($user->avatar, ['http://', 'https://'])) {
+                $user->avatar = Storage::url($user->avatar);
+            }
+        }
         return response()->json([
             'code'    => 200,
             'message' => 'Retrieve user list successfully',
