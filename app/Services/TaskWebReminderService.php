@@ -79,7 +79,7 @@ class TaskWebReminderService
         }
 
         $startTime = Carbon::parse($task->start_time);
-        $until = $task->until ? Carbon::parse($task->until) : null;
+        $until = $task->until ? Carbon::parse($task->until) : Carbon::parse($task->start_time)->addYears(3);
 
         Log::info("Task đã nhận {$startTime} và {$until} của {$task->id} {$task->title}");
 

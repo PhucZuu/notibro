@@ -100,7 +100,7 @@ class TaskReminderService
             return Carbon::parse($task->start_time);
         }
 
-        $until = $task->until ? Carbon::parse($task->until) : null;
+        $until = $task->until ? Carbon::parse($task->until) : Carbon::parse($task->start_time)->addYears(3);
         if ($until && $now->greaterThan($until)) {
             return null;
         }
