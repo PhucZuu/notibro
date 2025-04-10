@@ -2618,11 +2618,22 @@ class TaskController extends Controller
         $expandedTasks = [];
 
         foreach ($tasks as $task) {
+            if($task->tag_id) {
+                $tag = Tag::where('id', $task->tag_id)->first();
+                $task->tag_name = $tag->name;
+                $task->tag_id = $tag->id;
+                $task->tag_color_code = $tag->color_code;
+            }
+
             if ($task->attendees) {
                 foreach ($task->attendees as $attendee) {
                     $user = User::select('first_name', 'last_name', 'email', 'avatar')
                         ->where('id', $attendee['user_id'])
                         ->first();
+
+                    if ($user->avatar && !Str::startsWith($user->avatar, ['http://', 'https://'])) {
+                        $user->avatar = Storage::url($user->avatar);
+                    }
 
                     if ($user) {
                         $attendeesDetails[] = [
@@ -2630,7 +2641,7 @@ class TaskController extends Controller
                             'first_name' => $user->first_name,
                             'last_name'  => $user->last_name,
                             'email'      => $user->email,
-                            'avatar'     => $user->avatar,
+                            'avatar'     => $user->avatar ?? null,
                             'status'     => $attendee['status'],
                             'role'       => $attendee['role'],
                         ];
@@ -2649,16 +2660,18 @@ class TaskController extends Controller
 
             $occurrences = $this->serviceGetAllOcc->getAllOccurrences($task);
 
+            $originalStart = Carbon::parse($task->start_time);
+            $originalEnd = Carbon::parse($task->end_time);
+            $duration = $originalEnd->diffInSeconds($originalStart);
+
             foreach ($occurrences as $occurrence) {
                 $task->start_time = $occurrence->copy()->tz('UTC');
-                $task->end_time = Carbon::parse($task->end_time)
-                    ->setDate($occurrence->year, $occurrence->month, $occurrence->day)
-                    ->tz('UTC');
+                $task->end_time = $occurrence->copy()->addSeconds($duration)->tz('UTC');
 
                 $task->rrule = [
                     'freq'              => $task->freq,
                     'interval'          => $task->interval,
-                    'until'             => Carbon::parse($task->until, 'UTC'),
+                    'until'             => $task->until,
                     'count'             => $task->count,
                     'byweekday'         => $task->byweekday,
                     'bymonthday'        => $task->bymonthday,
@@ -2666,16 +2679,16 @@ class TaskController extends Controller
                     'bysetpos'          => $task->bysetpos,
                 ];
 
-                unset(
-                    $task->freq,
-                    $task->interval,
-                    $task->until,
-                    $task->count,
-                    $task->byweekday,
-                    $task->bymonthday,
-                    $task->bymonth,
-                    $task->bysetpos
-                );
+                // unset(
+                //     $task->freq,
+                //     $task->interval,
+                //     $task->until,
+                //     $task->count,
+                //     $task->byweekday,
+                //     $task->bymonthday,
+                //     $task->bymonth,
+                //     $task->bysetpos
+                // );
 
                 // Thêm vào danh sách các task đã mở rộng
                 $expandedTasks[] = clone $task;
