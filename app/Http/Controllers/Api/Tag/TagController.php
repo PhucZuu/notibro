@@ -129,6 +129,41 @@ class TagController extends Controller
         }
     }
     
+    public function getTasksFromSharedTags()
+    {
+        try {
+            $userId = Auth::id();
+
+            // Lấy tất cả tag mà user là shared_user (status = yes)
+            $sharedTags = Tag::whereJsonContains('shared_user', [['user_id' => $userId]])
+                ->get()
+                ->filter(function ($tag) use ($userId) {
+                    return collect($tag->shared_user)
+                        ->contains(function ($user) use ($userId) {
+                            return (int) $user['user_id'] === $userId && $user['status'] === 'yes';
+                        });
+                });
+
+            // Lấy tất cả task từ các tag đó
+            $tasks = $sharedTags->flatMap(function ($tag) {
+                return $tag->tasks;
+            })->values();
+
+            return response()->json([
+                'code'    => 200,
+                'message' => 'Retrieved tasks from shared tags successfully',
+                'data'    => $tasks,
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+
+            return response()->json([
+                'code'    => 500,
+                'message' => 'An error occurred while retrieving tasks',
+            ], 500);
+        }
+    }
+
     public function show($uuid)
     {
         try {
@@ -144,7 +179,10 @@ class TagController extends Controller
             return response()->json([
                 'code'    => 200,
                 'message' => 'Tag retrieved successfully',
-                'data'    => $tag,
+                'data'    => [
+                    'tag'         => $tag,
+                    'invite_link' => "{$this->URL_FRONTEND}/calendar/tag/invite/{$tag->uuid}",
+                ],
             ], 200);
         } catch (\Exception $e) {
             Log::error($e->getMessage());
@@ -190,8 +228,9 @@ class TagController extends Controller
                 'code'    => 200,
                 'message' => 'Tag details retrieved successfully',
                 'data'    => [
-                    'tag'     => $tag,
-                    'invited' => $isInvited,
+                    'tag'         => $tag,
+                    'invited'     => $isInvited,
+                    'invite_link' => "{$this->URL_FRONTEND}/calendar/tag/invite/{$tag->uuid}",
                 ],
             ], 200);
         } catch (\Exception $e) {
@@ -268,9 +307,29 @@ class TagController extends Controller
             ]);
     
             $returnTag[] = $tag;
-
+    
+            // Gửi real-time
             $this->sendRealTimeUpdate($returnTag, 'create');
-
+    
+            // Gửi mail mời
+            $emails = collect($formattedSharedUsers)->pluck('email')->filter();
+            if ($emails->isNotEmpty()) {
+                $this->sendMail(Auth::user()->email, $emails, $tag);
+            }
+    
+            // Gửi notification mời
+            foreach ($formattedSharedUsers as $user) {
+                $userModel = User::find($user['user_id']);
+                if ($userModel) {
+                    $userModel->notify(new NotificationEvent(
+                        $userModel->id,
+                        "Bạn đã được mời tham gia tag: {$tag->name}",
+                        "{$this->URL_FRONTEND}/calendar/tag/invite/{$tag->uuid}",
+                        "invite_to_tag"
+                    ));
+                }
+            }
+    
             return response()->json([
                 'code'    => 201,
                 'message' => 'Tag created successfully',
@@ -286,7 +345,7 @@ class TagController extends Controller
             ], 500);
         }
     }
-
+    
 
     public function update(Request $request, $id)
     {
@@ -304,12 +363,11 @@ class TagController extends Controller
     
             if (!$tag) {
                 return response()->json([
-                    'code'    => 404,
+                    'code' => 404,
                     'message' => 'Tag not found'
                 ], 404);
             }
     
-            // ✅ Kiểm tra quyền người dùng
             $isOwner = $tag->user_id === $userId;
     
             $isEditor = collect($tag->shared_user ?? [])->contains(function ($user) use ($userId) {
@@ -318,23 +376,21 @@ class TagController extends Controller
     
             if (!($isOwner || $isEditor)) {
                 return response()->json([
-                    'code'    => 403,
+                    'code' => 403,
                     'message' => 'You do not have permission to update this tag',
                 ], 403);
             }
     
-            // ✅ Nếu không phải chủ tag mà cố tình chỉnh shared_user → block
-            if (!$isOwner && $request->has('shared_user')) {
+            if (!($isOwner || $isEditor) && $request->has('shared_user')) {
                 return response()->json([
                     'code' => 403,
-                    'message' => 'Only the owner can update shared_user list',
+                    'message' => 'You do not have permission to update shared_user list',
                 ], 403);
             }
     
             $oldSharedUsers = collect($tag->shared_user ?? [])->pluck('user_id')->toArray();
     
-            // Parse & format shared_user nếu là chủ tag
-            if ($isOwner && isset($validated['shared_user'])) {
+            if (($isOwner || $isEditor) && isset($validated['shared_user'])) {
                 $sharedUsersRaw = $validated['shared_user'];
                 if (is_string($sharedUsersRaw)) {
                     $sharedUsersRaw = json_decode($sharedUsersRaw, true);
@@ -343,20 +399,48 @@ class TagController extends Controller
                     }
                 }
     
-                $formattedSharedUsers = collect($sharedUsersRaw)->map(function ($user) use ($userId, $isOwner) {
-                    $userModel = User::find($user['user_id']);
-                    if (!$userModel) return null;
+                $existingUsers = collect($tag->shared_user ?? []);
     
-                    return [
-                        'user_id'    => $user['user_id'],
-                        'first_name' => $userModel->first_name,
-                        'last_name'  => $userModel->last_name,
-                        'email'      => $userModel->email,
-                        'avatar'     => $userModel->avatar,
-                        'status'     => $user['status'] ?? 'pending',
-                        'role'       => $isOwner ? ($user['role'] ?? 'viewer') : 'viewer',
-                    ];
-                })->filter()->values()->toArray();
+                if ($isOwner) {
+                    // ✅ Chủ sở hữu được toàn quyền cập nhật danh sách
+                    $formattedSharedUsers = collect($sharedUsersRaw)->map(function ($user) {
+                        $userModel = User::find($user['user_id']);
+                        if (!$userModel) return null;
+    
+                        return [
+                            'user_id'    => $user['user_id'],
+                            'first_name' => $userModel->first_name,
+                            'last_name'  => $userModel->last_name,
+                            'email'      => $userModel->email,
+                            'avatar'     => $userModel->avatar,
+                            'status'     => $user['status'] ?? 'pending',
+                            'role'       => $user['role'] ?? 'viewer',
+                        ];
+                    })->filter()->values()->toArray();
+                } else {
+                    // ✅ Editor chỉ được thêm người mới
+                    $newUsers = collect($sharedUsersRaw)->filter(function ($user) use ($existingUsers) {
+                        return !$existingUsers->contains('user_id', $user['user_id']);
+                    });
+    
+                    $newFormattedUsers = $newUsers->map(function ($user) {
+                        $userModel = User::find($user['user_id']);
+                        if (!$userModel) return null;
+    
+                        return [
+                            'user_id'    => $user['user_id'],
+                            'first_name' => $userModel->first_name,
+                            'last_name'  => $userModel->last_name,
+                            'email'      => $userModel->email,
+                            'avatar'     => $userModel->avatar,
+                            'status'     => 'pending',
+                            'role'       => 'viewer',
+                        ];
+                    })->filter()->values();
+    
+                    // Gộp người cũ và người mới
+                    $formattedSharedUsers = $existingUsers->merge($newFormattedUsers)->values()->toArray();
+                }
             } else {
                 $formattedSharedUsers = $tag->shared_user;
             }
@@ -378,7 +462,6 @@ class TagController extends Controller
                 ];
             })->filter(fn($r) => $r['type'] && $r['time'])->values()->toArray();
     
-            // Cập nhật tag
             $tag->update([
                 'name'         => $validated['name'],
                 'description'  => $validated['description'],
@@ -387,19 +470,16 @@ class TagController extends Controller
                 'reminder'     => $formattedReminder,
             ]);
     
-            // $tag->syncAttendeesWithTasks($oldSharedUsers);
-    
             $returnTag[] = $tag;
             $this->sendRealTimeUpdate($returnTag, 'update');
     
             // Gửi mail + thông báo nếu có người mới được mời
-            if ($isOwner) {
+            if ($isOwner || $isEditor) {
                 $newUserIds = collect($formattedSharedUsers)->pluck('user_id')->toArray();
                 $addedUsers = array_diff($newUserIds, $oldSharedUsers);
     
                 if (!empty($addedUsers)) {
                     $emails = User::whereIn('id', $addedUsers)->pluck('email');
-    
                     if ($emails->isNotEmpty()) {
                         $this->sendMail(Auth::user()->email, $emails, $tag);
                     }
@@ -410,7 +490,7 @@ class TagController extends Controller
                             $user->notify(new NotificationEvent(
                                 $user->id,
                                 "Bạn đã được mời tham gia tag: {$tag->name}",
-                                "{$this->URL_FRONTEND}/tag/invite/{$tag->id}",
+                                "{$this->URL_FRONTEND}/calendar/tag/invite/{$tag->uuid}",
                                 "invite_to_tag"
                             ));
                         }
@@ -442,7 +522,7 @@ class TagController extends Controller
                 ],
             ], 500);
         }
-    } 
+    }    
     
     public function destroy($id)
     {
@@ -619,6 +699,66 @@ class TagController extends Controller
             'message' => 'Successfully left the tag and related tasks',
         ], 200);
     }    
+
+    public function removeUserFromTag(Request $request, $tagId, $userIdToRemove)
+    {
+        try {
+            $userId = Auth::id();
+            $tag = Tag::find($tagId);
+
+            if (!$tag) {
+                return response()->json(['code' => 404, 'message' => 'Tag not found'], 404);
+            }
+
+            // Chỉ chủ sở hữu tag mới có quyền
+            if ($tag->user_id !== $userId) {
+                return response()->json([
+                    'code' => 403,
+                    'message' => 'Only the tag owner can remove users',
+                ], 403);
+            }
+
+            $sharedUsers = collect($tag->shared_user ?? []);
+
+            if (!$sharedUsers->contains('user_id', $userIdToRemove)) {
+                return response()->json([
+                    'code' => 404,
+                    'message' => 'User not found in shared_user list',
+                ], 404);
+            }
+
+            // Xoá người dùng ra khỏi danh sách shared_user
+            $newSharedUsers = $sharedUsers
+                ->reject(fn($user) => $user['user_id'] == $userIdToRemove)
+                ->values()
+                ->toArray();
+
+            $tag->update(['shared_user' => $newSharedUsers]);
+
+            // Gửi thông báo (tuỳ chọn)
+            $removedUser = User::find($userIdToRemove);
+            if ($removedUser) {
+                $removedUser->notify(new NotificationEvent(
+                    $removedUser->id,
+                    "Bạn đã bị xóa khỏi tag: {$tag->name}",
+                    "",
+                    "removed_from_tag"
+                ));
+            }
+
+            return response()->json([
+                'code' => 200,
+                'message' => 'User removed from tag successfully',
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+
+            return response()->json([
+                'code' => 500,
+                'message' => 'An error occurred while removing user from tag',
+            ], 500);
+        }
+    }
 
     protected function sendMail($mailOwner, $emails, $tag)
     {
