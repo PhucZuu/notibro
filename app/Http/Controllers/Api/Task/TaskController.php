@@ -542,190 +542,224 @@ class TaskController extends Controller
 
                 case 'EDIT_A':
                     try {
-                        $parentTask = Task::find($task->parent_id);
-
                         $duration = Carbon::parse($data['start_time'])->diff(Carbon::parse(time: $data['end_time']));
 
-                        if ($parentTask) {
-                            $relatedTasks = Task::where('parent_id', $parentTask->id)
-                                ->orWhere('parent_id', $task->parent_id)
-                                ->get();
+                        if (!empty($data['count'])) {
+                            // Nếu `count` có giá trị, xóa toàn bộ task con và cập nhật `parentTask`
+                            $parentTask = Task::find($task->parent_id);
 
-                            if (!empty($data['until'])) {
-                                // Tìm `relatedTask` có `start_time` gần nhất với `data['until']`
-                                $nearestTask = $relatedTasks->where('start_time', '<=', $data['until'])
-                                    ->sortByDesc('start_time')
-                                    ->first();
-
-                                if ($nearestTask) {
-                                    $nearestTask->update(['until' => $data['until']]);
-                                }
-
-                                // Xóa tất cả `relatedTask` có `start_time` lớn hơn `data['until']`
-                                $relatedTasks->where('start_time', '>', $data['until'])->each->forceDelete();
+                            // Nếu có task cha, lấy tất cả task con liên quan
+                            if ($parentTask) {
+                                $relatedTasks = Task::where('parent_id', $parentTask->id)->get();
                             } else {
-                                // Nếu `until` là `null`, cập nhật `until` cho task có start_time lớn nhất
-                                $latestTask = $relatedTasks->where('is_repeat', true)
-                                    ->sortByDesc('start_time')
-                                    ->first();
-
-                                if ($latestTask) {
-                                    $latestTask->update(['until' => $latestTask->start_time]);
-                                } elseif ($parentTask) {
-                                    // Nếu không có `relatedTask`, cập nhật `until` cho `parentTask`
-                                    $parentTask->update(['until' => $parentTask->start_time]);
-                                }
+                                $parentTask = $task; // Nếu task hiện tại là cha, nó sẽ giữ lại
+                                $relatedTasks = Task::where('parent_id', $task->id)->get();
                             }
 
-                            foreach ($relatedTasks as $relatedTask) {
-                                $updatedStartTime = Carbon::parse($relatedTask->start_time)
-                                    ->setTime($data['start_time']->hour, $data['start_time']->minute, $data['start_time']->second);
-                                $updatedEndTime = Carbon::parse($updatedStartTime)->copy()->add($duration);
+                            // Xóa tất cả các task con
+                            $relatedTasks->each->forceDelete();
 
-                                $updateData = [
-                                    'parent_id'     => $parentTask->id,
-                                    'title'         => $data['title'],
-                                    'description'   => $data['description'],
-                                    'user_id'       => $data['user_id'],
-                                    'timezone_code' => $data['timezone_code'],
-                                    'color_code'    => $data['color_code'],
-                                    'tag_id'        => $data['tag_id'] ?? null,
-                                    'attendees'     => $data['attendees'],
-                                    'location'      => $data['location'],
-                                    'type'          => $data['type'],
-                                    'is_all_day'    => $data['is_all_day'],
-                                    'is_busy'       => $data['is_busy'],
-                                    'is_reminder'   => $data['is_reminder'],
-                                    'reminder'      => $data['reminder'],
-                                    'link'          => $data['link'],
-                                    'is_private'    => $data['is_private'],
-                                    'is_done'       => $data['is_done'],
-                                    'default_permission' => $data['default_permission'] ?? 'viewer',
-                                    'start_time'    => $updatedStartTime,
-                                    'end_time'      => $updatedEndTime,
-                                ];
-
-                                if ($relatedTask->is_repeat) {
-                                    $updateData = array_merge($updateData, [
-                                        'is_repeat'     => $data['is_repeat'],
-                                        'freq'          => $data['freq'],
-                                        'interval'      => $data['interval'],
-                                        'until'         => $relatedTask->until, // Để không ghi đè `until`
-                                        'count'         => $data['count'],
-                                        'byweekday'     => $data['byweekday'],
-                                        'bymonthday'    => $data['bymonthday'],
-                                        'bymonth'       => $data['bymonth'],
-                                    ]);
-                                }
-
-                                $relatedTask->update($updateData);
-                                $returnTask[] = $relatedTask;
-                            }
-
-                            // **Cập nhật `parentTask`**
+                            // Cập nhật `parentTask` với dữ liệu mới
                             $data['start_time'] = Carbon::parse($data['start_time'])
                                 ->setDate($parentTask->start_time->year, $parentTask->start_time->month, $parentTask->start_time->day);
                             $data['end_time'] = Carbon::parse($data['start_time'])->copy()->add($duration);
 
-                            unset($data['parent_id'], $data['until']);
+                            unset($data['parent_id']);
                             $data['exclude_time'] = $parentTask->exclude_time;
+
                             $parentTask->update($data);
                             $returnTask[] = $parentTask;
                         } else {
-                            // Update all child Task
-                            $relatedTasks = Task::where(function ($query) use ($task) {
-                                $query->where('parent_id', $task->id);
-                                // Kiểm tra nếu parent_id của task hiện tại không phải là null  
-                                if ($task->parent_id !== null) {
-                                    $query->orWhere('parent_id', $task->parent_id);
-                                }
-                            })->get();
+                            $parentTask = Task::find($task->parent_id);
 
-                            // **Xử lý `until`**
-                            if (!empty($data['until'])) {
-                                $nearestTask = $relatedTasks->where('start_time', '<=', $data['until'])
-                                    ->sortByDesc('start_time')
-                                    ->first();
+                            if ($parentTask) {
+                                $relatedTasks = Task::where('parent_id', $parentTask->id)
+                                    ->orWhere('parent_id', $task->parent_id)
+                                    ->get();
 
-                                if ($nearestTask) {
-                                    $nearestTask->update(['until' => $data['until']]);
-                                }
+                                if (!empty($data['until'])) {
+                                    // Tìm `relatedTask` có `start_time` gần nhất với `data['until']`
+                                    $nearestTask = $relatedTasks->where('start_time', '<=', $data['until'])
+                                        ->sortByDesc('start_time')
+                                        ->first();
 
-                                $relatedTasks->where('start_time', '>', $data['until'])->each->forceDelete();
-                            } else {
-                                $latestTask = $relatedTasks->where('is_repeat', true)
-                                    ->sortByDesc('start_time')
-                                    ->first();
+                                    if ($nearestTask) {
+                                        $nearestTask->update(['until' => $data['until']]);
+                                    }
 
-                                if ($latestTask) {
-                                    $latestTask->update(['until' => $latestTask->start_time]);
+                                    // Xóa tất cả `relatedTask` có `start_time` lớn hơn `data['until']`
+                                    $relatedTasks->where('start_time', '>', $data['until'])->each->forceDelete();
                                 } else {
-                                    $task->update(['until' => $task->start_time]);
+                                    // Nếu `until` là `null`, cập nhật `until` cho task có start_time lớn nhất
+                                    $latestTask = $relatedTasks->where('is_repeat', true)
+                                        ->sortByDesc('start_time')
+                                        ->first();
+
+                                    if ($latestTask) {
+                                        $latestTask->update(['until' => $latestTask->start_time]);
+                                    } elseif ($parentTask) {
+                                        // Nếu không có `relatedTask`, cập nhật `until` cho `parentTask`
+                                        $parentTask->update(['until' => $parentTask->start_time]);
+                                    }
                                 }
-                            }
 
-                            foreach ($relatedTasks as $relatedTask) {
-                                $updatedStartTime = Carbon::parse($relatedTask->start_time)
-                                    ->setTime($data['start_time']->hour, $data['start_time']->minute, $data['start_time']->second);
-                                $updatedEndTime = Carbon::parse($updatedStartTime)->copy()->add($duration);
-                        
-                                $updateData = [
-                                    'parent_id'     => $task->id,
-                                    'title'         => $data['title'],
-                                    'description'   => $data['description'],
-                                    'user_id'       => $data['user_id'],
-                                    'timezone_code' => $data['timezone_code'],
-                                    'color_code'    => $data['color_code'],
-                                    'tag_id'        => $data['tag_id'] ?? null,
-                                    'attendees'     => $data['attendees'],
-                                    'location'      => $data['location'],
-                                    'type'          => $data['type'],
-                                    'is_all_day'    => $data['is_all_day'],
-                                    'is_busy'       => $data['is_busy'],
-                                    'is_reminder'   => $data['is_reminder'],
-                                    'reminder'      => $data['reminder'],
-                                    'link'          => $data['link'],
-                                    'is_private'    => $data['is_private'],
-                                    'is_done'       => $data['is_done'],
-                                    'default_permission' => $data['default_permission'] ?? 'viewer',
-                                    'start_time'    => $updatedStartTime,
-                                    'end_time'      => $updatedEndTime,
-                                ];
-                        
-                                if ($relatedTask->is_repeat) {
-                                    $updateData = array_merge($updateData, [
-                                        'is_repeat'     => $data['is_repeat'],
-                                        'freq'          => $data['freq'],
-                                        'interval'      => $data['interval'],
-                                        'until'         => $relatedTask->until,
-                                        'count'         => $data['count'],
-                                        'byweekday'     => $data['byweekday'],
-                                        'bymonthday'    => $data['bymonthday'],
-                                        'bymonth'       => $data['bymonth'],
-                                    ]);
+                                foreach ($relatedTasks as $relatedTask) {
+                                    $updatedStartTime = Carbon::parse($relatedTask->start_time)
+                                        ->setTime($data['start_time']->hour, $data['start_time']->minute, $data['start_time']->second);
+                                    $updatedEndTime = Carbon::parse($updatedStartTime)->copy()->add($duration);
+
+                                    $updateData = [
+                                        'parent_id'     => $parentTask->id,
+                                        'title'         => $data['title'],
+                                        'description'   => $data['description'],
+                                        'user_id'       => $data['user_id'],
+                                        'timezone_code' => $data['timezone_code'],
+                                        'color_code'    => $data['color_code'],
+                                        'tag_id'        => $data['tag_id'] ?? null,
+                                        'attendees'     => $data['attendees'],
+                                        'location'      => $data['location'],
+                                        'type'          => $data['type'],
+                                        'is_all_day'    => $data['is_all_day'],
+                                        'is_busy'       => $data['is_busy'],
+                                        'is_reminder'   => $data['is_reminder'],
+                                        'reminder'      => $data['reminder'],
+                                        'link'          => $data['link'],
+                                        'is_private'    => $data['is_private'],
+                                        'is_done'       => $data['is_done'],
+                                        'default_permission' => $data['default_permission'] ?? 'viewer',
+                                        'start_time'    => $updatedStartTime,
+                                        'end_time'      => $updatedEndTime,
+                                    ];
+
+                                    if ($relatedTask->is_repeat) {
+                                        $updateData = array_merge($updateData, [
+                                            'is_repeat'     => $data['is_repeat'],
+                                            'freq'          => $data['freq'],
+                                            'interval'      => $data['interval'],
+                                            'until'         => $relatedTask->until, // Để không ghi đè `until`
+                                            'count'         => $data['count'],
+                                            'byweekday'     => $data['byweekday'],
+                                            'bymonthday'    => $data['bymonthday'],
+                                            'bymonth'       => $data['bymonth'],
+                                        ]);
+                                    }
+
+                                    $relatedTask->update($updateData);
+                                    $returnTask[] = $relatedTask;
                                 }
-                        
-                                $relatedTask->update($updateData);
-                                $returnTask[] = $relatedTask;
+
+                                // **Cập nhật `parentTask`**
+                                $data['start_time'] = Carbon::parse($data['start_time'])
+                                    ->setDate($parentTask->start_time->year, $parentTask->start_time->month, $parentTask->start_time->day);
+                                $data['end_time'] = Carbon::parse($data['start_time'])->copy()->add($duration);
+
+                                unset($data['parent_id'], $data['until']);
+                                $data['exclude_time'] = $parentTask->exclude_time;
+                                $parentTask->update($data);
+                                $returnTask[] = $parentTask;
+                            } else {
+                                // Update all child Task
+                                $relatedTasks = Task::where(function ($query) use ($task) {
+                                    $query->where('parent_id', $task->id);
+                                    // Kiểm tra nếu parent_id của task hiện tại không phải là null  
+                                    if ($task->parent_id !== null) {
+                                        $query->orWhere('parent_id', $task->parent_id);
+                                    }
+                                })->get();
+
+                                // **Xử lý `until`**
+                                if (!empty($data['until'])) {
+                                    $nearestTask = $relatedTasks->where('start_time', '<=', $data['until'])
+                                        ->sortByDesc('start_time')
+                                        ->first();
+
+                                    if ($nearestTask) {
+                                        $nearestTask->update(['until' => $data['until']]);
+                                    }
+
+                                    $relatedTasks->where('start_time', '>', $data['until'])->each->forceDelete();
+                                } else {
+                                    $latestTask = $relatedTasks->where('is_repeat', true)
+                                        ->sortByDesc('start_time')
+                                        ->first();
+
+                                    if ($latestTask) {
+                                        $latestTask->update(['until' => $latestTask->start_time]);
+                                    } else {
+                                        $task->update(['until' => $task->start_time]);
+                                    }
+                                }
+
+                                foreach ($relatedTasks as $relatedTask) {
+                                    $updatedStartTime = Carbon::parse($relatedTask->start_time)
+                                        ->setTime($data['start_time']->hour, $data['start_time']->minute, $data['start_time']->second);
+                                    $updatedEndTime = Carbon::parse($updatedStartTime)->copy()->add($duration);
+
+                                    $updateData = [
+                                        'parent_id'     => $task->id,
+                                        'title'         => $data['title'],
+                                        'description'   => $data['description'],
+                                        'user_id'       => $data['user_id'],
+                                        'timezone_code' => $data['timezone_code'],
+                                        'color_code'    => $data['color_code'],
+                                        'tag_id'        => $data['tag_id'] ?? null,
+                                        'attendees'     => $data['attendees'],
+                                        'location'      => $data['location'],
+                                        'type'          => $data['type'],
+                                        'is_all_day'    => $data['is_all_day'],
+                                        'is_busy'       => $data['is_busy'],
+                                        'is_reminder'   => $data['is_reminder'],
+                                        'reminder'      => $data['reminder'],
+                                        'link'          => $data['link'],
+                                        'is_private'    => $data['is_private'],
+                                        'is_done'       => $data['is_done'],
+                                        'default_permission' => $data['default_permission'] ?? 'viewer',
+                                        'start_time'    => $updatedStartTime,
+                                        'end_time'      => $updatedEndTime,
+                                    ];
+
+                                    if ($relatedTask->is_repeat) {
+                                        $updateData = array_merge($updateData, [
+                                            'is_repeat'     => $data['is_repeat'],
+                                            'freq'          => $data['freq'],
+                                            'interval'      => $data['interval'],
+                                            'until'         => $relatedTask->until,
+                                            'count'         => $data['count'],
+                                            'byweekday'     => $data['byweekday'],
+                                            'bymonthday'    => $data['bymonthday'],
+                                            'bymonth'       => $data['bymonth'],
+                                        ]);
+                                    }
+
+                                    $relatedTask->update($updateData);
+                                    $returnTask[] = $relatedTask;
+                                }
+
+                                //Update current Task
+                                $parentStartTime = is_string($task->start_time)
+                                    ? Carbon::parse($task->start_time)
+                                    : $task->start_time;
+
+                                $parentEndTime = is_string($task->end_time)
+                                    ? Carbon::parse($task->end_time)
+                                    : $task->end_time;
+
+                                $hasRepeatingTask = $relatedTasks->contains(function ($task) {
+                                    return $task->is_repeat;
+                                });
+
+                                $data['start_time'] = Carbon::parse($data['start_time'])->setDate($parentStartTime->year, $parentStartTime->month, $parentStartTime->day);
+                                $data['end_time'] = Carbon::parse($data['start_time'])->copy()->add($duration);
+
+                                unset($data['parent_id']);
+                                if ($hasRepeatingTask) {
+                                    unset($data['until']);
+                                }
+                                $data['exclude_time'] = $task->exclude_time;
+                                $task->update($data);
+
+                                $returnTask[] = $task;
                             }
-
-                            //Update current Task
-                            $parentStartTime = is_string($task->start_time)
-                                ? Carbon::parse($task->start_time)
-                                : $task->start_time;
-
-                            $parentEndTime = is_string($task->end_time)
-                                ? Carbon::parse($task->end_time)
-                                : $task->end_time;
-
-                            $data['start_time'] = Carbon::parse($data['start_time'])->setDate($parentStartTime->year, $parentStartTime->month, $parentStartTime->day);
-                            $data['end_time'] = Carbon::parse($data['start_time'])->copy()->add($duration);
-
-                            unset($data['parent_id'], $data['until']);
-                            $data['exclude_time'] = $task->exclude_time;
-                            $task->update($data);
-
-                            $returnTask[] = $task;
                         }
 
                         //Send API
@@ -2641,7 +2675,7 @@ class TaskController extends Controller
         $expandedTasks = [];
 
         foreach ($tasks as $task) {
-            if($task->tag_id) {
+            if ($task->tag_id) {
                 $tag = Tag::where('id', $task->tag_id)->first();
                 $task->tag_name = $tag->name;
                 $task->tag_id = $tag->id;
