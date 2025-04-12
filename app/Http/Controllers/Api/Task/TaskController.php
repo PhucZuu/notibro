@@ -554,14 +554,17 @@ class TaskController extends Controller
                             } else {
                                 $parentTask = $task; // Nếu task hiện tại là cha, nó sẽ giữ lại
                                 $relatedTasks = Task::where('parent_id', $task->id)->get();
+                                Log::info($parentTask);
                             }
 
                             // Xóa tất cả các task con
                             $relatedTasks->each->forceDelete();
+                            
+                            $parentStartTime = Carbon::parse($parentTask->start_time); // ép kiểu chắc chắn
 
-                            // Cập nhật `parentTask` với dữ liệu mới
                             $data['start_time'] = Carbon::parse($data['start_time'])
-                                ->setDate($parentTask->start_time->year, $parentTask->start_time->month, $parentTask->start_time->day);
+                                ->setDate($parentStartTime->year, $parentStartTime->month, $parentStartTime->day);
+
                             $data['end_time'] = Carbon::parse($data['start_time'])->copy()->add($duration);
 
                             unset($data['parent_id']);
