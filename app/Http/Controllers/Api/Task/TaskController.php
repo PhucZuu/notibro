@@ -6,6 +6,7 @@ use App\Events\Task\TaskUpdatedEvent;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Api\Chat\TaskGroupChatController;
 use App\Mail\InviteGuestMail;
+use App\Mail\SendNotificationMail;
 use App\Models\Reminder;
 use App\Models\Setting;
 use App\Models\Tag;
@@ -298,8 +299,6 @@ class TaskController extends Controller
             'default_permission' => 'nullable',
         ]);
 
-        // $data['user_id'] = Auth::id();
-
         $data = $this->handleJsonStringData($data);
 
         $data = $this->handleLogicData($data);
@@ -337,6 +336,29 @@ class TaskController extends Controller
                         $returnTask[] = $task;
 
                         $this->sendRealTimeUpdate($returnTask, 'update');
+
+                        $merged = array_merge($task->attendees, $attendees->toArray());
+
+                        // Dùng collection để loại trùng theo 'user_id'
+                        $uniqueAttendees = collect($merged)
+                            ->unique('user_id')
+                            ->values();
+
+                        //Send NOTIFICATION
+                        foreach ($uniqueAttendees as $attendee) {
+                            if ($attendee['user_id'] != Auth::id()) {
+                                $user = User::find($attendee['user_id']);
+
+                                $user->notify(new NotificationEvent(
+                                    $task->user_id,
+                                    "Sự kiện {$task->title} vừa mới được cập nhật !",
+                                    "",
+                                    "update_task"
+                                ));
+
+                                Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'update'));
+                            }
+                        }
 
                         return response()->json([
                             'code'    => 200,
@@ -409,6 +431,29 @@ class TaskController extends Controller
                         app(TaskGroupChatController::class)->createGroup($new_task->id, $new_task->user_id);
 
                         $this->sendRealTimeUpdate($returnTaskUpdate, 'update');
+
+                        $merged = array_merge($new_task->attendees, $attendees->toArray());
+
+                        // Dùng collection để loại trùng theo 'user_id'
+                        $uniqueAttendees = collect($merged)
+                            ->unique('user_id')
+                            ->values();
+
+                        //Send NOTIFICATION
+                        foreach ($uniqueAttendees as $attendee) {
+                            if ($attendee['user_id'] != Auth::id()) {
+                                $user = User::find($attendee['user_id']);
+
+                                $user->notify(new NotificationEvent(
+                                    $task->user_id,
+                                    "Sự kiện {$task->title} vừa mới được cập nhật !",
+                                    "",
+                                    "update_task"
+                                ));
+
+                                Mail::to($user->email)->queue(new SendNotificationMail($user, $new_task, 'update'));
+                            }
+                        }
 
                         return response()->json([
                             'code'    => 200,
@@ -526,6 +571,29 @@ class TaskController extends Controller
 
                         $this->sendRealTimeUpdate($returnTask, 'create');
 
+                        $merged = array_merge($new_task->attendees, $attendees->toArray());
+
+                        // Dùng collection để loại trùng theo 'user_id'
+                        $uniqueAttendees = collect($merged)
+                            ->unique('user_id')
+                            ->values();
+
+                        //Send NOTIFICATION
+                        foreach ($uniqueAttendees as $attendee) {
+                            if ($attendee['user_id'] != Auth::id()) {
+                                $user = User::find($attendee['user_id']);
+
+                                $user->notify(new NotificationEvent(
+                                    $task->user_id,
+                                    "Sự kiện {$task->title} vừa mới được cập nhật !",
+                                    "",
+                                    "update_task"
+                                ));
+                            }
+
+                            Mail::to($user->email)->queue(new SendNotificationMail($user, $new_task, 'update'));
+                        }
+
                         return response()->json([
                             'code'    => 200,
                             'message' => 'Task updated successfully',
@@ -559,7 +627,7 @@ class TaskController extends Controller
 
                             // Xóa tất cả các task con
                             $relatedTasks->each->forceDelete();
-                            
+
                             $parentStartTime = Carbon::parse($parentTask->start_time); // ép kiểu chắc chắn
 
                             $data['start_time'] = Carbon::parse($data['start_time'])
@@ -768,6 +836,29 @@ class TaskController extends Controller
                         //Send API
                         $this->sendRealTimeUpdate($returnTask, 'update');
 
+                        $merged = array_merge($task->attendees, $attendees->toArray());
+
+                        // Dùng collection để loại trùng theo 'user_id'
+                        $uniqueAttendees = collect($merged)
+                            ->unique('user_id')
+                            ->values();
+
+                        //Send NOTIFICATION
+                        foreach ($uniqueAttendees as $attendee) {
+                            if ($attendee['user_id'] != Auth::id()) {
+                                $user = User::find($attendee['user_id']);
+
+                                $user->notify(new NotificationEvent(
+                                    $task->user_id,
+                                    "Sự kiện {$task->title} vừa mới được cập nhật !",
+                                    "",
+                                    "update_task"
+                                ));
+
+                                Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'update'));
+                            }
+                        }
+
                         return response()->json([
                             'code'    => 200,
                             'message' => 'Task updated successfully',
@@ -847,6 +938,29 @@ class TaskController extends Controller
 
                         $this->sendRealTimeUpdate($returnTask, 'update');
 
+                        $merged = array_merge($task->attendees, $attendees->toArray());
+
+                        // Dùng collection để loại trùng theo 'user_id'
+                        $uniqueAttendees = collect($merged)
+                            ->unique('user_id')
+                            ->values();
+
+                        //Send NOTIFICATION
+                        foreach ($uniqueAttendees as $attendee) {
+                            if ($attendee['user_id'] != Auth::id()) {
+                                $user = User::find($attendee['user_id']);
+
+                                $user->notify(new NotificationEvent(
+                                    $task->user_id,
+                                    "Sự kiện {$task->title} vừa mới được cập nhật !",
+                                    "",
+                                    "update_task"
+                                ));
+
+                                Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'update'));
+                            }
+                        }
+
                         return response()->json([
                             'code'    => 200,
                             'message' => 'Task updated successfully',
@@ -912,6 +1026,29 @@ class TaskController extends Controller
 
                         app(TaskGroupChatController::class)->createGroup($new_task->id, $new_task->user_id);
 
+                        $merged = array_merge($new_task->attendees, $attendees->toArray());
+
+                        // Dùng collection để loại trùng theo 'user_id'
+                        $uniqueAttendees = collect($merged)
+                            ->unique('user_id')
+                            ->values();
+
+                        //Send NOTIFICATION
+                        foreach ($uniqueAttendees as $attendee) {
+                            if ($attendee['user_id'] != Auth::id()) {
+                                $user = User::find($attendee['user_id']);
+
+                                $user->notify(new NotificationEvent(
+                                    $task->user_id,
+                                    "Sự kiện {$task->title} vừa mới được cập nhật !",
+                                    "",
+                                    "update_task"
+                                ));
+
+                                Mail::to($user->email)->queue(new SendNotificationMail($user, $new_task, 'update'));
+                            }
+                        }
+
 
                         return response()->json([
                             'code'    => 200,
@@ -933,6 +1070,27 @@ class TaskController extends Controller
 
                         $preNewTask->start_time = $data['start_time'];
                         $preNewTask->end_time = $data['end_time'];
+
+                        $childTasks = Task::where('parent_id',$task->parent_id)->orWhere('parent_id', $task->id)->where('is_repeat', 1)->get();
+
+                        $latestTask = $childTasks->sort(function ($a, $b) {
+                            if (is_null($a->until) && is_null($b->until)) return 0;
+                            if (is_null($a->until)) return -1; // $a lớn hơn
+                            if (is_null($b->until)) return 1;  // $b lớn hơn
+                            return strtotime($b->until) <=> strtotime($a->until); // So sánh ngược để sắp giảm dần
+                        })->first();
+
+                        $latestTask->until = $latestTask->until ? Carbon::parse($latestTask->until) : null;
+                        $task->until = $task->until ? Carbon::parse($task->until) : null;
+                        
+                        if (is_null($latestTask->until)) {
+                            $preNewTask->until = null;
+                        } elseif (
+                            $data['start_time']->greaterThanOrEqualTo($latestTask->until) ||
+                            $data['start_time']->greaterThanOrEqualTo($task->until)
+                        ) {
+                            $preNewTask->until = $data['start_time'];
+                        }
 
                         unset($preNewTask->uuid);
 
@@ -1025,6 +1183,29 @@ class TaskController extends Controller
 
                         $this->sendRealTimeUpdate($returnTask, 'create');
 
+                        $merged = array_merge($new_task->attendees, $attendees->toArray());
+
+                        // Dùng collection để loại trùng theo 'user_id'
+                        $uniqueAttendees = collect($merged)
+                            ->unique('user_id')
+                            ->values();
+
+                        //Send NOTIFICATION
+                        foreach ($uniqueAttendees as $attendee) {
+                            if ($attendee['user_id'] != Auth::id()) {
+                                $user = User::find($attendee['user_id']);
+
+                                $user->notify(new NotificationEvent(
+                                    $task->user_id,
+                                    "Sự kiện {$task->title} vừa mới được cập nhật !",
+                                    "",
+                                    "update_task"
+                                ));
+
+                                Mail::to($user->email)->queue(new SendNotificationMail($user, $new_task, 'update'));
+                            }
+                        }
+
                         return response()->json([
                             'code'    => 200,
                             'message' => 'Task updated successfully',
@@ -1058,54 +1239,11 @@ class TaskController extends Controller
 
                                 if ($relatedTask->is_repeat) {
                                     $relatedTask->update([
-                                        'title'         => $parentTask->title,
-                                        'description'   => $parentTask->description,
-                                        'user_id'       => $parentTask->user_id,
-                                        'timezone_code' => $parentTask->timezone_code,
-                                        'color_code'    => $parentTask->color_code,
-                                        'tag_id'        => $parentTask->tag_id ?? null,
-                                        'attendees'     => $parentTask->attendees,
-                                        'location'      => $parentTask->location,
-                                        'type'          => $parentTask->type,
-                                        'is_all_day'    => $parentTask->is_all_day,
-                                        'is_busy'       => $parentTask->is_busy,
-                                        'is_reminder'   => $parentTask->is_reminder,
-                                        'reminder'      => $parentTask->reminder,
-                                        'is_repeat'     => $parentTask->is_repeat,
-                                        'is_private'    => $parentTask->is_private,
-                                        'is_done'       => $parentTask->is_done,
-                                        'link'          => $parentTask->link,
-                                        'default_permission' => $parentTask->default_permission ?? 'viewer',
-                                        'freq'          => $parentTask->freq,
-                                        'interval'      => $parentTask->interval,
-                                        'until'         => $parentTask->until,
-                                        'count'         => $parentTask->count,
-                                        'byweekday'     => $parentTask->byweekday,
-                                        'bymonthday'    => $parentTask->bymonthday,
-                                        'bymonth'       => $parentTask->bymonth,
                                         'start_time'    => $updatedStartTime,
                                         'end_time'      => $updatedEndTime,
                                     ]);
                                 } else {
                                     $relatedTask->update([
-                                        'parent_id'     => $parentTask->id,
-                                        'title'         => $parentTask->title,
-                                        'description'   => $parentTask->description,
-                                        'user_id'       => $parentTask->user_id,
-                                        'timezone_code' => $parentTask->timezone_code,
-                                        'color_code'    => $parentTask->color_code,
-                                        'tag_id'        => $parentTask->tag_id ?? null,
-                                        'attendees'     => $parentTask->attendees,
-                                        'location'      => $parentTask->location,
-                                        'type'          => $parentTask->type,
-                                        'is_all_day'    => $parentTask->is_all_day,
-                                        'is_busy'       => $parentTask->is_busy,
-                                        'is_reminder'   => $parentTask->is_reminder,
-                                        'is_done'       => $parentTask->is_done,
-                                        'link'          => $parentTask->link,
-                                        'reminder'      => $parentTask->reminder,
-                                        'is_repeat'     => $parentTask->is_repeat,
-                                        'default_permission' => $parentTask->default_permission ?? 'viewer',
                                         'start_time'    => $updatedStartTime,
                                         'end_time'      => $updatedEndTime,
                                     ]);
@@ -1140,56 +1278,11 @@ class TaskController extends Controller
 
                                 if ($relatedTask->is_repeat) {
                                     $relatedTask->update([
-                                        'parent_id'     => $task->id,
-                                        'title'         => $task->title,
-                                        'description'   => $task->description,
-                                        'user_id'       => $task->user_id,
-                                        'timezone_code' => $task->timezone_code,
-                                        'color_code'    => $task->color_code,
-                                        'tag_id'        => $task->tag_id ?? null,
-                                        'attendees'     => $task->attendees,
-                                        'location'      => $task->location,
-                                        'type'          => $task->type,
-                                        'is_all_day'    => $task->is_all_day,
-                                        'is_busy'       => $task->is_busy,
-                                        'is_reminder'   => $task->is_reminder,
-                                        'reminder'      => $task->reminder,
-                                        'is_repeat'     => $task->is_repeat,
-                                        'is_private'    => $task->is_private,
-                                        'is_done'       => $task->is_done,
-                                        'link'          => $task->link,
-                                        'default_permission' => $task->default_permission ?? 'viewer',
-                                        'freq'          => $task->freq,
-                                        'interval'      => $task->interval,
-                                        'until'         => $task->until,
-                                        'count'         => $task->count,
-                                        'byweekday'     => $task->byweekday,
-                                        'bymonthday'    => $task->bymonthday,
-                                        'bymonth'       => $task->bymonth,
                                         'start_time'    => $updatedStartTime,
                                         'end_time'      => $updatedEndTime,
                                     ]);
                                 } else {
                                     $relatedTask->update([
-                                        'parent_id'     => $task->id,
-                                        'title'         => $task->title,
-                                        'description'   => $task->description,
-                                        'user_id'       => $task->user_id,
-                                        'timezone_code' => $task->timezone_code,
-                                        'color_code'    => $task->color_code,
-                                        'tag_id'        => $task->tag_id ?? null,
-                                        'attendees'     => $task->attendees,
-                                        'location'      => $task->location,
-                                        'type'          => $task->type,
-                                        'is_all_day'    => $task->is_all_day,
-                                        'is_busy'       => $task->is_busy,
-                                        'is_reminder'   => $task->is_reminder,
-                                        'reminder'      => $task->reminder,
-                                        'is_repeat'     => $task->is_repeat,
-                                        'is_private'    => $task->is_private,
-                                        'is_done'       => $task->is_done,
-                                        'link'          => $task->link,
-                                        'default_permission' => $task->default_permission ?? 'viewer',
                                         'start_time'    => $updatedStartTime,
                                         'end_time'      => $updatedEndTime,
                                     ]);
@@ -1217,6 +1310,29 @@ class TaskController extends Controller
 
                         //Send API
                         $this->sendRealTimeUpdate($returnTask, 'update');
+
+                        $merged = array_merge($task->attendees, $attendees->toArray());
+
+                        // Dùng collection để loại trùng theo 'user_id'
+                        $uniqueAttendees = collect($merged)
+                            ->unique('user_id')
+                            ->values();
+
+                        //Send NOTIFICATION
+                        foreach ($uniqueAttendees as $attendee) {
+                            if ($attendee['user_id'] != Auth::id()) {
+                                $user = User::find($attendee['user_id']);
+
+                                $user->notify(new NotificationEvent(
+                                    $task->user_id,
+                                    "Sự kiện {$task->title} vừa mới được cập nhật !",
+                                    "",
+                                    "update_task"
+                                ));
+
+                                Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'update'));
+                            }
+                        }
 
                         return response()->json([
                             'code'    => 200,
@@ -1813,7 +1929,7 @@ class TaskController extends Controller
                 $occurrenceStart = clone $occurrence;
                 $occurrenceEnd = $occurrenceStart->copy()->addMinutes($durationInMinutes);
 
-                if ( $data['start_time']->lt($occurrenceEnd) && $data['end_time']->gt($occurrenceStart)) {
+                if ($data['start_time']->lt($occurrenceEnd) && $data['end_time']->gt($occurrenceStart)) {
                     return response()->json([
                         'code'    => 477,
                         'message' => 'The start and end times overlap with another event.'
@@ -1992,6 +2108,27 @@ class TaskController extends Controller
                     try {
                         $returnTask[] = $task;
 
+                        $merged = array_merge($task->attendees, $attendees->toArray());
+
+                        // Dùng collection để loại trùng theo 'user_id'
+                        $uniqueAttendees = collect($merged)->unique('user_id')->values();
+
+                        //Send NOTIFICATION
+                        foreach ($uniqueAttendees as $attendee) {
+                            if ($attendee['user_id'] != Auth::id()) {
+                                $user = User::find($attendee['user_id']);
+
+                                $user->notify(new NotificationEvent(
+                                    $task->user_id,
+                                    "Sự kiện {$task->title} vừa mới bị loại bỏ !",
+                                    "",
+                                    "delete_task"
+                                ));
+
+                                Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'delete'));
+                            }
+                        }
+
                         $task->delete();
 
                         // delete all tasks -> delete group chats
@@ -2071,6 +2208,26 @@ class TaskController extends Controller
                         //Send REALTIME        
                         $this->sendRealTimeUpdate($returnTask, 'update');
 
+                        $merged = array_merge($task->attendees, $attendees->toArray());
+
+                        $uniqueAttendees = collect($merged)->unique('user_id')->values();
+
+                        //Send NOTIFICATION
+                        foreach ($uniqueAttendees as $attendee) {
+                            if ($attendee['user_id'] != Auth::id()) {
+                                $user = User::find($attendee['user_id']);
+
+                                $user->notify(new NotificationEvent(
+                                    $task->user_id,
+                                    "Sự kiện {$task->title} vừa mới lược bỏ bớt 1 ngày !",
+                                    "",
+                                    "delete_task"
+                                ));
+
+                                Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'delete'));
+                            }
+                        }
+
                         return response()->json([
                             'code' => 200,
                             'message' => 'Delete task successfully'
@@ -2097,19 +2254,6 @@ class TaskController extends Controller
                         //Send REALTIME        
                         $this->sendRealTimeUpdate($returnTask, 'update');
 
-                        // Xoá các task liên quan về sau
-                        // $tasksChild = Task::where('start_time', '>', $request->date)
-                        //     ->where('id', $task->id)
-                        //     ->orWhere('parent_id', $task->id)
-                        //     ->get();
-
-                        // $returnTaskDel[] = $tasksChild;
-
-                        // if (!$tasksChild->isEmpty()) {
-                        //     foreach ($tasksChild as $task) {
-                        //         $task->delete();
-                        //     }
-                        // }
 
                         $relatedTasks = Task::where(function ($query) use ($task) {
                             $query->where('parent_id', $task->id);
@@ -2124,55 +2268,6 @@ class TaskController extends Controller
                         $returnTaskDel = [];
 
                         foreach ($relatedTasks as $relatedTask) {
-                            // if ($relatedTask->is_repeat) {
-                            //     $relatedTask->create([
-                            //         'parent_id'     => $task->parent_id ?? $task->id,
-                            //         'title'         => $task->title,
-                            //         'description'   => $task->description,
-                            //         'user_id'       => $task->user_id,
-                            //         'timezone_code' => $task->timezone_code,
-                            //         'color_code'    => $task->color_code,
-                            //         'tag_id'        => $task->tag_id ?? null,
-                            //         'attendees'     => $task->attendees,
-                            //         'location'      => $task->location,
-                            //         'type'          => $task->type,
-                            //         'is_all_day'    => $task->is_all_day,
-                            //         'is_busy'       => $task->is_busy,
-                            //         'is_reminder'   => $task->is_reminder,
-                            //         'reminder'      => $task->reminder,
-                            //         'is_repeat'     => $task->is_repeat,
-                            //         'freq'          => $task->freq,
-                            //         'interval'      => $task->interval,
-                            //         'until'         => $preUntil,
-                            //         'count'         => $task->count,
-                            //         'byweekday'     => $task->byweekday,
-                            //         'bymonthday'    => $task->bymonthday,
-                            //         'bymonth'       => $task->bymonth,
-                            //         'link'          => $task->link,
-                            //         'is_private'    => $task->is_private,
-                            //         'start_time'    => $relatedTask->start_time,
-                            //         'end_time'      => $relatedTask->end_time,
-                            //     ]);
-                            // } else {
-                            //     $relatedTask->create([
-                            //         'parent_id'     => $task->parent_id ?? $task->id,
-                            //         'title'         => $task->title,
-                            //         'description'   => $task->description,
-                            //         'user_id'       => $task->user_id,
-                            //         'timezone_code' => $task->timezone_code,
-                            //         'color_code'    => $task->color_code,
-                            //         'tag_id'        => $task->tag_id ?? null,
-                            //         'attendees'     => $task->attendees,
-                            //         'location'      => $task->location,
-                            //         'type'          => $task->type,
-                            //         'is_all_day'    => $task->is_all_day,
-                            //         'is_busy'       => $task->is_busy,
-                            //         'is_reminder'   => $task->is_reminder,
-                            //         'reminder'      => $task->reminder,
-                            //         'link'          => $task->link,
-                            //         'is_private'    => $task->is_private,
-                            //     ]);
-                            // }
 
                             $relatedTask->forceDelete();
 
@@ -2182,6 +2277,27 @@ class TaskController extends Controller
                         //Send REALTIME
                         if (!$returnTaskDel) {
                             $this->sendRealTimeUpdate($returnTaskDel, 'delete');
+                        }
+
+                        $merged = array_merge($task->attendees, $attendees->toArray());
+
+                        // Dùng collection để loại trùng theo 'user_id'
+                        $uniqueAttendees = collect($merged)->unique('user_id')->values();
+
+                        //Send NOTIFICATION
+                        foreach ($uniqueAttendees as $attendee) {
+                            if ($attendee['user_id'] != Auth::id()) {
+                                $user = User::find($attendee['user_id']);
+
+                                $user->notify(new NotificationEvent(
+                                    $task->user_id,
+                                    "Sự kiện {$task->title} sẽ không còn từ ngày {$task->until} vừa mới bị loại bỏ !",
+                                    "",
+                                    "delete_task"
+                                ));
+
+                                Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'delete'));
+                            }
                         }
 
                         return response()->json([
@@ -2212,6 +2328,28 @@ class TaskController extends Controller
                             ->get();
 
                         if ($deleteTasks->isNotEmpty()) {
+                            foreach ($deleteTasks as $deleteTask) {
+                                $merged = array_merge($deleteTask->attendees, $attendees->toArray());
+                            }
+
+                            $uniqueAttendees = collect($merged)->unique('user_id')->values();
+
+                            //Send NOTIFICATION
+                            foreach ($uniqueAttendees as $attendee) {
+                                if ($attendee['user_id'] != Auth::id()) {
+                                    $user = User::find($attendee['user_id']);
+
+                                    $user->notify(new NotificationEvent(
+                                        $task->user_id,
+                                        "Toàn bộ chuỗi sự kiện {$task->title} vừa mới bị loại bỏ !",
+                                        "",
+                                        "delete_task"
+                                    ));
+
+                                    Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'delete'));
+                                }
+                            }
+
                             // Gửi Realtime  
                             $this->sendRealTimeUpdate($deleteTasks, 'delete');
 
