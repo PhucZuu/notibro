@@ -34,6 +34,13 @@ class AuthController extends Controller
             ],401);
         }
 
+        if($user && $user->roles->contains('name', 'admin')){
+            return response()->json([
+                'code'    => 401,
+                'message' => 'Invalid credentials',
+            ], 401);
+        }
+
         if($user->email_verified_at === null) {
             // Tạo mã OTP mới
             $otp = random_int(100000, 999999);
@@ -47,6 +54,50 @@ class AuthController extends Controller
             return response()->json([
                 'code'    => 400,
                 'message' => 'Email is not verified',
+            ]);
+        }
+
+        // Tạo token
+        $accessToken = $user->createToken('access_token')->plainTextToken;
+
+        return response()->json([
+            'code'    => 200,
+            'message' => 'Login successfully',
+            'data'    => [
+                'access_token' => $accessToken,
+                'token_type'   => 'Bearer',
+                'user'         => [
+                    "id"         => $user->id,
+                    'email'      => $user->email,
+                    "first_name" => $user->first_name,
+                    "last_name"  => $user->last_name,
+                    "role"       => $user->roles[0]['name'] ?? 'user',
+                    "avatar"     => $user->avatar,
+                ],
+                'setting'      => $user->setting,
+            ],
+        ],200);
+    }
+
+    public function loginWithAdmin(Request $request)
+    {
+        $credentials = $request->only('email','password');
+
+        $user = User::with('roles:id,name','setting')
+        ->where('email',$credentials['email'])
+        ->first();
+
+        if(!$user || !Hash::check($credentials['password'], $user->password)) {
+            return response()->json([
+                'code'    => 401,
+                'message' => 'Invalid credentials',
+            ]);
+        }
+
+        if($user && !$user->roles->contains('name', 'admin')){
+            return response()->json([
+                'code'    => 403,
+                'message' => 'You do not have permission to access this resource',
             ]);
         }
 
