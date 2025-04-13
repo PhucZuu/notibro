@@ -1807,12 +1807,16 @@ class TaskController extends Controller
 
         foreach ($tasks as $task) {
             $occurrences = $this->serviceGetAllOcc->getAllOccurrences($task);
+            $durationInMinutes = Carbon::parse($task->end_time)->diffInMinutes($task->start_time);
 
             foreach ($occurrences as $occurrence) {
-                if ($occurrence->equalTo($data['start_time'])) {
+                $occurrenceStart = clone $occurrence;
+                $occurrenceEnd = $occurrenceStart->copy()->addMinutes($durationInMinutes);
+
+                if ( $data['start_time']->lt($occurrenceEnd) && $data['end_time']->gt($occurrenceStart)) {
                     return response()->json([
                         'code'    => 477,
-                        'message' => 'Trùng thời gian với một task khác'
+                        'message' => 'The start and end times overlap with another event.'
                     ], 200);
                 }
             }
@@ -2524,15 +2528,6 @@ class TaskController extends Controller
                 "",
                 "accept_invite"
             ));
-
-            // Thêm thông báo
-            Reminder::insert([
-                'title'   => 'Event notification',
-                'user_id' => $task->user_id,
-                'message' => 'User ' . $user->first_name . ' ' . $user->last_name . ' has accepted to participate in your event: ' . $task->title,
-                'type'    => 'event',
-                'sent_at' => Carbon::now($task->user->setting->timezone_code),
-            ]);
 
             // add member to group chat after member accepts invitation
             app(TaskGroupChatController::class)->addMember($task->id, $user->id);
