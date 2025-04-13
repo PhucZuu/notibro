@@ -33,6 +33,7 @@ use Illuminate\Foundation\Auth\EmailVerificationRequest;
 */
 
 Route::post('/auth/login',    [AuthController::class, 'login'])->name('login');
+Route::post('/auth/login-admin', [AuthController::class, 'loginWithAdmin']);
 Route::post('/auth/register', [AuthController::class, 'register']);
 Route::post('/auth/verify',   [AuthController::class, 'verifyEmail']);
 Route::post('/auth/send-otp', [AuthController::class, 'sendOtp']);
