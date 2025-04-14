@@ -297,6 +297,7 @@ class TaskController extends Controller
             'link'              => 'nullable',
             'is_private'        => 'nullable',
             'default_permission' => 'nullable',
+            'sendMail'          => 'nullable',
         ]);
 
         $data = $this->handleJsonStringData($data);
@@ -356,7 +357,9 @@ class TaskController extends Controller
                                     "update_task"
                                 ));
 
-                                Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'update'));
+                                if ($data['sendMail']) {
+                                    Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'update'));
+                                }
                             }
                         }
 
@@ -451,7 +454,9 @@ class TaskController extends Controller
                                     "update_task"
                                 ));
 
-                                Mail::to($user->email)->queue(new SendNotificationMail($user, $new_task, 'update'));
+                                if ($data['sendMail']) {
+                                    Mail::to($user->email)->queue(new SendNotificationMail($user, $new_task, 'update'));
+                                }
                             }
                         }
 
@@ -591,7 +596,9 @@ class TaskController extends Controller
                                 ));
                             }
 
-                            Mail::to($user->email)->queue(new SendNotificationMail($user, $new_task, 'update'));
+                            if ($data['sendMail']) {
+                                Mail::to($user->email)->queue(new SendNotificationMail($user, $new_task, 'update'));
+                            }
                         }
 
                         return response()->json([
@@ -855,7 +862,9 @@ class TaskController extends Controller
                                     "update_task"
                                 ));
 
-                                Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'update'));
+                                if ($data['sendMail']) {
+                                    Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'update'));
+                                }
                             }
                         }
 
@@ -898,6 +907,7 @@ class TaskController extends Controller
             'start_time'        => 'required|date_format:Y-m-d H:i:s',
             'end_time'          => 'nullable|date_format:Y-m-d H:i:s',
             'is_all_day'        => 'nullable|boolean',
+            'sendMail'          => 'nullable',
         ]);
 
         $data = $this->handleLogicData($data);
@@ -957,7 +967,9 @@ class TaskController extends Controller
                                     "update_task"
                                 ));
 
-                                Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'update'));
+                                if ($data['sendMail']) {
+                                    Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'update'));
+                                }
                             }
                         }
 
@@ -1045,7 +1057,9 @@ class TaskController extends Controller
                                     "update_task"
                                 ));
 
-                                Mail::to($user->email)->queue(new SendNotificationMail($user, $new_task, 'update'));
+                                if ($data['sendMail']) {
+                                    Mail::to($user->email)->queue(new SendNotificationMail($user, $new_task, 'update'));
+                                }
                             }
                         }
 
@@ -1202,7 +1216,9 @@ class TaskController extends Controller
                                     "update_task"
                                 ));
 
-                                Mail::to($user->email)->queue(new SendNotificationMail($user, $new_task, 'update'));
+                                if ($data['sendMail']) {
+                                    Mail::to($user->email)->queue(new SendNotificationMail($user, $new_task, 'update'));
+                                }
                             }
                         }
 
@@ -1330,7 +1346,9 @@ class TaskController extends Controller
                                     "update_task"
                                 ));
 
-                                Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'update'));
+                                if ($data['sendMail']) {
+                                    Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'update'));
+                                }
                             }
                         }
 
@@ -1946,7 +1964,6 @@ class TaskController extends Controller
 
     public function store(Request $request)
     {
-
         //validate request
         $data = $request->validate([
             'tag_id'            => 'nullable',
@@ -2079,6 +2096,7 @@ class TaskController extends Controller
     public function destroy(Request $request, $id)
     {
         $code = $request->code;
+        $is_send_mail = $request->sendMail;
 
         $task = Task::find($id);
 
@@ -2125,7 +2143,9 @@ class TaskController extends Controller
                                     "delete_task"
                                 ));
 
-                                Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'delete'));
+                                if ($is_send_mail) {
+                                    Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'delete'));
+                                }
                             }
                         }
 
@@ -2224,7 +2244,9 @@ class TaskController extends Controller
                                     "delete_task"
                                 ));
 
-                                Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'delete'));
+                                if ($is_send_mail) {
+                                    Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'delete'));
+                                }
                             }
                         }
 
@@ -2296,7 +2318,9 @@ class TaskController extends Controller
                                     "delete_task"
                                 ));
 
-                                Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'delete'));
+                                if ($is_send_mail) {
+                                    Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'delete'));
+                                }
                             }
                         }
 
@@ -2346,7 +2370,9 @@ class TaskController extends Controller
                                         "delete_task"
                                     ));
 
-                                    Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'delete'));
+                                    if ($is_send_mail) {
+                                        Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'delete'));
+                                    }
                                 }
                             }
 

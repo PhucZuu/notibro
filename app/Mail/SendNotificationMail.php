@@ -28,7 +28,7 @@ class SendNotificationMail extends Mailable
     public function build()
     {
         if ($this->type == 'update') {
-            return $this->subject("Notification: {$this->task->title} is coming up!")
+            return $this->subject("Notification: {$this->task->title} has been updated!")
             ->view('emails.task_notification')
             ->with([
                 'user' => $this->user,
@@ -36,7 +36,7 @@ class SendNotificationMail extends Mailable
                 'type' => $this->type,
             ]);
         }else if ($this->type == 'delete') {
-            return $this->subject("Notification'): {$this->task->title} is coming up!")
+            return $this->subject("Notification'): {$this->task->title} has been deleted!")
             ->view('emails.task_notification')
             ->with([
                 'user' => $this->user,
@@ -44,7 +44,5 @@ class SendNotificationMail extends Mailable
                 'type' => $this->type,
             ]);
         }
-
-        
     }
 }
