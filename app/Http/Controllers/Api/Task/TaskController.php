@@ -24,6 +24,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use RRule\RRule;
 
 class TaskController extends Controller
 {
@@ -138,6 +139,26 @@ class TaskController extends Controller
         $recipients = $this->getRecipients($data);
 
         event(new TaskUpdatedEvent($data, $action, $recipients));
+    }
+
+    function calculateUntilFromCount($task) {
+        if (!$task->count) return null;
+    
+        $start = Carbon::parse($task->start_time);
+        $rule = [
+            'FREQ' => strtoupper($task->freq), // DAILY, WEEKLY, etc.
+            'INTERVAL' => $task->interval ?? 1,
+            'COUNT' => $task->count,
+            'DTSTART' => $start->toRfc3339String()
+        ];
+    
+        if (!empty($task->byweekday)) $rule['BYDAY'] = implode(',', $task->byweekday);
+        if (!empty($task->bymonthday)) $rule['BYMONTHDAY'] = implode(',', $task->bymonthday);
+        if (!empty($task->bymonth)) $rule['BYMONTH'] = implode(',', $task->bymonth);
+    
+        $rrule = new RRule($rule);
+        $occurrences = $rrule->getOccurrences();
+        return end($occurrences); // Ngày cuối cùng
     }
 
     public function index()
@@ -1104,6 +1125,11 @@ class TaskController extends Controller
                         $latestTask->until = $latestTask->until ? Carbon::parse($latestTask->until) : null;
                         $task->until = $task->until ? Carbon::parse($task->until) : null;
 
+                        // Nếu latestTask không có until nhưng có count, thì tính until từ count
+                        if (!$latestTask->until && $latestTask->count) {
+                            $latestTask->until = $this->calculateUntilFromCount($latestTask);
+                        }
+                        
                         // Logic gán until
                         if (is_null($latestTask->until)) {
                             $preNewTask->until = null;
