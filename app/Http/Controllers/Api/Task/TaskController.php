@@ -356,7 +356,7 @@ class TaskController extends Controller
                                     "",
                                     "update_task"
                                 ));
-                            
+
                                 if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
                                     Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'update'));
                                 }
@@ -1085,18 +1085,26 @@ class TaskController extends Controller
                         $preNewTask->start_time = $data['start_time'];
                         $preNewTask->end_time = $data['end_time'];
 
-                        $childTasks = Task::where('parent_id',$task->parent_id)->orWhere('parent_id', $task->id)->where('is_repeat', 1)->get();
+                        $childTasks = Task::where('parent_id', $task->parent_id)
+                            ->orWhere('parent_id', $task->id)
+                            ->where('is_repeat', 1)
+                            ->get();
 
                         $latestTask = $childTasks->sort(function ($a, $b) {
                             if (is_null($a->until) && is_null($b->until)) return 0;
-                            if (is_null($a->until)) return -1; // $a lớn hơn
-                            if (is_null($b->until)) return 1;  // $b lớn hơn
-                            return strtotime($b->until) <=> strtotime($a->until); // So sánh ngược để sắp giảm dần
+                            if (is_null($a->until)) return -1;
+                            if (is_null($b->until)) return 1;
+                            return strtotime($b->until) <=> strtotime($a->until);
                         })->first();
 
+                        // Nếu không có task con nào thì fallback về chính $task
+                        $latestTask = $latestTask ?: $task;
+
+                        // Chuẩn hóa về Carbon
                         $latestTask->until = $latestTask->until ? Carbon::parse($latestTask->until) : null;
                         $task->until = $task->until ? Carbon::parse($task->until) : null;
-                        
+
+                        // Logic gán until
                         if (is_null($latestTask->until)) {
                             $preNewTask->until = null;
                         } elseif (
