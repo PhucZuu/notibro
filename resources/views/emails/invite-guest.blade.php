@@ -1,172 +1,136 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Thư Mời Sự Kiện</title>
-    
+    <title>Thông báo nhiệm vụ</title>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
+
         body {
-            background: linear-gradient(135deg, #f3f7fa, #e1ecf7);
             font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #ff9ebd, #ff69b4);
+            padding: 0;
             margin: 0;
-            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
         }
-    
-        .card {
-            max-width: 650px;
-            margin: 40px auto;
-            border-radius: 20px;
-            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.1);
-            background-color: #ffffff;
-            overflow: hidden;
-            animation: fadeIn 0.5s ease-in-out;
+
+        .email-container {
+            background: #fff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0px 10px 20px rgba(0, 0, 0, 0.15);
+            max-width: 600px;
+            width: 90%;
+            animation: fadeIn 1s ease-in-out;
         }
-    
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-    
-        .card-header {
-            background: linear-gradient(135deg, #4f46e5, #6d28d9, #9333ea);
-            color: white;
+
+        h2 {
+            color: #ff4081;
             text-align: center;
-            padding: 30px 20px;
-        }
-    
-        .card-header h2 {
-            font-size: 26px;
-            margin-bottom: 8px;
+            margin-bottom: 15px;
             font-weight: 600;
         }
-    
-        .card-header p {
+
+        .task-details {
+            background: #ffe6ee;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 15px;
+            box-shadow: inset 0px 3px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .task-details ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .task-details li {
+            padding: 10px 0;
             font-size: 16px;
-            opacity: 0.95;
+            color: #555;
+            border-bottom: 1px dashed #ff69b4;
         }
-    
-        .card-body {
-            padding: 30px 25px;
-        }
-    
-        .card-body h3 {
-            font-size: 22px;
-            font-weight: bold;
-            margin-bottom: 25px;
-            color: #333;
-        }
-    
-        .list-group {
-            margin-bottom: 30px;
-        }
-    
-        .list-group-item {
-            display: flex;
-            align-items: center;
-            font-size: 16px;
-            padding: 14px 0;
-            border-bottom: 1px solid #eee;
-        }
-    
-        .list-group-item:last-child {
+
+        .task-details li:last-child {
             border-bottom: none;
         }
-    
-        .list-group-item i {
-            font-size: 20px;
-            color: #7c3aed;
-            margin-right: 12px;
-            width: 25px;
-            text-align: center;
+
+        .task-details strong {
+            color: #ff4081;
         }
-    
-        .btn-custom {
-            font-size: 16px;
-            padding: 12px 24px;
-            border-radius: 10px;
-            font-weight: 600;
-            background: linear-gradient(135deg, #facc15, #10b981);
-            border: none;
-            color: white;
-            transition: background 0.3s ease, transform 0.2s;
+
+        .btn {
+            display: block;
+            text-align: center;
+            padding: 12px;
+            background: linear-gradient(135deg, #ff69b4, #ff4081);
+            color: #fff;
             text-decoration: none;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        }
-    
-        .btn-custom:hover {
-            background: linear-gradient(135deg, #fbbf24, #059669);
-            transform: translateY(-2px);
-        }
-    
-        .contact-info {
-            text-align: center;
-            font-size: 14px;
-            color: #555;
+            border-radius: 8px;
             margin-top: 20px;
+            font-size: 16px;
+            font-weight: bold;
+            transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+            box-shadow: 0px 4px 10px rgba(255, 105, 180, 0.4);
         }
-    
-        .contact-info a {
-            color: #4f46e5;
-            font-weight: 500;
-            text-decoration: none;
+
+        .btn:hover {
+            background: linear-gradient(135deg, #ff4081, #ff0055);
+            transform: translateY(-3px);
+            box-shadow: 0px 6px 12px rgba(255, 105, 180, 0.6);
         }
-    
-        .contact-info a:hover {
-            text-decoration: underline;
+
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 14px;
+            color: #777;
+            font-weight: 300;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
     </style>
 </head>
+
 <body>
-    <div class="container">
-        <div class="card">
-            <div class="card-header">
-                <h2>Thư Mời Tham Gia Sự Kiện</h2>
-                <p>Bạn đã được mời tham gia một sự kiện đặc biệt</p>
-            </div>
-            
-            <div class="card-body text-center">
-                <h3 style="text-align: center;">{{ $data['title'] }}</h3>
-    
-                <div class="list-group text-start">
-                    <div class="list-group-item">
-                        <i class="fa-solid fa-calendar-day"></i>
-                        <div>
-                            <strong>Ngày:</strong>
-                            {{ \Carbon\Carbon::parse($data['start_time'], $data['timezone_code'])}}
-                            <span>Múi giờ: {{$data['timezone_code']}}</span>
-                        </div>
-                    </div>
-    
-                    <div class="list-group-item">
-                        <i class="fa-solid fa-clock"></i>
-                        <div>
-                            <strong>Thời gian:</strong>
-                            {{ \Carbon\Carbon::parse($data['start_time'])->format('H:i') }}
-                        </div>
-                    </div>
-    
-                    @if ($data['location'])
-                    <div class="list-group-item">
-                        <i class="fa-solid fa-location-dot"></i>
-                        <div>
-                            <strong>Địa điểm:</strong> {{ $data['location'] }}
-                        </div>
-                    </div>
-                    @endif
-                </div>
-    
-                <a href="{{ env('URL_FRONTEND') .'/calendar/event/'. $data['uuid'] . '/invite' }}" class="btn btn-custom">
-                    Xem Chi Tiết
-                </a>
-    
-                <div class="contact-info mt-4">
-                    <p>Mọi thắc mắc xin vui lòng liên hệ:</p>
-                    <p><strong>{{ $ownerName }}</strong> - 
-                    <a href="mailto:{{ $ownerEmail }}">{{ $ownerEmail }}</a></p>
-                </div>
-            </div>
+    <div class="email-container">
+        <h2>Thư mời tham gia sự kiện 🥳</h2>
+        <p style="text-align: center;">✨ Bạn được mời tham gia vào 1 sự kiện ✨</p>
+
+        <div class="task-details">
+            @php
+                use Carbon\Carbon;
+                $timezone = $data->timezone_code;
+            @endphp
+
+            <ul>
+                <li><strong>Tiêu đề:</strong> {{ $data->title }}</li>
+                <li><strong>Thời gian bắt đầu:</strong> {{ Carbon::parse($data->start_time)->setTimezone($timezone)->format('d/m/Y H:i') }}</li>
+                <li><strong>Thời gian kết thúc:</strong> {{ Carbon::parse($data->end_time)->setTimezone($timezone)->format('d/m/Y H:i') }}</li>
+                <li><strong>Múi giờ:</strong> {{ $timezone }}</li>
+                <li><strong>Mô tả:</strong> {{ $data->description ?? 'Không có mô tả' }}</li>
+            </ul>
         </div>
+
+        <a href="{{ env('URL_FRONTEND') .'/calendar/event/'. $data['uuid'] . '/invite' }}" class="btn">Xem chi tiết sự kiện</a>
+
+        <p class="footer">Trân trọng,<br><strong>Notibro 🌸</strong></p>
     </div>
 </body>
+
 </html>
