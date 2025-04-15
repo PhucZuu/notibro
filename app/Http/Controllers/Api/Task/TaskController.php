@@ -351,13 +351,13 @@ class TaskController extends Controller
                                 $user = User::find($attendee['user_id']);
 
                                 $user->notify(new NotificationEvent(
-                                    $task->user_id,
+                                    $user->id,
                                     "Sự kiện {$task->title} vừa mới được cập nhật !",
                                     "",
                                     "update_task"
                                 ));
-
-                                if ($data['sendMail']) {
+                            
+                                if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
                                     Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'update'));
                                 }
                             }
@@ -448,13 +448,13 @@ class TaskController extends Controller
                                 $user = User::find($attendee['user_id']);
 
                                 $user->notify(new NotificationEvent(
-                                    $task->user_id,
+                                    $user->id,
                                     "Sự kiện {$task->title} vừa mới được cập nhật !",
                                     "",
                                     "update_task"
                                 ));
 
-                                if ($data['sendMail']) {
+                                if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
                                     Mail::to($user->email)->queue(new SendNotificationMail($user, $new_task, 'update'));
                                 }
                             }
@@ -589,14 +589,14 @@ class TaskController extends Controller
                                 $user = User::find($attendee['user_id']);
 
                                 $user->notify(new NotificationEvent(
-                                    $task->user_id,
+                                    $user->id,
                                     "Sự kiện {$task->title} vừa mới được cập nhật !",
                                     "",
                                     "update_task"
                                 ));
                             }
 
-                            if ($data['sendMail']) {
+                            if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
                                 Mail::to($user->email)->queue(new SendNotificationMail($user, $new_task, 'update'));
                             }
                         }
@@ -856,13 +856,13 @@ class TaskController extends Controller
                                 $user = User::find($attendee['user_id']);
 
                                 $user->notify(new NotificationEvent(
-                                    $task->user_id,
+                                    $user->id,
                                     "Sự kiện {$task->title} vừa mới được cập nhật !",
                                     "",
                                     "update_task"
                                 ));
 
-                                if ($data['sendMail']) {
+                                if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
                                     Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'update'));
                                 }
                             }
@@ -961,13 +961,13 @@ class TaskController extends Controller
                                 $user = User::find($attendee['user_id']);
 
                                 $user->notify(new NotificationEvent(
-                                    $task->user_id,
+                                    $user->id,
                                     "Sự kiện {$task->title} vừa mới được cập nhật !",
                                     "",
                                     "update_task"
                                 ));
 
-                                if ($data['sendMail']) {
+                                if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
                                     Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'update'));
                                 }
                             }
@@ -1051,13 +1051,13 @@ class TaskController extends Controller
                                 $user = User::find($attendee['user_id']);
 
                                 $user->notify(new NotificationEvent(
-                                    $task->user_id,
+                                    $user->id,
                                     "Sự kiện {$task->title} vừa mới được cập nhật !",
                                     "",
                                     "update_task"
                                 ));
 
-                                if ($data['sendMail']) {
+                                if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
                                     Mail::to($user->email)->queue(new SendNotificationMail($user, $new_task, 'update'));
                                 }
                             }
@@ -1210,13 +1210,13 @@ class TaskController extends Controller
                                 $user = User::find($attendee['user_id']);
 
                                 $user->notify(new NotificationEvent(
-                                    $task->user_id,
+                                    $user->id,
                                     "Sự kiện {$task->title} vừa mới được cập nhật !",
                                     "",
                                     "update_task"
                                 ));
 
-                                if ($data['sendMail']) {
+                                if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
                                     Mail::to($user->email)->queue(new SendNotificationMail($user, $new_task, 'update'));
                                 }
                             }
@@ -1340,13 +1340,13 @@ class TaskController extends Controller
                                 $user = User::find($attendee['user_id']);
 
                                 $user->notify(new NotificationEvent(
-                                    $task->user_id,
+                                    $user->id,
                                     "Sự kiện {$task->title} vừa mới được cập nhật !",
                                     "",
                                     "update_task"
                                 ));
 
-                                if ($data['sendMail']) {
+                                if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
                                     Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'update'));
                                 }
                             }
@@ -2137,13 +2137,13 @@ class TaskController extends Controller
                                 $user = User::find($attendee['user_id']);
 
                                 $user->notify(new NotificationEvent(
-                                    $task->user_id,
+                                    $user->id,
                                     "Sự kiện {$task->title} vừa mới bị loại bỏ !",
                                     "",
                                     "delete_task"
                                 ));
 
-                                if ($is_send_mail) {
+                                if ($is_send_mail && $is_send_mail == 'yes') {
                                     Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'delete'));
                                 }
                             }
@@ -2238,13 +2238,13 @@ class TaskController extends Controller
                                 $user = User::find($attendee['user_id']);
 
                                 $user->notify(new NotificationEvent(
-                                    $task->user_id,
+                                    $user->id,
                                     "Sự kiện {$task->title} vừa mới lược bỏ bớt 1 ngày !",
                                     "",
                                     "delete_task"
                                 ));
 
-                                if ($is_send_mail) {
+                                if ($is_send_mail && $is_send_mail == 'yes') {
                                     Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'delete'));
                                 }
                             }
@@ -2312,13 +2312,13 @@ class TaskController extends Controller
                                 $user = User::find($attendee['user_id']);
 
                                 $user->notify(new NotificationEvent(
-                                    $task->user_id,
+                                    $user->id,
                                     "Sự kiện {$task->title} sẽ không còn từ ngày {$task->until} vừa mới bị loại bỏ !",
                                     "",
                                     "delete_task"
                                 ));
 
-                                if ($is_send_mail) {
+                                if ($is_send_mail && $is_send_mail == 'yes') {
                                     Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'delete'));
                                 }
                             }
@@ -2364,13 +2364,13 @@ class TaskController extends Controller
                                     $user = User::find($attendee['user_id']);
 
                                     $user->notify(new NotificationEvent(
-                                        $task->user_id,
+                                        $user->id,
                                         "Toàn bộ chuỗi sự kiện {$task->title} vừa mới bị loại bỏ !",
                                         "",
                                         "delete_task"
                                     ));
 
-                                    if ($is_send_mail) {
+                                    if ($is_send_mail && $is_send_mail == 'yes') {
                                         Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'delete'));
                                     }
                                 }
