@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Notifications\NotificationEvent;
 use App\Services\GetAllOccurrenceService;
 use App\Services\GetNextOccurrenceService;
+use App\Services\UploadFileService;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -453,7 +454,10 @@ class TaskController extends Controller
                         $returnTaskUpdate[] = $task;
 
                         // update task -> create new group
-                        app(TaskGroupChatController::class)->createGroup($new_task->id, $new_task->user_id);
+                        //app(TaskGroupChatController::class)->createGroup($new_task->id, $new_task->user_id);
+
+                        // update task -> duplicate file
+                        app(UploadFileService::class)->duplicateFile($task->id,$new_task->id);
 
                         $this->sendRealTimeUpdate($returnTaskUpdate, 'update');
 
@@ -576,6 +580,8 @@ class TaskController extends Controller
 
                             $returnTaskUpdate[] = $relatedTask;
                         }
+
+                        app(UploadFileService::class)->duplicateFile($task->id,$new_task->id);
 
                         //Send REALTIME
                         if (!$returnTaskUpdate) {
@@ -1062,7 +1068,8 @@ class TaskController extends Controller
 
                         $this->sendRealTimeUpdate($returnTask, 'update');
 
-                        app(TaskGroupChatController::class)->createGroup($new_task->id, $new_task->user_id);
+                        app(UploadFileService::class)->duplicateFile($task->id,$new_task->id);
+                        //app(TaskGroupChatController::class)->createGroup($new_task->id, $new_task->user_id);
 
                         $new_task->attendees = $new_task->attendees ?? [];
                         $merged = array_merge($new_task->attendees, $attendees->toArray());
@@ -1222,6 +1229,7 @@ class TaskController extends Controller
                             $this->sendRealTimeUpdate($returnTaskUpdate, 'update');
                         }
 
+                        app(UploadFileService::class)->duplicateFile($task->id,$new_task->id);
                         // app(TaskGroupChatController::class)->createGroup($new_task->id, $new_task->user_id);
 
                         $allExcludeTimes = array_unique($allExcludeTimes);
