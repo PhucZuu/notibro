@@ -187,7 +187,7 @@ class Task extends Model
         // Định nghĩa mô tả rõ ràng hơn cho từng cột
         $descriptions = [
             // 'uuid'          => 'uuidv4',
-            'tag_id'        => 'nullable|integer',
+            'tag_id'        => 'required|integer',
             'color_code'    => 'required|string|max:10|in:#ff4d4f,#52c41a,#1890ff,#faad14,#722ed1,#bfbfbf,#fa541c,#eb2f96,#a97c50,#13c2c2,#237804,#003a8c',
             'timezone_code' => 'required|string|max:50',
             'title'         => 'required|string|max:255',

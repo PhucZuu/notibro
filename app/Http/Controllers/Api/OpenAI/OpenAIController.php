@@ -30,12 +30,16 @@ class OpenAIController extends Controller
 
         // Lấy cấu trúc bảng từ model Task
         $tableStructure = Task::getTableStructure();
+        $filteredStructure = array_filter($tableStructure, fn($desc) => $desc !== 'Không có mô tả');
         Log::info("Cấu trúc bảng tiền xử lý: " . json_encode($tableStructure));
 
         // Gửi đến AI để phân tích
-        $fields = $this->openAIService->analyzeRequest($userRequest, $tableStructure);
-
+        $fields = $this->openAIService->analyzeRequest($userRequest, $filteredStructure);
+        Log::info(1);
         try {
+            Log::info('Dữ liệu dùng để tạo: ');
+            Log::info($fields);
+
             $created_result = $this->taskSupportService->store($fields);
 
             Log::info('Tạo thành công');

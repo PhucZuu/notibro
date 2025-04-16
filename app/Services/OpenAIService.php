@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Setting;
+use App\Models\Tag;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Support\Facades\Auth;
@@ -26,6 +27,8 @@ class OpenAIService
             ->first();
         Log::info($setting);
 
+        $tag = Tag::select('id')->where('user_id', Auth::id())->pluck('id')->toArray();
+
         $currentDateTime = Carbon::parse(now()->format('Y-m-d H:i:s'), $setting->timezone_code);
 
         try {
@@ -41,13 +44,18 @@ class OpenAIService
 
                     Tin nhắn của người dùng: \"$userRequest\".
 
-                    Trả về kết quả theo định dạng sau: 
+                    Danh sách cá id tag của người dùng: " . json_encode($tag) . ".
+
+                    Trả về kết quả theo định dạng sau và cần có đầy đủ các trường theo cấu trúc đã cung cấp: 
 
                     <json>
                     { \"field_1\": \"value_1\", \"field_2\": \"value_2\" }
                     </json>"],
                     ['role' => 'user', 'content' => 'Tin nhắn của tôi: ' . $userRequest],
-                    ['role' => 'user', 'content' => 'Hiện tại tôi đang là ngày: ' . $currentDateTime . 'với múi giờ' . $setting->timezone_code],
+                    [
+                        'role' => 'user', 
+                        'content' => 'Hiện tại tôi đang là ngày: ' . $currentDateTime . 'với múi giờ' . $setting->timezone_code . 'và sử dụng tiếng ' .$setting->language
+                    ],
                     ['role' => 'user', 'content' => 'Hãy trích xuất các trường phù hợp từ tin nhắn trên.'],
                 ]
             ]);
@@ -57,13 +65,27 @@ class OpenAIService
             Log::info('Phản hồi từ OpenAI: ' . json_encode($response));
 
             // Kiểm tra xem OpenAI có trả về kết quả hợp lệ không
-            if (!isset($response['choices'][0]['message']['content'])) {
-                Log::error('Không có dữ liệu hợp lệ từ OpenAI!');
-                return null;
-            }
+            // if (!isset($response['choices'][0]['message']['content'])) {
+            //     Log::error('Không có dữ liệu hợp lệ từ OpenAI!');
+            //     return null;
+            // }
 
-            // Giải mã JSON từ OpenAI
-            $aiResponse = json_decode($response['choices'][0]['message']['content'], true);
+            // // Giải mã JSON từ OpenAI
+            // $aiResponse = json_decode($response['choices'][0]['message']['content'], true);
+
+            // Lấy content trả về từ OpenAI
+            $content = $response['choices'][0]['message']['content'] ?? '';
+
+            // Lọc bỏ code block Markdown nếu có
+            $content = trim($content);
+            if (str_starts_with($content, '```json')) {
+                $content = preg_replace('/^```json\s*/', '', $content); // bỏ đầu ```json
+                $content = preg_replace('/```$/', '', $content); // bỏ cuối ```
+            }
+            $content = trim($content);
+
+            // Ghi log thử
+            Log::info('Nội dung đã xử lý từ OpenAI: ' . $content);
 
             // Kiểm tra xem JSON có hợp lệ không
             if (json_last_error() !== JSON_ERROR_NONE) {
@@ -71,7 +93,7 @@ class OpenAIService
                 return null;
             }
 
-            return $aiResponse;
+            return $content;
         } catch (Exception $e) {
             Log::error('Lỗi khi gọi OpenAI: ' . $e->getMessage());
             return null;
