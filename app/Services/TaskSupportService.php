@@ -122,6 +122,8 @@ class TaskSupportService
 
     public function store($data)
     {
+        $data = is_array($data) ? $data : json_decode($data, true);
+
         $data['user_id'] = Auth::id();
 
         $data = $this->handleJsonStringData($data);
