@@ -359,6 +359,7 @@ class TaskController extends Controller
 
                         $this->sendRealTimeUpdate($returnTask, 'update');
 
+                        $task->attendees = $task->attendees ?? [];
                         $merged = array_merge($task->attendees, $attendees->toArray());
 
                         // Dùng collection để loại trùng theo 'user_id'
@@ -456,6 +457,7 @@ class TaskController extends Controller
 
                         $this->sendRealTimeUpdate($returnTaskUpdate, 'update');
 
+                        $new_task->attendees = $new_task->attendees ?? [];
                         $merged = array_merge($new_task->attendees, $attendees->toArray());
 
                         // Dùng collection để loại trùng theo 'user_id'
@@ -597,6 +599,7 @@ class TaskController extends Controller
 
                         $this->sendRealTimeUpdate($returnTask, 'create');
 
+                        $new_task->attendees = $new_task->attendees ?? [];
                         $merged = array_merge($new_task->attendees, $attendees->toArray());
 
                         // Dùng collection để loại trùng theo 'user_id'
@@ -864,6 +867,7 @@ class TaskController extends Controller
                         //Send API
                         $this->sendRealTimeUpdate($returnTask, 'update');
 
+                        $task->attendees = $task->attendees ?? [];
                         $merged = array_merge($task->attendees, $attendees->toArray());
 
                         // Dùng collection để loại trùng theo 'user_id'
@@ -969,6 +973,7 @@ class TaskController extends Controller
 
                         $this->sendRealTimeUpdate($returnTask, 'update');
 
+                        $task->attendees = $task->attendees ?? [];
                         $merged = array_merge($task->attendees, $attendees->toArray());
 
                         // Dùng collection để loại trùng theo 'user_id'
@@ -1059,6 +1064,7 @@ class TaskController extends Controller
 
                         app(TaskGroupChatController::class)->createGroup($new_task->id, $new_task->user_id);
 
+                        $new_task->attendees = $new_task->attendees ?? [];
                         $merged = array_merge($new_task->attendees, $attendees->toArray());
 
                         // Dùng collection để loại trùng theo 'user_id'
@@ -1231,6 +1237,7 @@ class TaskController extends Controller
 
                         $this->sendRealTimeUpdate($returnTask, 'create');
 
+                        $new_task->attendees = $new_task->attendees ?? [];
                         $merged = array_merge($new_task->attendees, $attendees->toArray());
 
                         // Dùng collection để loại trùng theo 'user_id'
@@ -1361,6 +1368,7 @@ class TaskController extends Controller
                         //Send API
                         $this->sendRealTimeUpdate($returnTask, 'update');
 
+                        $task->attendees = $task->attendees ?? [];
                         $merged = array_merge($task->attendees, $attendees->toArray());
 
                         // Dùng collection để loại trùng theo 'user_id'
@@ -2160,6 +2168,7 @@ class TaskController extends Controller
                     try {
                         $returnTask[] = $task;
 
+                        $task->attendees = $task->attendees ?? [];
                         $merged = array_merge($task->attendees, $attendees->toArray());
 
                         // Dùng collection để loại trùng theo 'user_id'
@@ -2261,7 +2270,8 @@ class TaskController extends Controller
 
                         //Send REALTIME        
                         $this->sendRealTimeUpdate($returnTask, 'update');
-
+                        
+                        $task->attendees = $task->attendees ?? [];
                         $merged = array_merge($task->attendees, $attendees->toArray());
 
                         $uniqueAttendees = collect($merged)->unique('user_id')->values();
@@ -2335,6 +2345,7 @@ class TaskController extends Controller
                             $this->sendRealTimeUpdate($returnTaskDel, 'delete');
                         }
 
+                        $task->attendees = $task->attendees ?? [];
                         $merged = array_merge($task->attendees, $attendees->toArray());
 
                         // Dùng collection để loại trùng theo 'user_id'
@@ -2387,6 +2398,7 @@ class TaskController extends Controller
 
                         if ($deleteTasks->isNotEmpty()) {
                             foreach ($deleteTasks as $deleteTask) {
+                                $deleteTask->attendees = $deleteTask->attendees ?? [];
                                 $merged = array_merge($deleteTask->attendees, $attendees->toArray());
                             }
 
