@@ -9,7 +9,7 @@ use Aws\S3\S3Client;
 use Aws\Exception\AwsException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
-use PhpParser\Node\Expr\FuncCall;
+use App\Services\UploadFileService;
 
 class S3SUploadController extends Controller
 {
@@ -35,9 +35,14 @@ class S3SUploadController extends Controller
         Log::info('Start creating presigned URL');
 
         $request->validate([
+            'task_id' => 'required|integer|exists:tasks,id',
             'files' => 'required|array',
             'files.*' => 'file|max:10240',
         ]);
+
+        $taskId = $request->input('task_id');
+
+        app(UploadFileService::class)->maxFileEachTask($taskId);
 
         $files = $request->file('files', []);
         if (empty($files)) {
