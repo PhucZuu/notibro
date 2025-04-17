@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use APP\Models\FileEntry;
+use App\Models\FileEntry;
 use App\Models\Task;
 
 class UploadFileService
