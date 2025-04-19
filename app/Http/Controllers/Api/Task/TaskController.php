@@ -142,9 +142,10 @@ class TaskController extends Controller
         event(new TaskUpdatedEvent($data, $action, $recipients));
     }
 
-    function calculateUntilFromCount($task) {
+    function calculateUntilFromCount($task)
+    {
         if (!$task->count) return null;
-    
+
         $start = Carbon::parse($task->start_time);
         $rule = [
             'FREQ' => strtoupper($task->freq), // DAILY, WEEKLY, etc.
@@ -152,11 +153,11 @@ class TaskController extends Controller
             'COUNT' => $task->count,
             'DTSTART' => $start->toRfc3339String()
         ];
-    
+
         if (!empty($task->byweekday)) $rule['BYDAY'] = implode(',', $task->byweekday);
         if (!empty($task->bymonthday)) $rule['BYMONTHDAY'] = implode(',', $task->bymonthday);
         if (!empty($task->bymonth)) $rule['BYMONTH'] = implode(',', $task->bymonth);
-    
+
         $rrule = new RRule($rule);
         $occurrences = $rrule->getOccurrences();
         return end($occurrences); // Ngày cuối cùng
@@ -457,7 +458,7 @@ class TaskController extends Controller
                         //app(TaskGroupChatController::class)->createGroup($new_task->id, $new_task->user_id);
 
                         // update task -> duplicate file
-                        app(UploadFileService::class)->duplicateFile($task->id,$new_task->id);
+                        app(UploadFileService::class)->duplicateFile($task->id, $new_task->id);
 
                         $this->sendRealTimeUpdate($returnTaskUpdate, 'update');
 
@@ -562,9 +563,9 @@ class TaskController extends Controller
 
                                 $relatedTask->forceDelete();
                             } else {
-                                if ( Carbon::parse($relatedTask->start_time)->greaterThanOrEqualTo($data['updated_date'])) {
+                                if (Carbon::parse($relatedTask->start_time)->greaterThanOrEqualTo($data['updated_date'])) {
                                     $relatedTask->forceDelete();
-                                }else {
+                                } else {
                                     $relatedTask->update([
                                         'start_time'    => $updatedStartTime,
                                         'end_time'      => $updatedEndTime,
@@ -592,7 +593,7 @@ class TaskController extends Controller
                             $returnTaskUpdate[] = $relatedTask;
                         }
 
-                        app(UploadFileService::class)->duplicateFile($task->id,$new_task->id);
+                        app(UploadFileService::class)->duplicateFile($task->id, $new_task->id);
 
                         //Send REALTIME
                         if (!$returnTaskUpdate) {
@@ -930,6 +931,91 @@ class TaskController extends Controller
                         ], 500);
                     }
 
+                case 'EDIT_NonRep':
+                    try {
+                        $data['exclude_time'] = [];
+
+                        $new_task = Task::create($data);
+
+                        $relatedTasks = Task::where(function ($query) use ($task) {
+                            $query->where('parent_id', $task->id);
+
+                            if ($task->parent_id !== null) {
+                                $query->orWhere('parent_id', $task->parent_id)
+                                    ->orWhere('id', $task->parent_id); // Lấy bản ghi cha
+                            }
+                        })->orWhere('id', $task->id) // Bao gồm chính nó
+                            ->get();
+
+                        $allAttendees = $task->attendees ?? [];
+
+                        foreach ($relatedTasks as $relatedTask) {
+                            //Add all attendees to new task
+                            $allAttendees = array_merge($allAttendees, $relatedTask->attendees ?? []);
+                            $allAttendees = array_values(array_reduce($allAttendees, function ($carry, $attendee) {
+                                $carry[$attendee['user_id']] = $attendee; // Ghi đè để giữ bản ghi cuối cùng
+                                return $carry;
+                            }, []));
+
+                            $relatedTask->forceDelete();
+                        }
+
+                        // Bước 1: Lấy danh sách user_id trong new_task
+                        $newTaskUserIds = collect($new_task->attendees)->pluck('user_id')->toArray();
+
+                        // Bước 2: Gửi thông báo xóa cho những user_id KHÔNG nằm trong new_task
+                        foreach ($allAttendees as $attendee) {
+                            if ($attendee['user_id'] != Auth::id() && !in_array($attendee['user_id'], $newTaskUserIds)) {
+                                $user = User::find($attendee['user_id']);
+
+                                $user->notify(new NotificationEvent(
+                                    $user->id,
+                                    "Sự kiện {$task->title} vừa mới bị loại bỏ !",
+                                    "",
+                                    "update_task"
+                                ));
+
+                                if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
+                                    Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'delete'));
+                                }
+                            }
+                        }
+
+                        // Bước 3: Gửi thông báo cập nhật cho những người trong new_task
+                        foreach ($new_task->attendees as $attendee) {
+                            if ($attendee['user_id'] != Auth::id()) {
+                                $user = User::find($attendee['user_id']);
+
+                                $user->notify(new NotificationEvent(
+                                    $user->id,
+                                    "Sự kiện {$task->title} vừa mới được cập nhật !",
+                                    "",
+                                    "update_task"
+                                ));
+
+                                if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
+                                    Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'update'));
+                                }
+                            }
+                        }
+
+                        $returnTask[] = $new_task;
+                        $this->sendRealTimeUpdate($returnTask, 'create');
+
+                        return response()->json([
+                            'code'    => 200,
+                            'message' => 'Task updated successfully',
+                            'data'    => $task,
+                        ], 200);
+                    } catch (\Exception $e) {
+                        Log::error($e->getMessage());
+
+                        return response()->json([
+                            'code'    => 500,
+                            'message' => 'Failed to updated task',
+                        ], 500);
+                    }
+
                 default:
                     return response()->json([
                         'code'      =>  400,
@@ -1085,7 +1171,7 @@ class TaskController extends Controller
 
                         $this->sendRealTimeUpdate($returnTask, 'update');
 
-                        app(UploadFileService::class)->duplicateFile($task->id,$new_task->id);
+                        app(UploadFileService::class)->duplicateFile($task->id, $new_task->id);
                         //app(TaskGroupChatController::class)->createGroup($new_task->id, $new_task->user_id);
 
                         $new_task->attendees = $new_task->attendees ?? [];
@@ -1159,7 +1245,7 @@ class TaskController extends Controller
                         if (!$latestTask->until && $latestTask->count) {
                             $latestTask->until = $this->calculateUntilFromCount($latestTask);
                         }
-                        
+
                         // Logic gán until
                         if (is_null($latestTask->until)) {
                             $preNewTask->until = null;
@@ -1246,7 +1332,7 @@ class TaskController extends Controller
                             $this->sendRealTimeUpdate($returnTaskUpdate, 'update');
                         }
 
-                        app(UploadFileService::class)->duplicateFile($task->id,$new_task->id);
+                        app(UploadFileService::class)->duplicateFile($task->id, $new_task->id);
                         // app(TaskGroupChatController::class)->createGroup($new_task->id, $new_task->user_id);
 
                         $allExcludeTimes = array_unique($allExcludeTimes);
@@ -2295,7 +2381,7 @@ class TaskController extends Controller
 
                         //Send REALTIME        
                         $this->sendRealTimeUpdate($returnTask, 'update');
-                        
+
                         $task->attendees = $task->attendees ?? [];
                         $merged = array_merge($task->attendees, $attendees->toArray());
 
