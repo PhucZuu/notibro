@@ -2072,40 +2072,51 @@ class TaskController extends Controller
                 $query->where('id', '!=', $not_check_id);
             })
             ->where(function ($query) use ($data) {
-                $query->where('start_time', '<=', $data['start_time'])
-                    ->orWhere(function ($q) use ($data) {
-                        $q->where('is_repeat', true)
-                            ->where(function ($subQuery) use ($data) {
-                                $subQuery->where('until', '>', $data['start_time'])
-                                    ->orWhereNull('until');
-                            });
+                // Lấy các task có thể trùng giờ
+                $query->where(function ($q) use ($data) {
+                    $q->where('start_time', '<', $data['end_time'])  // task bắt đầu trước khi event mới kết thúc
+                    ->where('end_time', '>', $data['start_time']); // task kết thúc sau khi event mới bắt đầu
+                })
+                // Hoặc là task lặp lại mà thời gian lặp vẫn còn hiệu lực
+                ->orWhere(function ($q) use ($data) {
+                    $q->where('is_repeat', true)
+                    ->where(function ($subQuery) use ($data) {
+                        $subQuery->where('until', '>', $data['start_time'])
+                                ->orWhereNull('until');
                     });
+                });
             })
             ->where(function ($query) use ($user_id) {
                 $query->where('tasks.user_id', $user_id)
                     ->orWhereRaw("
-                    EXISTS (
-                        SELECT 1 FROM JSON_TABLE(
-                            attendees, '$[*]' COLUMNS (
-                                user_id INT PATH '$.user_id',
-                                status VARCHAR(20) PATH '$.status'
-                            )
-                        ) AS jt
-                        WHERE jt.user_id = ?
-                    )
-                ", [$user_id]);
+                        EXISTS (
+                            SELECT 1 FROM JSON_TABLE(
+                                attendees, '$[*]' COLUMNS (
+                                    user_id INT PATH '$.user_id',
+                                    status VARCHAR(20) PATH '$.status'
+                                )
+                            ) AS jt
+                            WHERE jt.user_id = ?
+                        )
+                    ", [$user_id]);
             })
             ->get();
+
+        $data['start_time'] = Carbon::parse($data['start_time']);
+        $data['end_time'] = Carbon::parse($data['end_time']);
 
         foreach ($tasks as $task) {
             $occurrences = $this->serviceGetAllOcc->getAllOccurrences($task);
             $durationInMinutes = Carbon::parse($task->end_time)->diffInMinutes($task->start_time);
-
+        
             foreach ($occurrences as $occurrence) {
                 $occurrenceStart = clone $occurrence;
                 $occurrenceEnd = $occurrenceStart->copy()->addMinutes($durationInMinutes);
-
-                if ($data['start_time']->lt($occurrenceEnd) && $data['end_time']->gt($occurrenceStart)) {
+        
+                if (
+                    $data['start_time']->lt($occurrenceEnd) &&
+                    $data['end_time']->gt($occurrenceStart)
+                ) {
                     return response()->json([
                         'code'    => 477,
                         'message' => 'The start and end times overlap with another event.'
