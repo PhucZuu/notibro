@@ -549,33 +549,44 @@ class TaskController extends Controller
                                     return $carry;
                                 }, []));
 
-                                if ($relatedTask->until && (!$maxUntil || Carbon::parse($relatedTask->until)->greaterThan(Carbon::parse($maxUntil)))) {
-                                    $maxUntil = $relatedTask->until;
+                                if (!is_null($maxUntil)) {
+                                    if (is_null($relatedTask->until)) {
+                                        $maxUntil = null;
+                                    } else {
+                                        $until = Carbon::parse($relatedTask->until);
+                                        if (is_null($maxUntil) || $until->greaterThan($maxUntil)) {
+                                            $maxUntil = $until;
+                                        }
+                                    }
                                 }
 
                                 $relatedTask->forceDelete();
                             } else {
-                                $relatedTask->update([
-                                    'start_time'    => $updatedStartTime,
-                                    'end_time'      => $updatedEndTime,
-                                    'title'         => $data['title'],
-                                    'description'   => $data['description'],
-                                    'user_id'       => $data['user_id'],
-                                    'timezone_code' => $data['timezone_code'],
-                                    'color_code'    => $data['color_code'],
-                                    'tag_id'        => $data['tag_id'] ?? null,
-                                    'attendees'     => $data['attendees'],
-                                    'location'      => $data['location'],
-                                    'type'          => $data['type'],
-                                    'is_all_day'    => $data['is_all_day'],
-                                    'is_busy'       => $data['is_busy'],
-                                    'is_reminder'   => $data['is_reminder'],
-                                    'reminder'      => $data['reminder'],
-                                    'link'          => $data['link'],
-                                    'is_private'    => $data['is_private'],
-                                    'is_done'       => $data['is_done'],
-                                    'default_permission' => $data['default_permission'] ?? 'viewer',
-                                ]);
+                                if ( Carbon::parse($relatedTask->start_time)->greaterThanOrEqualTo($data['updated_date'])) {
+                                    $relatedTask->forceDelete();
+                                }else {
+                                    $relatedTask->update([
+                                        'start_time'    => $updatedStartTime,
+                                        'end_time'      => $updatedEndTime,
+                                        'title'         => $data['title'],
+                                        'description'   => $data['description'],
+                                        'user_id'       => $data['user_id'],
+                                        'timezone_code' => $data['timezone_code'],
+                                        'color_code'    => $data['color_code'],
+                                        'tag_id'        => $data['tag_id'] ?? null,
+                                        'attendees'     => $data['attendees'],
+                                        'location'      => $data['location'],
+                                        'type'          => $data['type'],
+                                        'is_all_day'    => $data['is_all_day'],
+                                        'is_busy'       => $data['is_busy'],
+                                        'is_reminder'   => $data['is_reminder'],
+                                        'reminder'      => $data['reminder'],
+                                        'link'          => $data['link'],
+                                        'is_private'    => $data['is_private'],
+                                        'is_done'       => $data['is_done'],
+                                        'default_permission' => $data['default_permission'] ?? 'viewer',
+                                    ]);
+                                }
                             }
 
                             $returnTaskUpdate[] = $relatedTask;
@@ -698,16 +709,19 @@ class TaskController extends Controller
                                     // Xóa tất cả `relatedTask` có `start_time` lớn hơn `data['until']`
                                     $relatedTasks->where('start_time', '>', $data['until'])->each->forceDelete();
                                 } else {
-                                    // Nếu `until` là `null`, cập nhật `until` cho task có start_time lớn nhất
-                                    $latestTask = $relatedTasks->where('is_repeat', true)
-                                        ->sortByDesc('start_time')
-                                        ->first();
+                                    // Nếu until là null, cập nhật until cho task có start_time lớn nhất
+                                    // Lấy task lặp lại (nếu có)
+                                    $taskToUpdate = $relatedTasks->where('is_repeat', true)->sortByDesc('start_time')->first() ?: $parentTask;
 
-                                    if ($latestTask) {
-                                        $latestTask->update(['until' => $latestTask->start_time]);
-                                    } elseif ($parentTask) {
-                                        // Nếu không có `relatedTask`, cập nhật `until` cho `parentTask`
-                                        $parentTask->update(['until' => $parentTask->start_time]);
+                                    // Nếu có task hợp lệ, xử lý cập nhật until
+                                    if ($taskToUpdate) {
+                                        // Chỉ cập nhật until nếu task không phải là lặp lại
+                                        if (!$taskToUpdate->is_repeat) {
+                                            $taskToUpdate->update(['until' => $taskToUpdate->start_time]);
+                                        }
+                                    } else {
+                                        // Nếu không tìm thấy task để cập nhật
+                                        Log::warning('Không tìm thấy task để cập nhật until. Không có task lặp lại hoặc task cha.');
                                     }
                                 }
 
@@ -758,7 +772,8 @@ class TaskController extends Controller
 
                                 // **Cập nhật `parentTask`**
                                 $data['start_time'] = Carbon::parse($data['start_time'])
-                                    ->setDate($parentTask->start_time->year, $parentTask->start_time->month, $parentTask->start_time->day);
+                                    ->setDate(Carbon::parse($parentTask->start_time)->year, Carbon::parse($parentTask->start_time)->month, Carbon::parse($parentTask->start_time)->day);
+
                                 $data['end_time'] = Carbon::parse($data['start_time'])->copy()->add($duration);
 
                                 unset($data['parent_id'], $data['until']);
@@ -792,9 +807,11 @@ class TaskController extends Controller
                                         ->first();
 
                                     if ($latestTask) {
-                                        $latestTask->update(['until' => $latestTask->start_time]);
+                                        // $latestTask->update(['until' => $latestTask->start_time]);
+                                        $latestTask->update(['until' => $latestTask->until]);
                                     } else {
-                                        $task->update(['until' => $task->start_time]);
+                                        // $task->update(['until' => $task->start_time]);
+                                        $task->update(['until' => $task->until]);
                                     }
                                 }
 
