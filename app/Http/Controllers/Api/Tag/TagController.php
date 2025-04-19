@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api\Tag;
 
 use App\Events\Tag\TagUpdatedEvetn;
+use App\Events\Task\TaskUpdatedEvent;
 use App\Http\Controllers\Controller;
 use App\Mail\InviteToTagMail;
+use App\Mail\SendNotificationMail;
 use Illuminate\Http\Request;
 use App\Models\Tag;
 use App\Models\User;
@@ -33,7 +35,6 @@ class TagController extends Controller
 
         return $recipients;
     }
-
     public function sendRealTimeUpdate($data, $action)
     {   
         Log::info('Xử lý gửi đi');
@@ -41,6 +42,29 @@ class TagController extends Controller
         $recipients = $this->getRecipients($data);
 
         event(new TagUpdatedEvetn($data, $action, $recipients));
+    }
+
+    public function getRecipientsTasks($data)
+    {
+        $recipientsTasks = collect($data)
+            ->flatMap(function ($task) {
+                $attendees = method_exists($task, 'getAttendeesForRealTime') ? $task->getAttendeesForRealTime() : [];
+                return $attendees;
+            })
+            ->unique()
+            ->values()
+            ->toArray();
+    
+    
+        return $recipientsTasks;
+    }
+    
+
+    public function sendRealTimeUpdateTasks($data, $action)
+    {
+        $recipientsTasks = $this->getRecipientsTasks($data);
+
+        event(new TaskUpdatedEvent($data, $action, $recipientsTasks));
     }
 
     public function index()
@@ -536,7 +560,6 @@ class TagController extends Controller
                 ], 404);
             }
     
-            // Đếm tổng số tag của user hiện tại
             $totalTags = Tag::where('user_id', Auth::id())->count();
     
             if ($totalTags <= 1) {
@@ -547,13 +570,59 @@ class TagController extends Controller
             }
     
             $returnTag[] = clone $tag;
+            $tasksForRealtime = [];
+            $attendees = [];
     
             foreach ($tag->tasks as $task) {
-                $task->delete();
+                $tasksForRealtime[] = clone $task;
+    
+                // Merge attendees (JSON) và users (quan hệ many-to-many)
+                $taskAttendees = collect($task->attendees ?? []);
+                $taskUsers     = collect($task->users ?? [])->map(function ($user) {
+                    return ['user_id' => $user->id];
+                });
+    
+                $merged = $taskAttendees->merge($taskUsers)->toArray();
+                $attendees = array_merge($attendees, $merged);
+    
+                $task->forceDelete();
+            }
+    
+            // Lọc tên các task bị xóa
+            $taskTitles = collect($tasksForRealtime)->pluck('title')->filter()->values()->toArray();
+            $taskTitlesStr = implode(', ', $taskTitles);
+    
+            // Loại bỏ trùng lặp người tham gia
+            $uniqueAttendees = collect($attendees)->unique('user_id')->values();
+    
+            $is_send_mail = 'yes';
+    
+            foreach ($uniqueAttendees as $attendee) {
+                if ($attendee['user_id'] != Auth::id()) {
+                    $user = User::find($attendee['user_id']);
+                    if ($user) {
+                        Log::info("Sending notification to user: {$user->id}");
+    
+                        // Gửi notification kèm tên task bị xóa
+                        $user->notify(new NotificationEvent(
+                            $user->id,
+                            "Các task sau đã bị xóa: {$taskTitlesStr}",
+                            "",
+                            "delete_tag_tasks"
+                        ));
+    
+                        // Gửi email nếu bật
+                        if ($is_send_mail === 'yes') {
+                            Mail::to($user->email)->queue(new SendNotificationMail($user, $tag, 'delete'));
+                        }
+                    }
+                }
             }
     
             $tag->delete();
     
+            // Gửi realtime cho task và tag
+            $this->sendRealTimeUpdateTasks($tasksForRealtime, 'delete');
             $this->sendRealTimeUpdate($returnTag, 'delete');
     
             return response()->json([
@@ -569,7 +638,6 @@ class TagController extends Controller
             ], 500);
         }
     }
-    
     
     
     public function acceptTagInvite($uuid)
