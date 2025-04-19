@@ -34,15 +34,15 @@ class S3SUploadController extends Controller
     {
         Log::info('Start creating presigned URL');
 
-        $request->validate([
-            'task_id' => 'required|integer|exists:tasks,id',
-            'files' => 'required|array',
-            'files.*' => 'file|max:10240',
-        ]);
+        // $request->validate([
+        //     'task_id' => 'required|integer|exists:tasks,id',
+        //     'files' => 'required|array',
+        //     'files.*' => 'file|max:10240',
+        // ]);
 
-        $taskId = $request->input('task_id');
+        // $taskId = $request->input('task_id');
 
-        app(UploadFileService::class)->maxFileEachTask($taskId);
+        // app(UploadFileService::class)->maxFileEachTask($taskId);
 
         $files = $request->file('files', []);
         if (empty($files)) {
