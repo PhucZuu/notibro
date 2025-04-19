@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\Tag\TagController;
 use App\Http\Controllers\Api\Task\TaskController;
 use App\Http\Controllers\Api\Timezone\TimezoneController;
 use App\Http\Controllers\Api\User\UserController;
+use App\Http\Controllers\MailToGuestController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
@@ -65,6 +66,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/tags/{uuid}/accept', [TagController::class, 'acceptTagInvite']);
     Route::post('/tags/{uuid}/refuse', [TagController::class, 'declineTagInvite']);
     Route::get('/tags/{uuid}/invite', [TagController::class, 'show']);
+
+    // Api get send mail to attendees and owner
+    Route::get('/tasks/{id}/infoEvent', [MailToGuestController::class, 'getInfoEvent']);
+    Route::post('tasks/sendMailToOthers', [MailToGuestController::class, 'sendMailToOthers']);
 
     // Notifications
     Route::get('/notifications', [NotificationController::class, 'index']);
