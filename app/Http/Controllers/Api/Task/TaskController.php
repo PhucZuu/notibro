@@ -2061,11 +2061,16 @@ class TaskController extends Controller
             'timezone_code' => 'required',
         ]);
 
+        $not_check_id = $request->not_check_id;
+
         $data = $this->handleLogicData($data);
 
         $user_id = Auth::id();
 
         $tasks = Task::where('is_all_day', '!=', 1)
+            ->when($not_check_id, function ($query) use ($not_check_id) {
+                $query->where('id', '!=', $not_check_id);
+            })
             ->where(function ($query) use ($data) {
                 $query->where('start_time', '<=', $data['start_time'])
                     ->orWhere(function ($q) use ($data) {
