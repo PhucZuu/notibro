@@ -2353,16 +2353,16 @@ class TaskController extends Controller
 
                         // add current date to exclude_time
                         if (!in_array($currentDate, $excludeTime)) {
-                            $excludeTime[] = Carbon::parse($currentDate, $setting->timezone_code)->setTimezone('UTC');
+                            $excludeTime[] = Carbon::parse($currentDate, $task->timezone_code)->setTimezone('UTC');
                         }
 
                         $taskStartTime = Carbon::parse($task->start_time);
                         $taskEndTime = Carbon::parse($task->end_time);
 
-                        $updatedStartTime = Carbon::parse($currentDate, $setting->timezone_code)
+                        $updatedStartTime = Carbon::parse($currentDate, $task->timezone_code)
                             ->setTime($taskStartTime->hour, $taskStartTime->minute, $taskStartTime->second)
                             ->setTimezone('UTC');
-                        $updatedEndTime = Carbon::parse($currentDate, $setting->timezone_code)
+                        $updatedEndTime = Carbon::parse($currentDate, $task->timezone_code)
                             ->setTime($taskEndTime->hour, $taskEndTime->minute, $taskEndTime->second)
                             ->setTimezone('UTC');
 
@@ -3116,6 +3116,7 @@ class TaskController extends Controller
 
         $tasks = Task::with('tag:id,name')
             ->whereNotNull('reminder')
+            ->whereNot('is_done', '=', 1)
             ->where(function ($query) use ($now, $next24Hours) {
                 $query->whereBetween('start_time', [$now, $next24Hours])
                     ->orWhere(function ($q) use ($now, $next24Hours) {
@@ -3156,6 +3157,8 @@ class TaskController extends Controller
             if ($task->is_repeat) {
                 $nextOccurrence = $this->serviceNextOcc->getNextOccurrence($task, $now);
                 Log::info('nextOccurrence', [$nextOccurrence]);
+                Log::info('của id', [$task->id]);
+
 
                 if ($nextOccurrence && $nextOccurrence->greaterThanOrEqualTo($now) && $nextOccurrence->lessThanOrEqualTo($next24Hours)) {
                     // $timezone = $task->timezone_code ?? 'UTC';
