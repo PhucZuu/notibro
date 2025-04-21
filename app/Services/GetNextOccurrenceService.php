@@ -54,7 +54,7 @@ class GetNextOccurrenceService
                 break;
         }
 
-        if ($task->exclude_time && in_array($nextOccurrence->toISOString(), $task->exclude_time)) {
+        if ($task->exclude_time && $nextOccurrence && in_array($nextOccurrence->toISOString(), $task->exclude_time)) {
             return null;
         }
 
