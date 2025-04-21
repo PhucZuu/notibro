@@ -493,6 +493,8 @@ class TagController extends Controller
                 'shared_user'  => $formattedSharedUsers,
                 'reminder'     => $formattedReminder,
             ]);
+
+            $tag->syncAttendeesWithTasks($oldSharedUsers);
     
             $returnTag[] = $tag;
             $this->sendRealTimeUpdate($returnTag, 'update');
@@ -739,6 +741,8 @@ class TagController extends Controller
             ->toArray();
     
         $tag->update(['shared_user' => $newSharedUsers]);
+
+        $tag->syncAttendeesWithTasks($sharedUsers->pluck('user_id')->toArray());
     
         // Loại bỏ user khỏi tất cả các task của tag
         $tasks = $tag->tasks;
@@ -802,6 +806,8 @@ class TagController extends Controller
                 ->toArray();
 
             $tag->update(['shared_user' => $newSharedUsers]);
+
+            $tag->syncAttendeesWithTasks($sharedUsers->pluck('user_id')->toArray());
 
             // Gửi thông báo (tuỳ chọn)
             $removedUser = User::find($userIdToRemove);
