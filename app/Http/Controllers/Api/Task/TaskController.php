@@ -646,7 +646,7 @@ class TaskController extends Controller
                         return response()->json([
                             'code'    => 200,
                             'message' => 'Task updated successfully',
-                            'data'    => $task,
+                            'data'    => $new_task,
                         ], 200);
                     } catch (\Exception $e) {
                         Log::error($e->getMessage());
