@@ -1792,7 +1792,7 @@ class TaskController extends Controller
                                 }
                             }
 
-                            $result = $this->getUpdatedAttendeesList($relatedTask->attendees ?? [], $data['attendees']);
+                            $result = $this->getUpdatedAttendeesList($relatedTask->attendees ?? [], $data['attendees'], $removedUserIds, $removedAttendees);
                             $relatedTask->update([
                                 'attendees' => $result['updated_list']
                             ]);
@@ -1884,7 +1884,7 @@ class TaskController extends Controller
                                 ->get();
 
                             foreach ($relatedTasks as $relatedTask) {
-                                $result = $this->getUpdatedAttendeesList($relatedTask->attendees ?? [], $data['attendees']);
+                                $result = $this->getUpdatedAttendeesList($relatedTask->attendees ?? [], $data['attendees'], $removedUserIds, $removedAttendees);
                                 $relatedTask->update([
                                     'attendees' => $result['updated_list']
                                 ]);
@@ -1894,7 +1894,7 @@ class TaskController extends Controller
                                 $returnTask[] = $relatedTask;
                             }
 
-                            $result = $this->getUpdatedAttendeesList($parentTask->attendees ?? [], $data['attendees']);
+                            $result = $this->getUpdatedAttendeesList($parentTask->attendees ?? [], $data['attendees'], $removedUserIds, $removedAttendees);
                             $parentTask->update([
                                 'attendees' => $result['updated_list']
                             ]);
@@ -1908,7 +1908,7 @@ class TaskController extends Controller
                             $relatedTasks = Task::where('parent_id', $task->id)->get();
 
                             foreach ($relatedTasks as $relatedTask) {
-                                $result = $this->getUpdatedAttendeesList($relatedTask->attendees ?? [], $data['attendees']);
+                                $result = $this->getUpdatedAttendeesList($relatedTask->attendees ?? [], $data['attendees'], $removedUserIds, $removedAttendees);
                                 $relatedTask->update([
                                     'attendees' => $result['updated_list']
                                 ]);
@@ -1918,7 +1918,7 @@ class TaskController extends Controller
                                 $returnTask[] = $relatedTask;
                             }
 
-                            $result = $this->getUpdatedAttendeesList($task->attendees ?? [], $data['attendees']);
+                            $result = $this->getUpdatedAttendeesList($task->attendees ?? [], $data['attendees'], $removedUserIds, $removedAttendees);
                             $task->update([
                                 'attendees' => $result['updated_list']
                             ]);
@@ -3709,7 +3709,7 @@ class TaskController extends Controller
         ], 200);
     }
 
-    private function getUpdatedAttendeesList($oldAttendees, $newAttendees)
+    private function getUpdatedAttendeesList($oldAttendees, $newAttendees, $removedUserIds, $removedAttendees)
     {
         $oldMap = collect($oldAttendees)->keyBy('user_id');
         $newMap = collect($newAttendees)->keyBy('user_id');
@@ -3718,11 +3718,11 @@ class TaskController extends Controller
         $newUserIds = $newMap->keys()->toArray();
 
         $addedUserIds = array_diff($newUserIds, $oldUserIds);
-        $removedUserIds = array_diff($oldUserIds, $newUserIds);
+        // $removedUserIds = array_diff($oldUserIds, $newUserIds);
         $commonUserIds = array_intersect($oldUserIds, $newUserIds);
 
         $addedAttendees = $newMap->only($addedUserIds)->values()->all();
-        $removedAttendees = $oldMap->only($removedUserIds)->values()->all();
+        // $removedAttendees = $oldMap->only($removedUserIds)->values()->all();
 
         $updatedAttendees = [];
         foreach ($commonUserIds as $userId) {
@@ -3735,9 +3735,7 @@ class TaskController extends Controller
             ) {
                 $updatedAttendees[] = [
                     'user_id' => $userId,
-                    'old_role' => $old['role'] ?? null,
                     'new_role' => $new['role'] ?? null,
-                    'old_status' => $old['status'] ?? null,
                     'new_status' => $new['status'] ?? null,
                 ];
             }
