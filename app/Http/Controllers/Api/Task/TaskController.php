@@ -420,7 +420,7 @@ class TaskController extends Controller
                             'timezone_code' => $data['timezone_code'],
                             'color_code'    => $data['color_code'],
                             'tag_id'        => $data['tag_id'] ?? null,
-                            'attendees'     => $data['attendees'],
+                            'attendees'     => $task->attendees,
                             'location'      => $data['location'],
                             'type'          => $data['type'],
                             'is_all_day'    => $data['is_all_day'],
@@ -575,7 +575,7 @@ class TaskController extends Controller
                                         'timezone_code' => $data['timezone_code'],
                                         'color_code'    => $data['color_code'],
                                         'tag_id'        => $data['tag_id'] ?? null,
-                                        'attendees'     => $data['attendees'],
+                                        // 'attendees'     => $data['attendees'],
                                         'location'      => $data['location'],
                                         'type'          => $data['type'],
                                         'is_all_day'    => $data['is_all_day'],
@@ -739,7 +739,7 @@ class TaskController extends Controller
                                         'timezone_code' => $data['timezone_code'],
                                         'color_code'    => $data['color_code'],
                                         'tag_id'        => $data['tag_id'] ?? null,
-                                        'attendees'     => $data['attendees'],
+                                        // 'attendees'     => $data['attendees'],
                                         'location'      => $data['location'],
                                         'type'          => $data['type'],
                                         'is_all_day'    => $data['is_all_day'],
@@ -829,7 +829,7 @@ class TaskController extends Controller
                                         'timezone_code' => $data['timezone_code'],
                                         'color_code'    => $data['color_code'],
                                         'tag_id'        => $data['tag_id'] ?? null,
-                                        'attendees'     => $data['attendees'],
+                                        // 'attendees'     => $data['attendees'],
                                         'location'      => $data['location'],
                                         'type'          => $data['type'],
                                         'is_all_day'    => $data['is_all_day'],
@@ -1069,8 +1069,8 @@ class TaskController extends Controller
         }
 
 
-        if ($task->user_id  === Auth::id() || ($currentUser && $currentUser['role'] == "editor")) {
-            // if ($task->user_id  === Auth::id() || ($attendee && $attendee['role'] === 'editor') || ($currentUser && $currentUser['role'] == "editor")) {
+        // if ($task->user_id  === Auth::id() || ($currentUser && $currentUser['role'] == "editor")) {
+        if ($task->user_id  === Auth::id() || ($attendee && $attendee['role'] === 'editor') || ($currentUser && $currentUser['role'] == "editor")) {
             switch ($code) {
                 //Update when event dont have reapet
                 case 'EDIT_N':
@@ -1540,7 +1540,7 @@ class TaskController extends Controller
 
         $data = $request->validate([
             'updated_date'      => 'nullable',
-            'attendees'         => 'required', //JSON
+            'attendees'         => 'nullable', //JSON
             'timezone_code'     => 'required',
             'start_time'        => 'required|date_format:Y-m-d H:i:s',
             'end_time'          => 'nullable|date_format:Y-m-d H:i:s',
@@ -1561,385 +1561,436 @@ class TaskController extends Controller
         }
 
         $oldAttendees = $task->attendees ?? [];
-        $removedAttendees = array_diff($oldAttendees, $data['attendees']);
 
-        switch ($code) {
-            case 'ATEN_N':
-                try {
-                    $task->update(['attendees' => $data['attendees']]);
+        $oldUserIds = collect($oldAttendees)->pluck('user_id')->toArray();
+        $newUserIds = collect($data['attendees'])->pluck('user_id')->toArray();
 
-                    //Send REALTIME
-                    $returnTask[] = $task;
+        $addedUserIds = array_diff($newUserIds, $oldUserIds);
+        $removedUserIds = array_diff($oldUserIds, $newUserIds);
 
-                    $this->sendRealTimeUpdate($returnTask, 'update');
+        $addedAttendees = collect($data['attendees'])->whereIn('user_id', $addedUserIds)->values()->all();
+        $removedAttendees = collect($oldAttendees)->whereIn('user_id', $removedUserIds)->values()->all();
 
-                    // Gửi thông báo cho những người bị loại
-                    foreach ($removedAttendees as $removedAttendee) {
-                        $removedUser = User::find($removedAttendee['user_id']);
-                        if ($removedUser) {
-                            $removedUser->notify(new NotificationEvent(
-                                $removedAttendee['user_id'],
-                                "Bạn đã bị loại khỏi {$task->type} {$task->title}",
-                                "",
-                                "remove_from_task"
-                            ));
-                        }
+        // $attendees = collect($task->attendees);
+        // $attendee = $attendees->firstWhere('user_id', Auth::id());
 
-                        if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
-                            Mail::to($removedUser->email)->queue(new SendNotificationMail($removedUser, $task, 'update'));
-                        }
-                    }
+        if (!empty($task->tag_id)) {
+            $tag = Tag::where('id', $task->tag_id)->first();
+            $sharedUsers = collect($tag->shared_user);
+            $currentUser = $sharedUsers->firstWhere('user_id', Auth::id());
+        }
 
-                    return response()->json([
-                        'code'    => 200,
-                        'message' => 'Task updated successfully',
-                        'data'    => $task,
-                    ], 200);
-                } catch (\Exception $e) {
-                    Log::error($e->getMessage());
+        if ($task->user_id  === Auth::id() || ($currentUser && $currentUser['role'] == "admin")) {
+            switch ($code) {
+                case 'ATEN_N':
+                    try {
+                        $task->update(['attendees' => $data['attendees']]);
 
-                    return response()->json([
-                        'code'    => 500,
-                        'message' => 'Failed to updated task',
-                    ], 500);
-                }
+                        //Send REALTIME
+                        $returnTask[] = $task;
 
-            case 'ATEN_1':
-                try {
-                    $new_task = Task::create([
-                        'parent_id'     => $task->parent_id ?? $task->id,
-                        'start_time'    => $data['start_time'],
-                        'end_time'      => $data['end_time'],
-                        'title'         => $task->title,
-                        'description'   => $task->description,
-                        'user_id'       => $task->user_id,
-                        'timezone_code' => $task->timezone_code,
-                        'color_code'    => $task->color_code,
-                        'tag_id'        => $task->tag_id,
-                        'attendees'     => $data['attendees'],
-                        'location'      => $task->location,
-                        'type'          => $task->type,
-                        'is_all_day'    => $task->is_all_day,
-                        'is_busy'       => $task->is_busy,
-                        'is_reminder'   => $task->is_reminder,
-                        'reminder'      => $task->reminder,
-                        'is_done'       => $task->is_done,
-                        'link'          => $task->link,
-                        'is_private'    => $task->is_private,
-                        'default_permission' => $task->default_permission ?? 'viewer',
-                    ]);
+                        $this->sendRealTimeUpdate($returnTask, 'update');
 
-                    //Send REALTIME
-                    $returnTaskCre[] = $new_task;
-
-                    $this->sendRealTimeUpdate($returnTaskCre, 'create');
-
-                    $exclude_time = $task->exclude_time ?? [];
-
-                    if (!is_array($exclude_time)) {
-                        $exclude_time = $exclude_time ?? [];
-                    }
-
-                    $exclude_time[] = $data['updated_date'];
-                    $exclude_time = array_unique($exclude_time);
-
-                    $task->exclude_time = $exclude_time;
-                    $task->save();
-
-                    //Send REALTIME
-                    $returnTask[] = $task;
-
-                    $this->sendRealTimeUpdate($returnTask, 'update');
-
-                    // Gửi thông báo cho những người bị loại
-                    foreach ($removedAttendees as $removedAttendee) {
-                        $removedUser = User::find($removedAttendee['user_id']);
-                        if ($removedUser) {
-                            $removedUser->notify(new NotificationEvent(
-                                $removedAttendee['user_id'],
-                                "Bạn đã bị loại khỏi {$task->type} {$task->title}",
-                                "",
-                                "remove_from_task"
-                            ));
+                        // Gửi thông báo cho những người bị loại
+                        foreach ($removedAttendees as $removedAttendee) {
+                            $removedUser = User::find($removedAttendee['user_id']);
+                            if ($removedUser) {
+                                $removedUser->notify(new NotificationEvent(
+                                    $removedAttendee['user_id'],
+                                    "Bạn đã bị loại khỏi {$task->type} {$task->title}",
+                                    "",
+                                    "remove_from_task"
+                                ));
+                            }
 
                             if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
                                 Mail::to($removedUser->email)->queue(new SendNotificationMail($removedUser, $task, 'update'));
                             }
                         }
-                    }
 
-                    return response()->json([
-                        'code'    => 200,
-                        'message' => 'Task updated successfully',
-                        'data'    => $new_task,
-                    ], 200);
-                } catch (\Exception $e) {
-                    Log::error($e->getMessage());
+                        foreach ($addedAttendees as $addedAttendee) {
+                            $addedUser = User::find($addedAttendee['user_id']);
+                            if ($addedUser) {
+                                $addedUser->notify(new NotificationEvent(
+                                    $addedAttendee['user_id'],
+                                    "Bạn có 1 lời mời tham gia {$task->type} {$task->title}",
+                                    "{$this->URL_FRONTEND}/calendar/event/{$task->uuid}/invite",
+                                    "invite_to_task"
+                                ));
 
-                    return response()->json([
-                        'code'    => 500,
-                        'message' => 'Failed to updated task',
-                    ], 500);
-                }
-
-            case 'ATEN_1B':
-                try {
-                    $preNewTask = $task->replicate();
-
-                    unset($preNewTask->uuid);
-                    $preNewTask->atteedees = $data['attendees'];
-
-                    //Add new task for following change
-                    $new_task = Task::create($preNewTask->toArray());
-
-                    $task->until = Carbon::parse($data['updated_date'])->setTime(0, 0, 0);
-
-                    $task->save();
-
-                    //Send REALTIME
-                    $returnTaskUpdate[] = $task;
-
-                    // Delete all task that have parent_id = $task->id and start_time > $ta
-                    $relatedTasks = Task::where(function ($query) use ($task) {
-                        $query->where('parent_id', $task->id);
-                        // Kiểm tra nếu parent_id của task hiện tại không phải là null  
-                        if ($task->parent_id !== null) {
-                            $query->orWhere('parent_id', $task->parent_id);
-                        }
-                    })
-                        ->where('start_time', '>=', $task->until)
-                        ->where('id', '!=', $new_task->id)
-                        ->get();
-
-                    //Send REALTIME
-
-                    $allExcludeTimes = $new_task->exclude_time ?? [];
-
-                    $maxUntil = $new_task->until;
-
-                    $nearestTask = null;
-                    $nearestStartTimeDiff = null;
-
-                    foreach ($relatedTasks as $relatedTask) {
-                        if ($relatedTask->is_repeat) {
-                            $relatedExcludeTimes = $relatedTask->exclude_time ?? [];
-                            $allExcludeTimes = array_merge($allExcludeTimes, $relatedExcludeTimes);
-
-                            $diff = abs(Carbon::parse($relatedTask->start_time)->diffInMinutes(Carbon::parse($new_task->start_time)));
-
-
-                            if (is_null($nearestStartTimeDiff) || $diff < $nearestStartTimeDiff) {
-                                $nearestStartTimeDiff = $diff;
-                                $nearestTask = $relatedTask;
-                            }
-
-                            if ($relatedTask->until && (!$maxUntil || Carbon::parse($relatedTask->until)->greaterThan(Carbon::parse($maxUntil)))) {
-                                $maxUntil = $relatedTask->until;
-                            }
-
-                            $relatedTask->update([
-                                'attendees' => $data['attendees'],
-                            ]);
-
-                            $returnTaskUpdate[] = $relatedTask;
-                        } else {
-                            $relatedTask->update([
-                                'attendees' => $data['attendees'],
-                            ]);
-
-                            $returnTaskUpdate[] = $relatedTask;
-                        }
-                    }
-
-                    if (!$returnTaskUpdate) {
-                        $this->sendRealTimeUpdate($returnTaskUpdate, 'update');
-                    }
-
-                    $allExcludeTimes = array_unique($allExcludeTimes);
-                    $new_task->exclude_time = array_values($allExcludeTimes);
-
-                    if ($nearestTask) {
-                        $new_task->until = Carbon::parse($nearestTask->start_time)->subDay();
-                    } else {
-                        $new_task->until = $maxUntil;
-                    }
-
-                    $new_task->parent_id = $task->parent_id ?? $task->id;
-                    $new_task->start_time = $data['start_time'];
-                    $new_task->end_time = $data['end_time'];
-                    $new_task->attendees = $data['attendees'];
-                    $new_task->save();
-
-                    //Send REALTIME
-                    $returnTask[] = $new_task;
-
-                    $this->sendRealTimeUpdate($returnTask, 'create');
-
-                    // Gửi thông báo cho những người bị loại
-                    foreach ($removedAttendees as $removedAttendee) {
-                        $removedUser = User::find($removedAttendee['user_id']);
-                        if ($removedUser) {
-                            $removedUser->notify(new NotificationEvent(
-                                $removedAttendee['user_id'],
-                                "Bạn đã bị loại khỏi {$task->type} {$task->title}",
-                                "",
-                                "remove_from_task"
-                            ));
-
-                            if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
-                                Mail::to($removedUser->email)->queue(new SendNotificationMail($removedUser, $task, 'update'));
+                                if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
+                                    $userIds = collect($task->attendees)->pluck('user_id');
+                                    $emailGuests = User::select('email')->whereIn('id', $userIds)->get();
+                                    $this->sendMail(Auth::user()->email, $emailGuests, $task);
+                                }
                             }
                         }
+
+                        return response()->json([
+                            'code'    => 200,
+                            'message' => 'Task updated successfully',
+                            'data'    => $task,
+                        ], 200);
+                    } catch (\Exception $e) {
+                        Log::error($e->getMessage());
+
+                        return response()->json([
+                            'code'    => 500,
+                            'message' => 'Failed to updated task',
+                        ], 500);
                     }
 
-                    return response()->json([
-                        'code'    => 200,
-                        'message' => 'Task updated successfully',
-                        'data'    => $new_task,
-                    ], 200);
-                } catch (\Exception $e) {
-                    Log::error($e->getMessage());
+                case 'ATEN_1':
+                    try {
+                        $new_task = Task::create([
+                            'parent_id'     => $task->parent_id ?? $task->id,
+                            'start_time'    => $data['start_time'],
+                            'end_time'      => $data['end_time'],
+                            'title'         => $task->title,
+                            'description'   => $task->description,
+                            'user_id'       => $task->user_id,
+                            'timezone_code' => $task->timezone_code,
+                            'color_code'    => $task->color_code,
+                            'tag_id'        => $task->tag_id,
+                            'attendees'     => $data['attendees'],
+                            'location'      => $task->location,
+                            'type'          => $task->type,
+                            'is_all_day'    => $task->is_all_day,
+                            'is_busy'       => $task->is_busy,
+                            'is_reminder'   => $task->is_reminder,
+                            'reminder'      => $task->reminder,
+                            'is_done'       => $task->is_done,
+                            'link'          => $task->link,
+                            'is_private'    => $task->is_private,
+                            'default_permission' => $task->default_permission ?? 'viewer',
+                        ]);
 
-                    return response()->json([
-                        'code'    => 500,
-                        'message' => 'Failed to updated task',
-                    ], 500);
-                }
+                        //Send REALTIME
+                        $returnTaskCre[] = $new_task;
 
-            case 'ATEN_A':
-                try {
-                    $parentTask = Task::find($task->parent_id);
+                        $this->sendRealTimeUpdate($returnTaskCre, 'create');
 
-                    if ($parentTask) {
-                        $relatedTasks = Task::where('parent_id', $parentTask->id)
-                            ->orWhere('parent_id', $task->parent_id)
+                        $exclude_time = $task->exclude_time ?? [];
+
+                        if (!is_array($exclude_time)) {
+                            $exclude_time = $exclude_time ?? [];
+                        }
+
+                        $exclude_time[] = $data['updated_date'];
+                        $exclude_time = array_unique($exclude_time);
+
+                        $task->exclude_time = $exclude_time;
+                        $task->save();
+
+                        //Send REALTIME
+                        $returnTask[] = $task;
+
+                        $this->sendRealTimeUpdate($returnTask, 'update');
+
+                        // Gửi thông báo cho những người bị loại
+                        foreach ($removedAttendees as $removedAttendee) {
+                            $removedUser = User::find($removedAttendee['user_id']);
+                            if ($removedUser) {
+                                $removedUser->notify(new NotificationEvent(
+                                    $removedAttendee['user_id'],
+                                    "Bạn đã bị loại khỏi {$task->type} {$task->title}",
+                                    "",
+                                    "remove_from_task"
+                                ));
+
+                                if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
+                                    Mail::to($removedUser->email)->queue(new SendNotificationMail($removedUser, $task, 'update'));
+                                }
+                            }
+                        }
+
+                        foreach ($addedAttendees as $addedAttendee) {
+                            $addedUser = User::find($addedAttendee['user_id']);
+                            if ($addedUser) {
+                                $addedUser->notify(new NotificationEvent(
+                                    $addedAttendee['user_id'],
+                                    "Bạn có 1 lời mời tham gia {$task->type} {$task->title}",
+                                    "{$this->URL_FRONTEND}/calendar/event/{$task->uuid}/invite",
+                                    "invite_to_task"
+                                ));
+
+                                if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
+                                    $userIds = collect($new_task->attendees)->pluck('user_id');
+                                    $emailGuests = User::select('email')->whereIn('id', $userIds)->get();
+                                    $this->sendMail(Auth::user()->email, $emailGuests, $new_task);
+                                }
+                            }
+                        }
+
+                        return response()->json([
+                            'code'    => 200,
+                            'message' => 'Task updated successfully',
+                            'data'    => $new_task,
+                        ], 200);
+                    } catch (\Exception $e) {
+                        Log::error($e->getMessage());
+
+                        return response()->json([
+                            'code'    => 500,
+                            'message' => 'Failed to updated task',
+                        ], 500);
+                    }
+
+                case 'ATEN_1B':
+                    try {
+                        $preNewTask = $task->replicate();
+
+                        unset($preNewTask->uuid);
+                        $preNewTask->atteedees = $data['attendees'];
+
+                        //Add new task for following change
+                        $new_task = Task::create($preNewTask->toArray());
+
+                        $task->until = Carbon::parse($data['updated_date'])->setTime(0, 0, 0);
+
+                        $task->save();
+
+                        //Send REALTIME
+                        $returnTaskUpdate[] = $task;
+
+                        // Delete all task that have parent_id = $task->id and start_time > $ta
+                        $relatedTasks = Task::where(function ($query) use ($task) {
+                            $query->where('parent_id', $task->id);
+                            // Kiểm tra nếu parent_id của task hiện tại không phải là null  
+                            if ($task->parent_id !== null) {
+                                $query->orWhere('parent_id', $task->parent_id);
+                            }
+                        })
+                            ->where('start_time', '>=', $task->until)
+                            ->where('id', '!=', $new_task->id)
                             ->get();
 
-                        foreach ($relatedTasks as $relatedTask) {
-                            $relatedAttendees = $relatedTask->attendees ?? [];
+                        //Send REALTIME
 
-                            // Tìm người bị loại ở task con
-                            $removed = array_filter($relatedAttendees, function ($oldAttendee) use ($data) {
-                                foreach ($data['attendees'] as $newAttendee) {
-                                    if ($newAttendee['user_id'] == $oldAttendee['user_id']) {
-                                        return false;
-                                    }
-                                }
-                                return true;
-                            });
+                        $allExcludeTimes = $new_task->exclude_time ?? [];
 
-                            $removedAttendees = array_merge($removedAttendees, $removed);
+                        $maxUntil = $new_task->until;
 
-                            $relatedTask->update([
-                                'attendees' => $data['attendees']
-                            ]);
-
-                            $returnTask[] = $relatedTask;
-                        }
-
-                        // Kiểm tra người bị loại ở task cha
-                        $parentAttendees = $parentTask->attendees ?? [];
-                        $removedFromParent = array_filter($parentAttendees, function ($oldAttendee) use ($data) {
-                            foreach ($data['attendees'] as $newAttendee) {
-                                if ($newAttendee['user_id'] == $oldAttendee['user_id']) {
-                                    return false;
-                                }
-                            }
-                            return true;
-                        });
-
-                        $removedAttendees = array_merge($removedAttendees, $removedFromParent);
-
-                        $parentTask->update(['attendees' => $data['attendees']]);
-                        $returnTask[] = $parentTask;
-
-                        $returnTask[] = $task;
-                    } else {
-                        // Không có parent => xử lý các task con của chính task hiện tại
-                        $relatedTasks = Task::where('parent_id', $task->id)->get();
+                        $nearestTask = null;
+                        $nearestStartTimeDiff = null;
 
                         foreach ($relatedTasks as $relatedTask) {
-                            $relatedAttendees = $relatedTask->attendees ?? [];
+                            if ($relatedTask->is_repeat) {
+                                $relatedExcludeTimes = $relatedTask->exclude_time ?? [];
+                                $allExcludeTimes = array_merge($allExcludeTimes, $relatedExcludeTimes);
 
-                            $removed = array_filter($relatedAttendees, function ($oldAttendee) use ($data) {
-                                foreach ($data['attendees'] as $newAttendee) {
-                                    if ($newAttendee['user_id'] == $oldAttendee['user_id']) {
-                                        return false;
-                                    }
+                                $diff = abs(Carbon::parse($relatedTask->start_time)->diffInMinutes(Carbon::parse($new_task->start_time)));
+
+
+                                if (is_null($nearestStartTimeDiff) || $diff < $nearestStartTimeDiff) {
+                                    $nearestStartTimeDiff = $diff;
+                                    $nearestTask = $relatedTask;
                                 }
-                                return true;
-                            });
 
-                            $removedAttendees = array_merge($removedAttendees, $removed);
+                                if ($relatedTask->until && (!$maxUntil || Carbon::parse($relatedTask->until)->greaterThan(Carbon::parse($maxUntil)))) {
+                                    $maxUntil = $relatedTask->until;
+                                }
+                            }
 
+                            $result = $this->getUpdatedAttendeesList($relatedTask->attendees ?? [], $data['attendees']);
                             $relatedTask->update([
-                                'attendees' => $data['attendees']
+                                'attendees' => $result['updated_list']
                             ]);
+                            $removedAttendees = array_merge($removedAttendees, $result['removed']);
 
-                            $returnTask[] = $relatedTask;
+                            $returnTaskUpdate[] = $relatedTask;
                         }
 
-                        $currentAttendees = $task->attendees ?? [];
-                        $removedFromCurrent = array_filter($currentAttendees, function ($oldAttendee) use ($data) {
-                            foreach ($data['attendees'] as $newAttendee) {
-                                if ($newAttendee['user_id'] == $oldAttendee['user_id']) {
-                                    return false;
+                        if (!$returnTaskUpdate) {
+                            $this->sendRealTimeUpdate($returnTaskUpdate, 'update');
+                        }
+
+                        $allExcludeTimes = array_unique($allExcludeTimes);
+                        $new_task->exclude_time = array_values($allExcludeTimes);
+
+                        if ($nearestTask) {
+                            $new_task->until = Carbon::parse($nearestTask->start_time)->subDay();
+                        } else {
+                            $new_task->until = $maxUntil;
+                        }
+
+                        $new_task->parent_id = $task->parent_id ?? $task->id;
+                        $new_task->start_time = $data['start_time'];
+                        $new_task->end_time = $data['end_time'];
+                        $new_task->attendees = $data['attendees'];
+                        $new_task->save();
+
+                        //Send REALTIME
+                        $returnTask[] = $new_task;
+
+                        $this->sendRealTimeUpdate($returnTask, 'create');
+
+                        // Gửi thông báo cho những người bị loại
+                        foreach ($removedAttendees as $removedAttendee) {
+                            $removedUser = User::find($removedAttendee['user_id']);
+                            if ($removedUser) {
+                                $removedUser->notify(new NotificationEvent(
+                                    $removedAttendee['user_id'],
+                                    "Bạn đã bị loại khỏi {$task->type} {$task->title}",
+                                    "",
+                                    "remove_from_task"
+                                ));
+
+                                if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
+                                    Mail::to($removedUser->email)->queue(new SendNotificationMail($removedUser, $task, 'update'));
                                 }
                             }
-                            return true;
-                        });
+                        }
 
-                        $removedAttendees = array_merge($removedAttendees, $removedFromCurrent);
+                        foreach ($addedAttendees as $addedAttendee) {
+                            $addedUser = User::find($addedAttendee['user_id']);
+                            if ($addedUser) {
+                                $addedUser->notify(new NotificationEvent(
+                                    $addedAttendee['user_id'],
+                                    "Bạn có 1 lời mời tham gia {$task->type} {$task->title}",
+                                    "{$this->URL_FRONTEND}/calendar/event/{$task->uuid}/invite",
+                                    "invite_to_task"
+                                ));
 
-                        $task->update(['attendees' => $data['attendees']]);
-                        $returnTask[] = $task;
-                    }
-
-                    // Loại trùng người bị loại
-                    $removedAttendees = collect($removedAttendees)
-                        ->unique('user_id')
-                        ->values()
-                        ->all();
-
-                    // Gửi thông báo cho người bị loại
-                    foreach ($removedAttendees as $removedAttendee) {
-                        $removedUser = User::find($removedAttendee['user_id']);
-                        if ($removedUser) {
-                            $removedUser->notify(new NotificationEvent(
-                                $removedAttendee['user_id'],
-                                "Bạn đã bị loại khỏi {$task->type} {$task->title}",
-                                "",
-                                "remove_from_task"
-                            ));
-
-                            if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
-                                Mail::to($removedUser->email)->queue(new SendNotificationMail($removedUser, $task, 'update'));
+                                if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
+                                    $userIds = collect($new_task->attendees)->pluck('user_id');
+                                    $emailGuests = User::select('email')->whereIn('id', $userIds)->get();
+                                    $this->sendMail(Auth::user()->email, $emailGuests, $new_task);
+                                }
                             }
                         }
+
+                        return response()->json([
+                            'code'    => 200,
+                            'message' => 'Task updated successfully',
+                            'data'    => $new_task,
+                        ], 200);
+                    } catch (\Exception $e) {
+                        Log::error($e->getMessage());
+
+                        return response()->json([
+                            'code'    => 500,
+                            'message' => 'Failed to updated task',
+                        ], 500);
                     }
 
-                    $this->sendRealTimeUpdate($returnTask, 'update');
+                case 'ATEN_A':
+                    try {
+                        $parentTask = Task::find($task->parent_id);
 
+                        if ($parentTask) {
+                            $relatedTasks = Task::where('parent_id', $parentTask->id)
+                                ->orWhere('parent_id', $task->parent_id)
+                                ->get();
+
+                            foreach ($relatedTasks as $relatedTask) {
+                                $result = $this->getUpdatedAttendeesList($relatedTask->attendees ?? [], $data['attendees']);
+                                $relatedTask->update([
+                                    'attendees' => $result['updated_list']
+                                ]);
+
+                                $removedAttendees = array_merge($removedAttendees, $result['removed']);
+
+                                $returnTask[] = $relatedTask;
+                            }
+
+                            $result = $this->getUpdatedAttendeesList($parentTask->attendees ?? [], $data['attendees']);
+                            $parentTask->update([
+                                'attendees' => $result['updated_list']
+                            ]);
+                            $removedAttendees = array_merge($removedAttendees, $result['removed']);
+
+                            $returnTask[] = $parentTask;
+
+                            $returnTask[] = $task;
+                        } else {
+                            // Không có parent => xử lý các task con của chính task hiện tại
+                            $relatedTasks = Task::where('parent_id', $task->id)->get();
+
+                            foreach ($relatedTasks as $relatedTask) {
+                                $result = $this->getUpdatedAttendeesList($relatedTask->attendees ?? [], $data['attendees']);
+                                $relatedTask->update([
+                                    'attendees' => $result['updated_list']
+                                ]);
+
+                                $removedAttendees = array_merge($removedAttendees, $result['removed']);
+
+                                $returnTask[] = $relatedTask;
+                            }
+
+                            $result = $this->getUpdatedAttendeesList($task->attendees ?? [], $data['attendees']);
+                            $task->update([
+                                'attendees' => $result['updated_list']
+                            ]);
+                            $removedAttendees = array_merge($removedAttendees, $result['removed']);
+
+                            $returnTask[] = $task;
+                        }
+
+                        // Loại trùng người bị loại
+                        $removedAttendees = collect($removedAttendees)
+                            ->unique('user_id')
+                            ->values()
+                            ->all();
+
+                        // Gửi thông báo cho người bị loại
+                        foreach ($removedAttendees as $removedAttendee) {
+                            $removedUser = User::find($removedAttendee['user_id']);
+                            if ($removedUser) {
+                                $removedUser->notify(new NotificationEvent(
+                                    $removedAttendee['user_id'],
+                                    "Bạn đã bị loại khỏi {$task->type} {$task->title}",
+                                    "",
+                                    "remove_from_task"
+                                ));
+
+                                if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
+                                    Mail::to($removedUser->email)->queue(new SendNotificationMail($removedUser, $task, 'update'));
+                                }
+                            }
+                        }
+
+                        foreach ($addedAttendees as $addedAttendee) {
+                            $addedUser = User::find($addedAttendee['user_id']);
+                            if ($addedUser) {
+                                $addedUser->notify(new NotificationEvent(
+                                    $addedAttendee['user_id'],
+                                    "Bạn có 1 lời mời tham gia {$task->type} {$task->title}",
+                                    "{$this->URL_FRONTEND}/calendar/event/{$task->uuid}/invite",
+                                    "invite_to_task"
+                                ));
+
+                                if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
+                                    $userIds = collect($task->attendees)->pluck('user_id');
+                                    $emailGuests = User::select('email')->whereIn('id', $userIds)->get();
+                                    $this->sendMail(Auth::user()->email, $emailGuests, $task);
+                                }
+                            }
+                        }
+
+                        $this->sendRealTimeUpdate($returnTask, 'update');
+
+                        return response()->json([
+                            'code'    => 200,
+                            'message' => 'Task updated successfully',
+                            'data'    => $task,
+                        ], 200);
+                    } catch (\Exception $e) {
+                        Log::error($e->getMessage());
+
+                        return response()->json([
+                            'code'    => 500,
+                            'message' => 'Failed to updated task',
+                        ], 500);
+                    }
+
+                default:
                     return response()->json([
-                        'code'    => 200,
-                        'message' => 'Task updated successfully',
-                        'data'    => $task,
-                    ], 200);
-                } catch (\Exception $e) {
-                    Log::error($e->getMessage());
-
-                    return response()->json([
-                        'code'    => 500,
-                        'message' => 'Failed to updated task',
-                    ], 500);
-                }
-
-            default:
-                return response()->json([
-                    'code'      =>  400,
-                    'message'   =>  'Invalid code',
-                    'data'      =>  ''
-                ]);
+                        'code'      =>  400,
+                        'message'   =>  'Invalid code',
+                        'data'      =>  ''
+                    ]);
+            }
         }
     }
 
@@ -3656,5 +3707,58 @@ class TaskController extends Controller
             'message'   =>  'Fetching Data successfully',
             'data'      =>  $validTasks,
         ], 200);
+    }
+
+    private function getUpdatedAttendeesList($oldAttendees, $newAttendees)
+    {
+        $oldMap = collect($oldAttendees)->keyBy('user_id');
+        $newMap = collect($newAttendees)->keyBy('user_id');
+
+        $oldUserIds = $oldMap->keys()->toArray();
+        $newUserIds = $newMap->keys()->toArray();
+
+        $addedUserIds = array_diff($newUserIds, $oldUserIds);
+        $removedUserIds = array_diff($oldUserIds, $newUserIds);
+        $commonUserIds = array_intersect($oldUserIds, $newUserIds);
+
+        $addedAttendees = $newMap->only($addedUserIds)->values()->all();
+        $removedAttendees = $oldMap->only($removedUserIds)->values()->all();
+
+        $updatedAttendees = [];
+        foreach ($commonUserIds as $userId) {
+            $old = $oldMap[$userId];
+            $new = $newMap[$userId];
+
+            if (
+                ($old['role'] ?? null) !== ($new['role'] ?? null) ||
+                ($old['status'] ?? null) !== ($new['status'] ?? null)
+            ) {
+                $updatedAttendees[] = [
+                    'user_id' => $userId,
+                    'old_role' => $old['role'] ?? null,
+                    'new_role' => $new['role'] ?? null,
+                    'old_status' => $old['status'] ?? null,
+                    'new_status' => $new['status'] ?? null,
+                ];
+            }
+        }
+
+        // Tạo danh sách attendees mới
+        $newList = collect($oldAttendees)->reject(function ($attendee) use ($removedUserIds) {
+            return in_array($attendee['user_id'], $removedUserIds);
+        })->map(function ($attendee) use ($updatedAttendees) {
+            foreach ($updatedAttendees as $updated) {
+                if ($updated['user_id'] == $attendee['user_id']) {
+                    $attendee['role'] = $updated['new_role'];
+                    $attendee['status'] = $updated['new_status'];
+                }
+            }
+            return $attendee;
+        })->merge($addedAttendees)->values()->all();
+
+        return [
+            'updated_list' => $newList,
+            'removed' => $removedAttendees,
+        ];
     }
 }
