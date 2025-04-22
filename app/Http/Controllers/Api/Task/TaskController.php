@@ -1561,6 +1561,7 @@ class TaskController extends Controller
         }
 
         $oldAttendees = $task->attendees ?? [];
+        $oldUntil = $task->until;
 
         $oldUserIds = collect($oldAttendees)->pluck('user_id')->toArray();
         $newUserIds = collect($data['attendees'])->pluck('user_id')->toArray();
@@ -1809,7 +1810,7 @@ class TaskController extends Controller
                         $new_task->exclude_time = array_values($allExcludeTimes);
 
                         if ($nearestTask) {
-                            $new_task->until = Carbon::parse($nearestTask->start_time)->subDay();
+                            $new_task->until = $oldUntil;
                         } else {
                             $new_task->until = $maxUntil;
                         }
