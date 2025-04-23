@@ -97,25 +97,18 @@ class TagController extends Controller
         try {
             $userId = Auth::id();
     
-            $sharedTags = Tag::whereJsonContains('shared_user', [['user_id' => $userId]])->get();
+            $sharedTags = Tag::whereJsonContains('shared_user', [[ 'user_id' => $userId ]])->get();
     
             $sharedTags = $sharedTags->map(function ($tag) {
-                $shared = collect($tag->shared_user ?? []);
                 $owner = User::find($tag->user_id);
-                if ($owner) {
-                    $ownerInfo = [
+                return array_merge($tag->toArray(), [
+                    'owner' => $owner ? [
                         'user_id'    => $owner->id,
                         'first_name' => $owner->first_name,
                         'last_name'  => $owner->last_name,
                         'email'      => $owner->email,
                         'avatar'     => $owner->avatar,
-                        'status'     => 'yes',
-                        'role'       => 'owner',
-                    ];
-                    $shared->prepend($ownerInfo);
-                }
-                return array_merge($tag->toArray(), [
-                    'shared_user' => $shared->values(),
+                    ] : null
                 ]);
             });
     
@@ -152,22 +145,15 @@ class TagController extends Controller
                         });
                 })
                 ->map(function ($tag) {
-                    $shared = collect($tag->shared_user ?? []);
                     $owner = User::find($tag->user_id);
-                    if ($owner) {
-                        $ownerInfo = [
+                    return array_merge($tag->toArray(), [
+                        'owner' => $owner ? [
                             'user_id'    => $owner->id,
                             'first_name' => $owner->first_name,
                             'last_name'  => $owner->last_name,
                             'email'      => $owner->email,
                             'avatar'     => $owner->avatar,
-                            'status'     => 'yes',
-                            'role'       => 'owner',
-                        ];
-                        $shared->prepend($ownerInfo);
-                    }
-                    return array_merge($tag->toArray(), [
-                        'shared_user' => $shared->values(),
+                        ] : null
                     ]);
                 })
                 ->values();
@@ -237,30 +223,21 @@ class TagController extends Controller
                 ], 404);
             }
     
-            $sharedUsers = $tag->shared_user ?? [];
             $owner = User::find($tag->user_id);
-    
-            if ($owner) {
-                $ownerInfo = [
-                    'user_id'    => $owner->id,
-                    'first_name' => $owner->first_name,
-                    'last_name'  => $owner->last_name,
-                    'email'      => $owner->email,
-                    'avatar'     => $owner->avatar,
-                    'status'     => 'yes',
-                    'role'       => 'owner',
-                ];
-                array_unshift($sharedUsers, $ownerInfo);
-            }
     
             return response()->json([
                 'code'    => 200,
                 'message' => 'Tag retrieved successfully',
                 'data'    => [
                     'tag'         => $tag,
-                    'shared_user'=> $sharedUsers,
                     'invite_link' => "{$this->URL_FRONTEND}/calendar/tag/invite/{$tag->uuid}",
-                    'owner'       => $ownerInfo ?? null,
+                    'owner'       => $owner ? [
+                        'user_id'    => $owner->id,
+                        'first_name' => $owner->first_name,
+                        'last_name'  => $owner->last_name,
+                        'email'      => $owner->email,
+                        'avatar'     => $owner->avatar,
+                    ] : null
                 ],
             ], 200);
         } catch (\Exception $e) {
@@ -272,7 +249,7 @@ class TagController extends Controller
             ], 500);
         }
     }
-    
+
     public function showOne($id)
     {
         try {
@@ -282,56 +259,48 @@ class TagController extends Controller
                     'message' => 'Unauthorized',
                 ], 401);
             }
-    
+
             $userId = Auth::id();
             $tag = Tag::find($id);
-    
+
             if (!$tag) {
                 return response()->json([
                     'code'    => 404,
                     'message' => 'Tag not found',
                 ], 404);
             }
-    
+
             $sharedUsers = collect($tag->shared_user ?? []);
             $isInvited = $sharedUsers->firstWhere('user_id', $userId);
-    
+
             if ($tag->user_id !== $userId && (!$isInvited || $isInvited['status'] !== 'yes')) {
                 return response()->json([
                     'code'    => 403,
                     'message' => 'You are not invited to this tag',
                 ], 403);
             }
-    
+
             $owner = User::find($tag->user_id);
-    
-            if ($owner) {
-                $ownerInfo = [
-                    'user_id'    => $owner->id,
-                    'first_name' => $owner->first_name,
-                    'last_name'  => $owner->last_name,
-                    'email'      => $owner->email,
-                    'avatar'     => $owner->avatar,
-                    'status'     => 'yes',
-                    'role'       => 'owner',
-                ];
-                $sharedUsers->prepend($ownerInfo);
-            }
-    
+
             return response()->json([
                 'code'    => 200,
                 'message' => 'Tag details retrieved successfully',
                 'data'    => [
                     'tag'         => $tag,
-                    'shared_user'=> $sharedUsers->values(),
                     'invited'     => $isInvited,
                     'invite_link' => "{$this->URL_FRONTEND}/calendar/tag/invite/{$tag->uuid}",
-                    'owner'       => $ownerInfo ?? null,
+                    'owner'       => $owner ? [
+                        'user_id'    => $owner->id,
+                        'first_name' => $owner->first_name,
+                        'last_name'  => $owner->last_name,
+                        'email'      => $owner->email,
+                        'avatar'     => $owner->avatar,
+                    ] : null
                 ],
             ], 200);
         } catch (\Exception $e) {
             Log::error($e->getMessage());
-    
+
             return response()->json([
                 'code'    => 500,
                 'message' => 'An error occurred while retrieving the tag details',
@@ -402,7 +371,6 @@ class TagController extends Controller
             ]);
     
             $returnTag[] = $tag;
-    
             $this->sendRealTimeUpdate($returnTag, 'create');
     
             $emails = collect($formattedSharedUsers)->pluck('email')->filter();
@@ -422,28 +390,19 @@ class TagController extends Controller
                 }
             }
     
-            // Thêm owner vào shared_user trả về
-            $sharedWithOwner = collect($tag->shared_user);
-            $owner = User::find($tag->user_id);
-            if ($owner) {
-                $ownerInfo = [
-                    'user_id'    => $owner->id,
-                    'first_name' => $owner->first_name,
-                    'last_name'  => $owner->last_name,
-                    'email'      => $owner->email,
-                    'avatar'     => $owner->avatar,
-                    'status'     => 'yes',
-                    'role'       => 'owner',
-                ];
-                $sharedWithOwner->prepend($ownerInfo);
-            }
-    
+            $owner = User::find($userId);
             return response()->json([
                 'code'    => 201,
                 'message' => 'Tag created successfully',
                 'data'    => [
-                    'tag'          => $tag,
-                    'shared_user'  => $sharedWithOwner->values(),
+                    'tag'   => $tag,
+                    'owner' => $owner ? [
+                        'user_id'    => $owner->id,
+                        'first_name' => $owner->first_name,
+                        'last_name'  => $owner->last_name,
+                        'email'      => $owner->email,
+                        'avatar'     => $owner->avatar,
+                    ] : null
                 ]
             ], 201);
     
@@ -528,8 +487,8 @@ class TagController extends Controller
                             'last_name'  => $userModel->last_name,
                             'email'      => $userModel->email,
                             'avatar'     => $userModel->avatar,
-                            'status'     => $user['status'] ?? 'pending',
-                            'role'       => $user['role'] ?? 'viewer',
+                            'status'     => 'pending',
+                            'role'       => 'viewer',
                         ];
                     })->filter()->values();
     
@@ -563,28 +522,19 @@ class TagController extends Controller
             $returnTag[] = $tag;
             $this->sendRealTimeUpdate($returnTag, 'update');
     
-            // Trả shared_user có owner
-            $sharedWithOwner = collect($tag->shared_user);
             $owner = User::find($tag->user_id);
-            if ($owner) {
-                $ownerInfo = [
-                    'user_id'    => $owner->id,
-                    'first_name' => $owner->first_name,
-                    'last_name'  => $owner->last_name,
-                    'email'      => $owner->email,
-                    'avatar'     => $owner->avatar,
-                    'status'     => 'yes',
-                    'role'       => 'owner',
-                ];
-                $sharedWithOwner->prepend($ownerInfo);
-            }
-    
             return response()->json([
                 'code'    => 200,
                 'message' => 'Tag updated successfully',
                 'data'    => [
-                    'tag'         => $tag,
-                    'shared_user' => $sharedWithOwner->values(),
+                    'tag'   => $tag,
+                    'owner' => $owner ? [
+                        'user_id'    => $owner->id,
+                        'first_name' => $owner->first_name,
+                        'last_name'  => $owner->last_name,
+                        'email'      => $owner->email,
+                        'avatar'     => $owner->avatar,
+                    ] : null
                 ],
             ], 200);
     
