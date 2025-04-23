@@ -71,23 +71,37 @@ class TagController extends Controller
     {
         try {
             $userId = Auth::id();
-
+    
             $ownedTags = Tag::where('user_id', $userId)->get();
-
+    
+            $tagsWithOwnerInfo = $ownedTags->map(function ($tag) use ($userId) {
+                $owner = User::find($tag->user_id);
+                return array_merge($tag->toArray(), [
+                    'owner' => $owner ? [
+                        'user_id'    => $owner->id,
+                        'first_name' => $owner->first_name,
+                        'last_name'  => $owner->last_name,
+                        'email'      => $owner->email,
+                        'avatar'     => $owner->avatar,
+                    ] : null,
+                    'is_owner' => true,
+                ]);
+            });
+    
             return response()->json([
                 'code'    => 200,
                 'message' => 'Retrieve owned tags successfully',
-                'data'    => $ownedTags->isEmpty() ? [] : $ownedTags
+                'data'    => $tagsWithOwnerInfo->isEmpty() ? [] : $tagsWithOwnerInfo
             ], 200);
         } catch (\Exception $e) {
             Log::error($e->getMessage());
-
+    
             return response()->json([
                 'code'    => 500,
                 'message' => 'An error occurred while retrieving owned tags',
             ], 500);
         }
-    }
+    }    
 
     /**
      * Lấy danh sách tag được chia sẻ với người dùng.
@@ -99,7 +113,7 @@ class TagController extends Controller
     
             $sharedTags = Tag::whereJsonContains('shared_user', [[ 'user_id' => $userId ]])->get();
     
-            $sharedTags = $sharedTags->map(function ($tag) {
+            $sharedTags = $sharedTags->map(function ($tag) use ($userId) {
                 $owner = User::find($tag->user_id);
                 return array_merge($tag->toArray(), [
                     'owner' => $owner ? [
@@ -108,7 +122,8 @@ class TagController extends Controller
                         'last_name'  => $owner->last_name,
                         'email'      => $owner->email,
                         'avatar'     => $owner->avatar,
-                    ] : null
+                    ] : null,
+                    'is_owner' => $tag->user_id === $userId,
                 ]);
             });
     
@@ -132,8 +147,24 @@ class TagController extends Controller
         try {
             $userId = Auth::id();
     
-            $ownedTags = Tag::where('user_id', $userId)->get();
+            // 1. Các tag do chính mình sở hữu (owned)
+            $ownedTags = Tag::where('user_id', $userId)
+                ->get()
+                ->map(function ($tag) use ($userId) {
+                    $owner = User::find($tag->user_id);
+                    return array_merge($tag->toArray(), [
+                        'owner' => $owner ? [
+                            'user_id'    => $owner->id,
+                            'first_name' => $owner->first_name,
+                            'last_name'  => $owner->last_name,
+                            'email'      => $owner->email,
+                            'avatar'     => $owner->avatar,
+                        ] : null,
+                        'is_owner' => true,
+                    ]);
+                });
     
+            // 2. Các tag được chia sẻ với mình dưới vai trò editor
             $sharedEditorTags = Tag::whereJsonContains('shared_user', [['user_id' => $userId]])
                 ->get()
                 ->filter(function ($tag) use ($userId) {
@@ -144,7 +175,7 @@ class TagController extends Controller
                                 && $user['status'] === 'yes';
                         });
                 })
-                ->map(function ($tag) {
+                ->map(function ($tag) use ($userId) {
                     $owner = User::find($tag->user_id);
                     return array_merge($tag->toArray(), [
                         'owner' => $owner ? [
@@ -153,7 +184,8 @@ class TagController extends Controller
                             'last_name'  => $owner->last_name,
                             'email'      => $owner->email,
                             'avatar'     => $owner->avatar,
-                        ] : null
+                        ] : null,
+                        'is_owner' => false,
                     ]);
                 })
                 ->values();
@@ -163,7 +195,7 @@ class TagController extends Controller
                 'message' => 'Retrieved owned and shared-editor tags successfully',
                 'data'    => [
                     'owned'            => $ownedTags,
-                    'shared_as_editor' => $sharedEditorTags
+                    'shared_as_editor' => $sharedEditorTags,
                 ]
             ], 200);
         } catch (\Exception $e) {
@@ -174,7 +206,7 @@ class TagController extends Controller
                 'message' => 'An error occurred while retrieving tags',
             ], 500);
         }
-    }
+    }    
 
     public function getTasksFromSharedTags()
     {
@@ -223,6 +255,7 @@ class TagController extends Controller
                 ], 404);
             }
     
+            $userId = Auth::id();
             $owner = User::find($tag->user_id);
     
             return response()->json([
@@ -237,7 +270,8 @@ class TagController extends Controller
                         'last_name'  => $owner->last_name,
                         'email'      => $owner->email,
                         'avatar'     => $owner->avatar,
-                    ] : null
+                    ] : null,
+                    'is_owner'    => $tag->user_id === $userId,
                 ],
             ], 200);
         } catch (\Exception $e) {
@@ -248,7 +282,7 @@ class TagController extends Controller
                 'message' => 'An error occurred while retrieving the tag',
             ], 500);
         }
-    }
+    }    
 
     public function showOne($id)
     {
@@ -259,29 +293,29 @@ class TagController extends Controller
                     'message' => 'Unauthorized',
                 ], 401);
             }
-
+    
             $userId = Auth::id();
             $tag = Tag::find($id);
-
+    
             if (!$tag) {
                 return response()->json([
                     'code'    => 404,
                     'message' => 'Tag not found',
                 ], 404);
             }
-
+    
             $sharedUsers = collect($tag->shared_user ?? []);
             $isInvited = $sharedUsers->firstWhere('user_id', $userId);
-
+    
             if ($tag->user_id !== $userId && (!$isInvited || $isInvited['status'] !== 'yes')) {
                 return response()->json([
                     'code'    => 403,
                     'message' => 'You are not invited to this tag',
                 ], 403);
             }
-
+    
             $owner = User::find($tag->user_id);
-
+    
             return response()->json([
                 'code'    => 200,
                 'message' => 'Tag details retrieved successfully',
@@ -295,18 +329,19 @@ class TagController extends Controller
                         'last_name'  => $owner->last_name,
                         'email'      => $owner->email,
                         'avatar'     => $owner->avatar,
-                    ] : null
+                    ] : null,
+                    'is_owner' => $tag->user_id === $userId,
                 ],
             ], 200);
         } catch (\Exception $e) {
             Log::error($e->getMessage());
-
+    
             return response()->json([
                 'code'    => 500,
                 'message' => 'An error occurred while retrieving the tag details',
             ], 500);
         }
-    }
+    }    
    
     public function store(Request $request)
     {
