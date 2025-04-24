@@ -563,31 +563,31 @@ class TaskController extends Controller
 
                                 $relatedTask->forceDelete();
                             } else {
-                                if (Carbon::parse($relatedTask->start_time)->greaterThanOrEqualTo($data['updated_date'])) {
-                                    $relatedTask->forceDelete();
-                                } else {
-                                    $relatedTask->update([
-                                        'start_time'    => $updatedStartTime,
-                                        'end_time'      => $updatedEndTime,
-                                        'title'         => $data['title'],
-                                        'description'   => $data['description'],
-                                        'user_id'       => $data['user_id'],
-                                        'timezone_code' => $data['timezone_code'],
-                                        'color_code'    => $data['color_code'],
-                                        'tag_id'        => $data['tag_id'] ?? null,
-                                        // 'attendees'     => $data['attendees'],
-                                        'location'      => $data['location'],
-                                        'type'          => $data['type'],
-                                        'is_all_day'    => $data['is_all_day'],
-                                        'is_busy'       => $data['is_busy'],
-                                        'is_reminder'   => $data['is_reminder'],
-                                        'reminder'      => $data['reminder'],
-                                        'link'          => $data['link'],
-                                        'is_private'    => $data['is_private'],
-                                        'is_done'       => $data['is_done'],
-                                        'default_permission' => $data['default_permission'] ?? 'viewer',
-                                    ]);
-                                }
+                                // if (Carbon::parse($relatedTask->start_time)->greaterThanOrEqualTo($data['updated_date'])) {
+                                //     $relatedTask->forceDelete();
+                                // } else {
+                                $relatedTask->update([
+                                    'start_time'    => $updatedStartTime,
+                                    'end_time'      => $updatedEndTime,
+                                    'title'         => $data['title'],
+                                    'description'   => $data['description'],
+                                    'user_id'       => $data['user_id'],
+                                    'timezone_code' => $data['timezone_code'],
+                                    'color_code'    => $data['color_code'],
+                                    'tag_id'        => $data['tag_id'] ?? null,
+                                    // 'attendees'     => $data['attendees'],
+                                    'location'      => $data['location'],
+                                    'type'          => $data['type'],
+                                    'is_all_day'    => $data['is_all_day'],
+                                    'is_busy'       => $data['is_busy'],
+                                    'is_reminder'   => $data['is_reminder'],
+                                    'reminder'      => $data['reminder'],
+                                    'link'          => $data['link'],
+                                    'is_private'    => $data['is_private'],
+                                    'is_done'       => $data['is_done'],
+                                    'default_permission' => $data['default_permission'] ?? 'viewer',
+                                ]);
+                                // }
                             }
 
                             $returnTaskUpdate[] = $relatedTask;
@@ -608,7 +608,7 @@ class TaskController extends Controller
                         $new_task->exclude_time = array_values($allExcludeTimes);
 
                         $new_task->until = $maxUntil;
-
+                        $new_task->attendees = $allAttendees;
                         $new_task->parent_id = $task->parent_id ?? $task->id;
                         $new_task->save();
 
@@ -1615,7 +1615,7 @@ class TaskController extends Controller
                                 $addedUser->notify(new NotificationEvent(
                                     $addedAttendee['user_id'],
                                     "Bạn có 1 lời mời tham gia {$task->type} {$task->title}",
-                                    "{$this->URL_FRONTEND}/calendar/event/{$task->uuid}/invite",
+                                    "",
                                     "invite_to_task"
                                 ));
 
@@ -1711,7 +1711,7 @@ class TaskController extends Controller
                                 $addedUser->notify(new NotificationEvent(
                                     $addedAttendee['user_id'],
                                     "Bạn có 1 lời mời tham gia {$task->type} {$task->title}",
-                                    "{$this->URL_FRONTEND}/calendar/event/{$task->uuid}/invite",
+                                    "",
                                     "invite_to_task"
                                 ));
 
@@ -1849,7 +1849,7 @@ class TaskController extends Controller
                                 $addedUser->notify(new NotificationEvent(
                                     $addedAttendee['user_id'],
                                     "Bạn có 1 lời mời tham gia {$task->type} {$task->title}",
-                                    "{$this->URL_FRONTEND}/calendar/event/{$task->uuid}/invite",
+                                    "",
                                     "invite_to_task"
                                 ));
 
@@ -1957,7 +1957,7 @@ class TaskController extends Controller
                                 $addedUser->notify(new NotificationEvent(
                                     $addedAttendee['user_id'],
                                     "Bạn có 1 lời mời tham gia {$task->type} {$task->title}",
-                                    "{$this->URL_FRONTEND}/calendar/event/{$task->uuid}/invite",
+                                    "",
                                     "invite_to_task"
                                 ));
 
@@ -2665,8 +2665,9 @@ class TaskController extends Controller
                 $user->notify(new NotificationEvent(
                     $user->id,
                     "Bạn có 1 lời mời tham gia {$task->type} {$task->title}",
-                    "{$this->URL_FRONTEND}/calendar/event/{$task->uuid}/invite",
+                    "",
                     "invite_to_task"
+                    // {$this->URL_FRONTEND}/calendar/event/{$task->uuid}/invite
                 ));
             }
 
@@ -3269,6 +3270,13 @@ class TaskController extends Controller
             ]);
         }
 
+        if ($task->is_private == 1) {
+            return response()->json([
+                'code' => 403,
+                'message' => 'Can not accpet invite this event',
+            ]);
+        }
+
         if ($user->id == $task->user_id) {
             return response()->json([
                 'code' => 400,
@@ -3279,37 +3287,35 @@ class TaskController extends Controller
         DB::beginTransaction();
 
         try {
-            // Kiểm tra nếu attendees là mảng
-            $attendees = is_array($task->attendees) ? $task->attendees : [];
+            $allTasks = Task::where('id', $task->id)
+                ->orWhere('parent_id', $task->id)
+                ->orWhere('id', $task->parent_id)
+                ->orWhere('parent_id', $task->parent_id)
+                ->get();
 
-            // Kiểm tra người dùng đã tồn tại trong attendees chưa
-            $attendeeIndex = array_search($user->id, array_column($attendees, 'user_id'));
+            $returnTasks = [];
 
-            if ($attendeeIndex !== false) {
-                if ($attendees[$attendeeIndex]['status'] === 'yes') {
-                    return response()->json([
-                        'code'    => 409,
-                        'message' => 'You have already accepted this event',
-                    ]);
-                } else {
-                    // Cập nhật trạng thái trong biến tạm
+            foreach ($allTasks as $relatedTask) {
+                // Bỏ qua nếu task là riêng tư
+                if ($relatedTask->is_private == 1) {
+                    continue;
+                }
+
+                $attendees = is_array($relatedTask->attendees) ? $relatedTask->attendees : [];
+
+                $attendeeIndex = array_search($user->id, array_column($attendees, 'user_id'));
+
+                if ($attendeeIndex !== false) {
                     $attendees[$attendeeIndex]['status'] = 'yes';
                 }
-            } else {
-                // Nếu chưa có, thêm mới người dùng vào danh sách attendees
-                $attendees[] = [
-                    'role'    => 'viewer',
-                    'status'  => 'yes',
-                    'user_id' => $user->id
-                ];
+
+                $relatedTask->attendees = $attendees;
+                $relatedTask->save();
+                
+                $returnTasks[] = $relatedTask;
             }
 
-            // Gán lại danh sách attendees vào model
-            $task->attendees = $attendees;
-            $task->save(); // Lưu thay đổi vào database
-
-            $returnTask[] = $task;
-            $this->sendRealTimeUpdate($returnTask, 'update');
+            $this->sendRealTimeUpdate($returnTasks, 'update');
 
             //Send Notification
             $owner = User::find($task->user_id);
@@ -3321,8 +3327,112 @@ class TaskController extends Controller
                 "accept_invite"
             ));
 
+            $chatID = $task->parent_id ?? $task->id;
+
             // add member to group chat after member accepts invitation
-            app(TaskGroupChatController::class)->addMember($task->id, $user->id);
+            app(TaskGroupChatController::class)->addMember($chatID, $user->id);
+
+            DB::commit();
+
+            return response()->json([
+                'code'    => 200,
+                'message' => 'You have successfully accepted the event',
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            Log::error($e->getMessage());
+
+            return response()->json([
+                'code'    => 500,
+                'message' => 'An error occurred',
+            ], 500);
+        }
+    }
+
+    public function acceptInviteByLink(Request $request, $uuid)
+    {
+        $user = auth()->user();
+
+        $task = Task::with('user.setting')
+            ->where('type', 'event')
+            ->where('uuid', $uuid)
+            ->first();
+
+        if (!$task) {
+            return response()->json([
+                'code' => 404,
+                'message' => 'The event owner may have been removed',
+            ]);
+        }
+
+        if ($task->is_private == 1) {
+            return response()->json([
+                'code' => 403,
+                'message' => 'Can not accpet invite this event',
+            ]);
+        }
+
+        if ($user->id == $task->user_id) {
+            return response()->json([
+                'code' => 400,
+                'message' => 'Can not invite yourself',
+            ]);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $allTasks = Task::where('id', $task->id)
+                ->orWhere('parent_id', $task->id)
+                ->orWhere('id', $task->parent_id)
+                ->orWhere('parent_id', $task->parent_id)
+                ->get();
+
+            $returnTasks = [];
+
+            foreach ($allTasks as $relatedTask) {
+                // Bỏ qua nếu task là riêng tư
+                if ($relatedTask->is_private == 1) {
+                    continue;
+                }
+
+                $attendees = is_array($relatedTask->attendees) ? $relatedTask->attendees : [];
+
+                $attendeeIndex = array_search($user->id, array_column($attendees, 'user_id'));
+
+                if ($attendeeIndex !== false) {
+                    $attendees[$attendeeIndex]['status'] = 'yes';
+                } else {
+                    $attendees[] = [
+                        'role'    => 'viewer',
+                        'status'  => 'yes',
+                        'user_id' => $user->id
+                    ];
+                }
+
+                $relatedTask->attendees = $attendees;
+                $relatedTask->save();
+
+                $returnTasks[] = $relatedTask;
+            }
+
+            $this->sendRealTimeUpdate($returnTasks, 'update');
+
+            //Send Notification
+            $owner = User::find($task->user_id);
+
+            $owner->notify(new NotificationEvent(
+                $task->user_id,
+                "Tài khoản {$user->first_name} {$user->last_name} vừa mới đồng ý tham gia {$task->type} {$task->title} của bạn",
+                "",
+                "accept_invite"
+            ));
+
+            $chatID = $task->parent_id ?? $task->id;
+
+            // add member to group chat after member accepts invitation
+            app(TaskGroupChatController::class)->addMember($chatID, $user->id);
 
             DB::commit();
 
