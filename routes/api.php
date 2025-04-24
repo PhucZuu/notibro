@@ -60,6 +60,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // invite link
     Route::post('/event/{uuid}/accept', [TaskController::class,'acceptInvite']);
+    Route::post('/event/{uuid}/acceptInviteByLink', [TaskController::class,'acceptInviteByLink']);
     Route::post('/event/{uuid}/refuse', [TaskController::class,'refuseInvite']);
     Route::get('/event/{uuid}/invite', [TaskController::class,'show']);
 
