@@ -2634,6 +2634,12 @@ class TaskController extends Controller
             ]);
         }
 
+        if ($task && $task->user && $task->user->avatar) {
+            if ($task->user->avatar && !Str::startsWith($task->user->avatar, ['http://', 'https://'])) {
+                $task->user->avatar = Storage::url($task->user->avatar);
+            }
+        }
+
         $attendees = collect($task->attendees);
 
         $userIds = $attendees->pluck('user_id')->toArray();
@@ -2643,11 +2649,16 @@ class TaskController extends Controller
         if ($users) {
             $attendeesInfo = $attendees->map(function ($attendee) use ($users) {
                 $user = $users->firstWhere('id', $attendee['user_id']);
+
+                if ($user->avatar && !Str::startsWith($user->avatar, ['http://', 'https://'])) {
+                    $user->avatar = Storage::url($user->avatar);
+                }
+
                 return [
                     'user_id' => $attendee['user_id'],
                     'name'  => $user->first_name . ' ' . $user->last_name,
                     'email' => $user->email,
-                    'avatar' => $user->avatar ?? null,
+                    'avatar' => $user->avatar,
                 ];
             });
         }
