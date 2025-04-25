@@ -111,7 +111,15 @@ class Task extends Model
         ->pluck('user_id') // Lấy user_id
         ->toArray();
 
-        $data = array_merge([$this->user_id], $filteredAttendees);
+        $curTag = Tag::find($this->tag_id);
+        $tagOwner = Tag::where($curTag->user_id)->first(); 
+
+        $filteredSharedByTag = collect($curTag->shared_user ?? [])
+        ->where('status', 'yes') // Chỉ lấy những shared_user có status = 'yes'
+        ->pluck('user_id') // Lấy user_id
+        ->toArray();
+
+        $data = array_merge([$this->user_id], $filteredAttendees, [$tagOwner->id], $filteredSharedByTag);
 
         return $data;
     }
