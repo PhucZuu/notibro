@@ -255,7 +255,29 @@ class TagController extends Controller
                 ], 404);
             }
     
-            $userId = Auth::id();
+            $user = Auth::user();
+    
+            // Nếu không đăng nhập hoặc không có quyền xem
+            if (!$user) {
+                return response()->json([
+                    'code' => 401,
+                    'message' => 'You must be logged in to view this invitation',
+                ], 401);
+            }
+    
+            $userId = $user->id;
+            $isOwner = $tag->user_id === $userId;
+    
+            $isInvited = collect($tag->shared_user ?? [])
+                ->firstWhere('user_id', $userId);
+    
+            if (!$isOwner && (!$isInvited || !in_array($isInvited['status'], ['pending', 'yes']))) {
+                return response()->json([
+                    'code' => 403,
+                    'message' => 'You are not allowed to view this invitation',
+                ], 403);
+            }
+    
             $owner = User::find($tag->user_id);
     
             return response()->json([
@@ -271,7 +293,7 @@ class TagController extends Controller
                         'email'      => $owner->email,
                         'avatar'     => $owner->avatar,
                     ] : null,
-                    'is_owner'    => $tag->user_id === $userId,
+                    'is_owner'    => $isOwner,
                 ],
             ], 200);
         } catch (\Exception $e) {
@@ -282,7 +304,8 @@ class TagController extends Controller
                 'message' => 'An error occurred while retrieving the tag',
             ], 500);
         }
-    }    
+    }
+    
 
     public function showOne($id)
     {
@@ -553,7 +576,7 @@ class TagController extends Controller
                 'reminder'     => $formattedReminder,
             ]);
     
-            $tag->syncAttendeesWithTasks($oldSharedUsers);
+            // $tag->syncAttendeesWithTasks($oldSharedUsers);
             $returnTag[] = $tag;
             $this->sendRealTimeUpdate($returnTag, 'update');
     
@@ -684,27 +707,34 @@ class TagController extends Controller
     {
         $userId = Auth::id();
         $tag = Tag::where('uuid', $uuid)->first();
+        $fullName = Auth::user()->first_name . ' ' . Auth::user()->last_name;
     
-        if (!$tag) {
+        if (!$tag || !$tag->shared_user) {
             return response()->json(['code' => 404, 'message' => 'Tag not found'], 404);
         }
     
-        $sharedUsers = collect($tag->shared_user ?? [])
-            ->map(function ($user) use ($userId) {
-                if ($user['user_id'] == $userId) {
-                    $user['status'] = 'yes';
-                }
-                return $user;
-            })->toArray();
+        $sharedUsers = collect($tag->shared_user);
+        $isInvited = $sharedUsers->firstWhere('user_id', $userId);
     
-        $tag->update(['shared_user' => $sharedUsers]);
+        if (!$isInvited) {
+            return response()->json(['code' => 403, 'message' => 'You are not invited to this tag'], 403);
+        }
     
-        // Gửi thông báo cho chủ sở hữu
+        $updatedSharedUsers = $sharedUsers->map(function ($user) use ($userId) {
+            if ($user['user_id'] == $userId) {
+                $user['status'] = 'yes';
+            }
+            return $user;
+        })->toArray();
+    
+        $tag->update(['shared_user' => $updatedSharedUsers]);
+    
+        $user = Auth::user();
         $owner = User::find($tag->user_id);
         if ($owner) {
             $owner->notify(new NotificationEvent(
                 $owner->id,
-                "Người dùng {$userId} đã chấp nhận lời mời vào tag: {$tag->name}",
+                "{$fullName} đã chấp nhận lời mời vào tag: {$tag->name}",
                 "",
                 "accept_tag_invite"
             ));
@@ -720,6 +750,7 @@ class TagController extends Controller
     {
         $userId = Auth::id();
         $tag = Tag::where('uuid', $uuid)->first();
+        $fullName = Auth::user()->first_name . ' ' . Auth::user()->last_name;
     
         if (!$tag) {
             return response()->json(['code' => 404, 'message' => 'Tag not found'], 404);
@@ -734,12 +765,12 @@ class TagController extends Controller
     
         $tag->update(['shared_user' => $newSharedUsers]);
     
-        // Gửi thông báo cho chủ sở hữu
         $owner = User::find($tag->user_id);
-        if ($owner) {
+        $currentUser = Auth::user();
+        if ($owner && $currentUser) {
             $owner->notify(new NotificationEvent(
                 $owner->id,
-                "Người dùng {$userId} đã từ chối lời mời vào tag: {$tag->name}",
+                "{$fullName} đã từ chối lời mời vào tag: {$tag->name}",
                 "",
                 "decline_tag_invite"
             ));
@@ -751,54 +782,52 @@ class TagController extends Controller
         ], 200);
     }
       
-    public function leaveTag($id)
+    public function leaveTag(Request $request, $id)
     {
         $userId = Auth::id();
+        $keepInTasks = $request->input('keep_in_tasks', false);
         $tag = Tag::find($id);
+        $fullName = Auth::user()->first_name . ' ' . Auth::user()->last_name;
     
         if (!$tag) {
             return response()->json(['code' => 404, 'message' => 'Tag not found'], 404);
         }
     
-        // Ngăn chủ sở hữu tag rời đi
         if ($tag->user_id == $userId) {
             return response()->json(['code' => 403, 'message' => 'You are the owner of this tag and cannot leave'], 403);
         }
     
         $sharedUsers = collect($tag->shared_user ?? []);
     
-        // Kiểm tra nếu người dùng có trong danh sách shared_user
         if (!$sharedUsers->firstWhere('user_id', $userId)) {
             return response()->json(['code' => 403, 'message' => 'You are not part of this tag'], 403);
         }
     
-        // Loại bỏ user khỏi danh sách shared_user
         $newSharedUsers = $sharedUsers
             ->reject(fn($user) => $user['user_id'] == $userId)
             ->values()
             ->toArray();
     
         $tag->update(['shared_user' => $newSharedUsers]);
-
-        $tag->syncAttendeesWithTasks($sharedUsers->pluck('user_id')->toArray());
     
-        // Loại bỏ user khỏi tất cả các task của tag
-        $tasks = $tag->tasks;
-        foreach ($tasks as $task) {
-            $attendees = collect($task->attendees ?? [])
-                ->reject(fn($attendee) => $attendee['user_id'] == $userId)
-                ->values()
-                ->toArray();
-    
-            $task->update(['attendees' => $attendees]);
+        if (!$keepInTasks) {
+            foreach ($tag->tasks as $task) {
+                $attendees = collect($task->attendees ?? [])
+                    ->reject(fn($attendee) => $attendee['user_id'] == $userId)
+                    ->values()
+                    ->toArray();
+                $task->update(['attendees' => $attendees]);
+            }
         }
     
-        // Gửi thông báo cho chủ sở hữu
+        // $tag->syncAttendeesWithTasks($sharedUsers->pluck('user_id')->toArray());
+    
         $owner = User::find($tag->user_id);
-        if ($owner) {
+        $currentUser = Auth::user();
+        if ($owner && $currentUser) {
             $owner->notify(new NotificationEvent(
                 $owner->id,
-                "Người dùng {$userId} đã rời khỏi tag: {$tag->name}",
+                "{$fullName} đã rời khỏi tag: {$tag->name}",
                 "",
                 "leave_tag"
             ));
@@ -806,9 +835,9 @@ class TagController extends Controller
     
         return response()->json([
             'code' => 200,
-            'message' => 'Successfully left the tag and related tasks',
+            'message' => 'Successfully left the tag' . ($keepInTasks ? ' (still in tasks)' : ' and removed from tasks'),
         ], 200);
-    }    
+    }
 
     public function removeUserFromTag(Request $request, $tagId, $userIdToRemove)
     {
@@ -845,7 +874,7 @@ class TagController extends Controller
 
             $tag->update(['shared_user' => $newSharedUsers]);
 
-            $tag->syncAttendeesWithTasks($sharedUsers->pluck('user_id')->toArray());
+            // $tag->syncAttendeesWithTasks($sharedUsers->pluck('user_id')->toArray());
 
             // Gửi thông báo (tuỳ chọn)
             $removedUser = User::find($userIdToRemove);
