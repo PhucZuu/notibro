@@ -173,45 +173,65 @@ class TaskController extends Controller
             ->where('user_id', '=', $user_id)
             ->first();
 
-        $tags = Tag::where('user_id', $user_id)
-            ->orWhereJsonContains('shared_user', [['user_id' => $user_id]])
+        $shareTags = Tag::whereJsonContains('shared_user', [['user_id' => $user_id]])
             ->get()
             ->filter(function ($tag) use ($user_id) {
                 return $tag->user_id == $user_id || collect($tag->shared_user)
                     ->contains(function ($user) use ($user_id) {
                         return (int) $user['user_id'] === $user_id
-                            && in_array($user['role'], ['editor', 'viewer']) // Lấy cả 'editor' và 'viewer'
+                            && in_array($user['role'], ['editor', 'viewer', 'admin']) // Lấy cả 'editor' và 'viewer'
                             && $user['status'] === 'yes';
                     });
             })
             ->values();
 
-        $tagIds = $tags->pluck('id')->toArray();
+        $tagIds = $shareTags->pluck('id')->toArray();
 
         $tasks = Task::select('tasks.*', 'tags.name as tag_name', 'tags.color_code as tag_color_code')
             ->leftJoin('tags', 'tasks.tag_id', '=', 'tags.id')
             ->where(function ($query) use ($user_id) {
-                $query->where('tasks.user_id', $user_id)
-                    ->orWhereRaw("
-                    EXISTS (
-                        SELECT 1 FROM JSON_TABLE(
-                            attendees, '$[*]' COLUMNS (
-                                user_id INT PATH '$.user_id',
-                                status VARCHAR(20) PATH '$.status'
-                            )
-                        ) AS jt
-                        WHERE jt.user_id = ?
-                    )
-                ", [$user_id]);
+                $query->where('tasks.user_id', $user_id);
 
+                // Task user là attendee nhưng không private
+                $query->orWhere(function ($subQuery) use ($user_id) {
+                    $subQuery->whereRaw("
+                        EXISTS (
+                            SELECT 1 FROM JSON_TABLE(
+                                attendees, '$[*]' COLUMNS (
+                                    user_id INT PATH '$.user_id',
+                                    status VARCHAR(20) PATH '$.status'
+                                )
+                            ) AS jt
+                            WHERE jt.user_id = ?
+                        )
+                        ", [$user_id])
+                        ->where('tasks.is_private', '!=', 1);
+                });
+
+                // Task có tag được share cho user nhưng không private
                 if (!empty($tagIds)) {
-                    $query->orWhereIn('tasks.tag_id', $tagIds);
+                    $query->orWhere(function ($subQuery) use ($tagIds) {
+                        $subQuery->whereIn('tasks.tag_id', $tagIds)
+                            ->where('tasks.is_private', '!=', 1);
+                    });
                 }
             })
             ->get();
 
         foreach ($tasks as $task) {
             $timezone_code = $task->timezone_code;
+            if ($task->tag_id) {
+                $curTag = Tag::where('id', '=', $task->tag_id)->first();
+                $tagOwner = User::where('id', '=', $curTag->user_id)->first();
+
+                $task->tagOwner = [
+                    'user_id'    => $tagOwner->id,
+                    'first_name' => $tagOwner->first_name,
+                    'last_name'  => $tagOwner->last_name,
+                    'email'      => $tagOwner->email,
+                    'avatar'     => $tagOwner->avatar,
+                ];
+            }
 
             $task->rrule = [
                 'freq'              => $task->freq,
@@ -3183,6 +3203,7 @@ class TaskController extends Controller
         $tasks = Task::select('tasks.*', 'tags.name as tag_name')
             ->leftJoin('tags', 'tasks.tag_id', '=', 'tags.id')
             ->onlyTrashed()
+            ->orderBy('tasks.deleted_at', 'desc')
             ->get();
 
         foreach ($tasks as $task) {
@@ -3307,11 +3328,16 @@ class TaskController extends Controller
 
                 if ($attendeeIndex !== false) {
                     $attendees[$attendeeIndex]['status'] = 'yes';
+                } else {
+                    return response()->json([
+                        'code' => 403,
+                        'message' => 'Can not accpet invite this event',
+                    ]);
                 }
 
                 $relatedTask->attendees = $attendees;
                 $relatedTask->save();
-                
+
                 $returnTasks[] = $relatedTask;
             }
 
