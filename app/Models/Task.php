@@ -112,7 +112,7 @@ class Task extends Model
         ->toArray();
 
         $curTag = Tag::find($this->tag_id);
-        $tagOwner = Tag::where($curTag->user_id)->first(); 
+        $tagOwner = User::where('id', '=',$curTag->user_id)->first(); 
 
         $filteredSharedByTag = collect($curTag->shared_user ?? [])
         ->where('status', 'yes') // Chỉ lấy những shared_user có status = 'yes'
