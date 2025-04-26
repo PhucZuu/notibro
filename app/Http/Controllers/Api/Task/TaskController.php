@@ -363,7 +363,7 @@ class TaskController extends Controller
         $attendees = collect($task->attendees);
         $attendee = $attendees->firstWhere('user_id', Auth::id());
 
-        $taskOwner = User::where('id', '=', $task->user_id);
+        $taskOwner = User::where('id', '=', $task->user_id)->first();
 
         if (!empty($task->tag_id)) {
             $tag = Tag::where('id', $task->tag_id)->first();
@@ -1215,7 +1215,7 @@ class TaskController extends Controller
         $attendees = collect($task->attendees);
         $attendee = $attendees->firstWhere('user_id', Auth::id());
 
-        $taskOwner = User::where('id', '=', $task->user_id);
+        $taskOwner = User::where('id', '=', $task->user_id)->first();
 
         if (!empty($task->tag_id)) {
             $tag = Tag::where('id', $task->tag_id)->first();
