@@ -3553,11 +3553,11 @@ class TaskController extends Controller
         DB::beginTransaction();
 
         try {
-            $allTasks = Task::where('id', $task->id)
-                ->orWhere('parent_id', $task->id)
-                ->orWhere('id', $task->parent_id)
-                ->orWhere('parent_id', $task->parent_id)
-                ->get();
+            $ids = array_filter([$task->id, $task->parent_id]);
+            $allTasks = Task::where(function ($query) use ($ids) {
+                $query->whereIn('id', $ids)
+                    ->orWhereIn('parent_id', $ids);
+            })->get();
 
             $returnTasks = [];
 
