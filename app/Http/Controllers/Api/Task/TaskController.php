@@ -189,32 +189,26 @@ class TaskController extends Controller
 
         $tasks = Task::select('tasks.*', 'tags.name as tag_name', 'tags.color_code as tag_color_code')
             ->leftJoin('tags', 'tasks.tag_id', '=', 'tags.id')
-            ->where(function ($query) use ($user_id) {
-                $query->where('tasks.user_id', $user_id);
-
-                // Task user là attendee nhưng không private
-                $query->orWhere(function ($subQuery) use ($user_id) {
-                    $subQuery->whereRaw("
-                        EXISTS (
-                            SELECT 1 FROM JSON_TABLE(
-                                attendees, '$[*]' COLUMNS (
-                                    user_id INT PATH '$.user_id',
-                                    status VARCHAR(20) PATH '$.status'
-                                )
-                            ) AS jt
-                            WHERE jt.user_id = ?
-                        )
-                        ", [$user_id])
-                        ->where('tasks.is_private', '!=', 1);
-                });
-
-                // Task có tag được share cho user nhưng không private
-                if (!empty($tagIds)) {
-                    $query->orWhere(function ($subQuery) use ($tagIds) {
-                        $subQuery->whereIn('tasks.tag_id', $tagIds)
-                            ->where('tasks.is_private', '!=', 1);
+            ->where(function ($query) use ($user_id, $tagIds) {
+                $query->where('tasks.user_id', $user_id) // (1) Chủ task
+                    ->orWhere(function ($q) use ($user_id) {
+                        $q->whereRaw("
+                    EXISTS (
+                        SELECT 1 FROM JSON_TABLE(
+                            attendees, '$[*]' COLUMNS (
+                                user_id INT PATH '$.user_id',
+                                status VARCHAR(20) PATH '$.status'
+                            )
+                        ) AS jt
+                        WHERE jt.user_id = ?
+                    )
+                ", [$user_id])
+                            ->where('tasks.is_private', '!=', 1); // (2) attendee và không private
+                    })
+                    ->orWhere(function ($q) use ($tagIds) {
+                        $q->whereIn('tasks.tag_id', $tagIds)
+                            ->where('tasks.is_private', '!=', 1); // (3) tag shared và không private
                     });
-                }
             })
             ->get();
 
