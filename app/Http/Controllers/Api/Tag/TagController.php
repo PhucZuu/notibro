@@ -111,21 +111,27 @@ class TagController extends Controller
         try {
             $userId = Auth::id();
     
-            $sharedTags = Tag::whereJsonContains('shared_user', [[ 'user_id' => $userId ]])->get();
-    
-            $sharedTags = $sharedTags->map(function ($tag) use ($userId) {
-                $owner = User::find($tag->user_id);
-                return array_merge($tag->toArray(), [
-                    'owner' => $owner ? [
-                        'user_id'    => $owner->id,
-                        'first_name' => $owner->first_name,
-                        'last_name'  => $owner->last_name,
-                        'email'      => $owner->email,
-                        'avatar'     => $owner->avatar,
-                    ] : null,
-                    'is_owner' => $tag->user_id === $userId,
-                ]);
-            });
+            $sharedTags = Tag::whereJsonContains('shared_user', [['user_id' => $userId]])
+                ->get()
+                ->filter(function ($tag) use ($userId) {
+                    return collect($tag->shared_user)
+                        ->contains(function ($user) use ($userId) {
+                            return (int) $user['user_id'] === $userId && $user['status'] === 'yes';
+                        });
+                })
+                ->map(function ($tag) use ($userId) {
+                    $owner = User::find($tag->user_id);
+                    return array_merge($tag->toArray(), [
+                        'owner' => $owner ? [
+                            'user_id'    => $owner->id,
+                            'first_name' => $owner->first_name,
+                            'last_name'  => $owner->last_name,
+                            'email'      => $owner->email,
+                            'avatar'     => $owner->avatar,
+                        ] : null,
+                        'is_owner' => $tag->user_id === $userId,
+                    ]);
+                });
     
             return response()->json([
                 'code'    => 200,
@@ -614,94 +620,88 @@ class TagController extends Controller
     public function destroy($id)
     {
         try {
-            $tag = Tag::where('id', $id)->where('user_id', Auth::id())->first();
+            $userId = Auth::id();
+            $tag = Tag::where('id', $id)->where('user_id', $userId)->first();
     
             if (!$tag) {
                 return response()->json([
-                    'code'    => 404,
+                    'code' => 404,
                     'message' => 'Tag not found or unauthorized',
                 ], 404);
             }
     
-            $totalTags = Tag::where('user_id', Auth::id())->count();
-    
+            $totalTags = Tag::where('user_id', $userId)->count();
             if ($totalTags <= 1) {
                 return response()->json([
-                    'code'    => 403,
+                    'code' => 403,
                     'message' => 'Cannot delete the last remaining tag',
                 ], 403);
             }
     
             $returnTag[] = clone $tag;
             $tasksForRealtime = [];
-            $attendees = [];
+            $userTaskMap = []; // user_id => [task titles]
     
             foreach ($tag->tasks as $task) {
                 $tasksForRealtime[] = clone $task;
     
-                // Merge attendees (JSON) và users (quan hệ many-to-many)
-                $taskAttendees = collect($task->attendees ?? []);
-                $taskUsers     = collect($task->users ?? [])->map(function ($user) {
-                    return ['user_id' => $user->id];
-                });
+                $attendees = collect($task->attendees ?? []);
+                $users = collect($task->users ?? [])->map(fn($user) => ['user_id' => $user->id]);
+                $allAttendees = $attendees->merge($users)->unique('user_id');
     
-                $merged = $taskAttendees->merge($taskUsers)->toArray();
-                $attendees = array_merge($attendees, $merged);
+                foreach ($allAttendees as $attendee) {
+                    $uid = $attendee['user_id'];
+                    if (!isset($userTaskMap[$uid])) {
+                        $userTaskMap[$uid] = [];
+                    }
+                    $userTaskMap[$uid][] = $task->title ?? '';
+                }
     
-                $task->forceDelete();
+                $task->forceDelete(); 
             }
     
-            // Lọc tên các task bị xóa
-            $taskTitles = collect($tasksForRealtime)->pluck('title')->filter()->values()->toArray();
-            $taskTitlesStr = implode(', ', $taskTitles);
+            $tagName = $tag->name ?? 'Unnamed Tag';
+            $tag->delete();
     
-            // Loại bỏ trùng lặp người tham gia
-            $uniqueAttendees = collect($attendees)->unique('user_id')->values();
+            $this->sendRealTimeUpdateTasks($tasksForRealtime, 'delete');
+            $this->sendRealTimeUpdate($returnTag, 'delete');
     
-            $is_send_mail = 'yes';
-    
-            foreach ($uniqueAttendees as $attendee) {
-                if ($attendee['user_id'] != Auth::id()) {
-                    $user = User::find($attendee['user_id']);
+            // Gửi thông báo cho người liên quan
+            foreach ($userTaskMap as $uid => $tasks) {
+                if ($uid != $userId) { 
+                    $user = User::find($uid);
                     if ($user) {
-                        Log::info("Sending notification to user: {$user->id}");
+                        $taskList = implode(', ', $tasks);
+                        $message = "Tag '{$tagName}' đã bị xóa, các task liên quan: {$taskList}.";
     
-                        // Gửi notification kèm tên task bị xóa
                         $user->notify(new NotificationEvent(
                             $user->id,
-                            "Các task sau đã bị xóa: {$taskTitlesStr}",
+                            $message,
                             "",
                             "delete_tag_tasks"
                         ));
-    
-                        // Gửi email nếu bật
-                        if ($is_send_mail === 'yes') {
-                            Mail::to($user->email)->queue(new SendNotificationMail($user, $tag, 'delete'));
-                        }
                     }
                 }
             }
     
-            $tag->delete();
-    
-            // Gửi realtime cho task và tag
-            $this->sendRealTimeUpdateTasks($tasksForRealtime, 'delete');
-            $this->sendRealTimeUpdate($returnTag, 'delete');
-    
             return response()->json([
-                'code'    => 200,
+                'code' => 200,
                 'message' => 'Tag and related tasks deleted successfully',
             ], 200);
+    
         } catch (\Exception $e) {
-            Log::error($e->getMessage());
+            Log::error('Error deleting tag:', [
+                'message' => $e->getMessage(),
+                'file'    => $e->getFile(),
+                'line'    => $e->getLine(),
+            ]);
     
             return response()->json([
-                'code'    => 500,
+                'code' => 500,
                 'message' => 'An error occurred while deleting tag and tasks',
             ], 500);
         }
     }
-    
     
     public function acceptTagInvite($uuid)
     {
@@ -782,124 +782,177 @@ class TagController extends Controller
         ], 200);
     }
       
-    public function leaveTag(Request $request, $id)
+    public function leaveTag($id)
     {
-        $userId = Auth::id();
-        $keepInTasks = $request->input('keep_in_tasks', false);
-        $tag = Tag::find($id);
-        $fullName = Auth::user()->first_name . ' ' . Auth::user()->last_name;
+        try {
+            $userId = Auth::id();
+            $currentUser = Auth::user();
+            $tag = Tag::find($id);
     
-        if (!$tag) {
-            return response()->json(['code' => 404, 'message' => 'Tag not found'], 404);
-        }
-    
-        if ($tag->user_id == $userId) {
-            return response()->json(['code' => 403, 'message' => 'You are the owner of this tag and cannot leave'], 403);
-        }
-    
-        $sharedUsers = collect($tag->shared_user ?? []);
-    
-        if (!$sharedUsers->firstWhere('user_id', $userId)) {
-            return response()->json(['code' => 403, 'message' => 'You are not part of this tag'], 403);
-        }
-    
-        $newSharedUsers = $sharedUsers
-            ->reject(fn($user) => $user['user_id'] == $userId)
-            ->values()
-            ->toArray();
-    
-        $tag->update(['shared_user' => $newSharedUsers]);
-    
-        if (!$keepInTasks) {
-            foreach ($tag->tasks as $task) {
-                $attendees = collect($task->attendees ?? [])
-                    ->reject(fn($attendee) => $attendee['user_id'] == $userId)
-                    ->values()
-                    ->toArray();
-                $task->update(['attendees' => $attendees]);
+            if (!$tag) {
+                return response()->json(['code' => 404, 'message' => 'Tag not found'], 404);
             }
+    
+            if ($tag->user_id == $userId) {
+                return response()->json(['code' => 403, 'message' => 'You are the owner of this tag and cannot leave'], 403);
+            }
+    
+            $sharedUsers = collect($tag->shared_user ?? []);
+    
+            if (!$sharedUsers->firstWhere('user_id', $userId)) {
+                return response()->json(['code' => 403, 'message' => 'You are not part of this tag'], 403);
+            }
+    
+            // 1. Xóa user khỏi shared_user
+            $newSharedUsers = $sharedUsers
+                ->reject(fn($user) => $user['user_id'] == $userId)
+                ->values()
+                ->toArray();
+            $tag->update(['shared_user' => $newSharedUsers]);
+    
+            // 2. Xóa user khỏi attendees của các task mà họ thực sự tham gia
+            $tasksLeft = [];
+            foreach ($tag->tasks as $task) {
+                $attendees = collect($task->attendees ?? []);
+                if ($attendees->contains('user_id', $userId)) {
+                    $updatedAttendees = $attendees
+                        ->reject(fn($attendee) => $attendee['user_id'] == $userId)
+                        ->values()
+                        ->toArray();
+                    $task->update(['attendees' => $updatedAttendees]);
+                    $tasksLeft[] = $task;
+                }
+            }
+    
+            // 3. Gửi thông báo cho chủ sở hữu
+            $owner = User::find($tag->user_id);
+            if ($owner) {
+                $fullName = trim(($currentUser->first_name ?? '') . ' ' . ($currentUser->last_name ?? ''));
+    
+                $taskNames = collect($tasksLeft)->pluck('title')->filter()->values()->toArray();
+                $taskNamesStr = !empty($taskNames) ? ' và các task: ' . implode(', ', $taskNames) : '';
+    
+                $owner->notify(new NotificationEvent(
+                    $owner->id,
+                    "{$fullName} đã rời khỏi tag: {$tag->name} và các task liên quan: {$taskNamesStr}",
+                    "",
+                    "leave_tag"
+                ));
+            }
+    
+            // 4. Gửi realtime
+            if (!empty($tasksLeft)) {
+                $this->sendRealTimeUpdateTasks($tasksLeft, 'update');
+            }
+            $this->sendRealTimeUpdate([$tag], 'update');
+    
+            return response()->json([
+                'code' => 200,
+                'message' => 'Successfully left the tag and removed from related tasks',
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error($e->getMessage());
+    
+            return response()->json([
+                'code' => 500,
+                'message' => 'An error occurred while leaving the tag',
+            ], 500);
         }
-    
-        // $tag->syncAttendeesWithTasks($sharedUsers->pluck('user_id')->toArray());
-    
-        $owner = User::find($tag->user_id);
-        $currentUser = Auth::user();
-        if ($owner && $currentUser) {
-            $owner->notify(new NotificationEvent(
-                $owner->id,
-                "{$fullName} đã rời khỏi tag: {$tag->name}",
-                "",
-                "leave_tag"
-            ));
-        }
-    
-        return response()->json([
-            'code' => 200,
-            'message' => 'Successfully left the tag' . ($keepInTasks ? ' (still in tasks)' : ' and removed from tasks'),
-        ], 200);
     }
 
     public function removeUserFromTag(Request $request, $tagId, $userIdToRemove)
     {
         try {
             $userId = Auth::id();
+            $keepInTasks = $request->input('keep_in_tasks', false);
             $tag = Tag::find($tagId);
-
+    
             if (!$tag) {
                 return response()->json(['code' => 404, 'message' => 'Tag not found'], 404);
             }
-
-            // Chỉ chủ sở hữu tag mới có quyền
+    
             if ($tag->user_id !== $userId) {
                 return response()->json([
                     'code' => 403,
                     'message' => 'Only the tag owner can remove users',
                 ], 403);
             }
-
+    
             $sharedUsers = collect($tag->shared_user ?? []);
-
+    
             if (!$sharedUsers->contains('user_id', $userIdToRemove)) {
                 return response()->json([
                     'code' => 404,
                     'message' => 'User not found in shared_user list',
                 ], 404);
             }
-
-            // Xoá người dùng ra khỏi danh sách shared_user
+    
+            // Xoá user khỏi shared_user
             $newSharedUsers = $sharedUsers
                 ->reject(fn($user) => $user['user_id'] == $userIdToRemove)
                 ->values()
                 ->toArray();
-
+    
             $tag->update(['shared_user' => $newSharedUsers]);
-
-            // $tag->syncAttendeesWithTasks($sharedUsers->pluck('user_id')->toArray());
-
-            // Gửi thông báo (tuỳ chọn)
+    
+            $tasksUpdated = [];
+    
+            if (!$keepInTasks) {
+                // Nếu yêu cầu xóa user khỏi cả task
+                foreach ($tag->tasks as $task) {
+                    $attendees = collect($task->attendees ?? [])
+                        ->reject(fn($attendee) => $attendee['user_id'] == $userIdToRemove)
+                        ->values()
+                        ->toArray();
+    
+                    $task->update(['attendees' => $attendees]);
+    
+                    $tasksUpdated[] = $task;
+                }
+            }
+    
             $removedUser = User::find($userIdToRemove);
+    
             if ($removedUser) {
+                $taskNames = collect($tasksUpdated)->pluck('title')->filter()->values()->toArray();
+                $taskListStr = implode(', ', $taskNames);
+    
+                $message = $keepInTasks
+                    ? "Bạn đã bị xóa khỏi tag: {$tag->name}"
+                    : (empty($taskListStr)
+                        ? "Bạn đã bị xóa khỏi tag: {$tag->name}"
+                        : "Bạn đã bị xóa khỏi tag: {$tag->name} và khỏi các task: {$taskListStr}");
+    
                 $removedUser->notify(new NotificationEvent(
                     $removedUser->id,
-                    "Bạn đã bị xóa khỏi tag: {$tag->name}",
+                    $message,
                     "",
                     "removed_from_tag"
                 ));
             }
-
+    
+            // Gửi realtime update cho tag
+            $this->sendRealTimeUpdate([$tag], 'update');
+    
+            // Gửi realtime update cho các task bị chỉnh sửa attendees
+            if (!empty($tasksUpdated)) {
+                $this->sendRealTimeUpdateTasks($tasksUpdated, 'update');
+            }
+    
             return response()->json([
                 'code' => 200,
                 'message' => 'User removed from tag successfully',
             ], 200);
         } catch (\Exception $e) {
-            Log::error($e->getMessage());
-
+            Log::error('Error removing user from tag: ' . $e->getMessage());
+    
             return response()->json([
                 'code' => 500,
                 'message' => 'An error occurred while removing user from tag',
             ], 500);
         }
     }
+    
 
     protected function sendMail($mailOwner, $emails, $tag)
     {
