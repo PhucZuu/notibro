@@ -388,7 +388,7 @@ class TaskController extends Controller
 
                         //Send NOTIFICATION
                         foreach ($uniqueAttendees as $attendee) {
-                            if ($attendee['user_id'] != Auth::id()) {
+                            if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
                                 $user = User::find($attendee['user_id']);
 
                                 $user->notify(new NotificationEvent(
@@ -515,7 +515,7 @@ class TaskController extends Controller
 
                         //Send NOTIFICATION
                         foreach ($uniqueAttendees as $attendee) {
-                            if ($attendee['user_id'] != Auth::id()) {
+                            if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
                                 $user = User::find($attendee['user_id']);
 
                                 $user->notify(new NotificationEvent(
@@ -696,7 +696,7 @@ class TaskController extends Controller
 
                         //Send NOTIFICATION
                         foreach ($uniqueAttendees as $attendee) {
-                            if ($attendee['user_id'] != Auth::id()) {
+                            if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
                                 $user = User::find($attendee['user_id']);
 
                                 $user->notify(new NotificationEvent(
@@ -996,7 +996,7 @@ class TaskController extends Controller
 
                         //Send NOTIFICATION
                         foreach ($uniqueAttendees as $attendee) {
-                            if ($attendee['user_id'] != Auth::id()) {
+                            if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
                                 $user = User::find($attendee['user_id']);
 
                                 $user->notify(new NotificationEvent(
@@ -1104,7 +1104,7 @@ class TaskController extends Controller
 
                         // Bước 3: Gửi thông báo cập nhật cho những người trong new_task
                         foreach ($new_task->attendees as $attendee) {
-                            if ($attendee['user_id'] != Auth::id()) {
+                            if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
                                 $user = User::find($attendee['user_id']);
 
                                 $user->notify(new NotificationEvent(
@@ -1242,7 +1242,7 @@ class TaskController extends Controller
 
                         //Send NOTIFICATION
                         foreach ($uniqueAttendees as $attendee) {
-                            if ($attendee['user_id'] != Auth::id()) {
+                            if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
                                 $user = User::find($attendee['user_id']);
 
                                 $user->notify(new NotificationEvent(
@@ -1360,7 +1360,7 @@ class TaskController extends Controller
 
                         //Send NOTIFICATION
                         foreach ($uniqueAttendees as $attendee) {
-                            if ($attendee['user_id'] != Auth::id()) {
+                            if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
                                 $user = User::find($attendee['user_id']);
 
                                 $user->notify(new NotificationEvent(
@@ -1560,7 +1560,7 @@ class TaskController extends Controller
 
                         //Send NOTIFICATION
                         foreach ($uniqueAttendees as $attendee) {
-                            if ($attendee['user_id'] != Auth::id()) {
+                            if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
                                 $user = User::find($attendee['user_id']);
 
                                 $user->notify(new NotificationEvent(
@@ -1717,7 +1717,7 @@ class TaskController extends Controller
 
                         //Send NOTIFICATION
                         foreach ($uniqueAttendees as $attendee) {
-                            if ($attendee['user_id'] != Auth::id()) {
+                            if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
                                 $user = User::find($attendee['user_id']);
 
                                 $user->notify(new NotificationEvent(
@@ -3445,9 +3445,28 @@ class TaskController extends Controller
             $user_id = Auth::user()->id;
         }
 
+        $shareTags = Tag::whereJsonContains('shared_user', [['user_id' => $user_id]])
+            ->get()
+            ->filter(function ($tag) use ($user_id) {
+                return collect($tag->shared_user)->contains(function ($user) use ($user_id) {
+                    return (int) $user['user_id'] === $user_id
+                        && $user['role'] === 'admin'
+                        && $user['status'] === 'yes';
+                });
+            })
+            ->pluck('id')
+            ->toArray();
+
         $tasks = Task::select('tasks.*', 'tags.name as tag_name')
             ->leftJoin('tags', 'tasks.tag_id', '=', 'tags.id')
             ->onlyTrashed()
+            ->where(function ($query) use ($user_id, $shareTags) {
+                $query->where('tasks.user_id', $user_id);
+
+                if (!empty($shareTags)) {
+                    $query->orWhereIn('tasks.tag_id', $shareTags);
+                }
+            })
             ->orderBy('tasks.deleted_at', 'desc')
             ->get();
 
