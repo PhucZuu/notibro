@@ -44,7 +44,9 @@ class OpenAIService
 
                     Tin nhắn của người dùng: \"$userRequest\".
 
-                    Danh sách cá id tag của người dùng: " . json_encode($tag) . ".
+                    Danh sách các id tag của người dùng: " . json_encode($tag) . ".
+
+                    Nếu tạo 1 tasks thì không cần gắn id tag, nếu tạo events thì cần gắn id tag.
 
                     Trả về kết quả theo định dạng sau và cần có đầy đủ các trường theo cấu trúc đã cung cấp: 
 
