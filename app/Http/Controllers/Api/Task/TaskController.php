@@ -227,14 +227,16 @@ class TaskController extends Controller
                 ];
             }
 
-            $taskOwner = User::where('id', '=', $task->user_id);
+            $taskOwner = User::where('id', '=', $task->user_id)->first();
 
             $task->taskOwner = [
                 'user_id'    => $taskOwner->id,
                 'first_name' => $taskOwner->first_name,
                 'last_name'  => $taskOwner->last_name,
                 'email'      => $taskOwner->email,
-                'avatar'     => $taskOwner->avatar,
+                'avatar'     => ($taskOwner->avatar && !Str::startsWith($taskOwner->avatar, ['http://', 'https://']))
+                                ? Storage::url($taskOwner->avatar)
+                                : $taskOwner->avatar,
             ];
 
             $task->rrule = [
