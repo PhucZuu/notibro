@@ -227,6 +227,16 @@ class TaskController extends Controller
                 ];
             }
 
+            $taskOwner = User::where('id', '=', $task->user_id);
+
+            $task->taskOwner = [
+                'user_id'    => $taskOwner->id,
+                'first_name' => $taskOwner->first_name,
+                'last_name'  => $taskOwner->last_name,
+                'email'      => $taskOwner->email,
+                'avatar'     => $taskOwner->avatar,
+            ];
+
             $task->rrule = [
                 'freq'              => $task->freq,
                 'interval'          => $task->interval,
@@ -3673,11 +3683,11 @@ class TaskController extends Controller
         DB::beginTransaction();
 
         try {
-            $allTasks = Task::where('id', $task->id)
-                ->orWhere('parent_id', $task->id)
-                ->orWhere('id', $task->parent_id)
-                ->orWhere('parent_id', $task->parent_id)
-                ->get();
+            $ids = array_filter([$task->id, $task->parent_id]);
+            $allTasks = Task::where(function ($query) use ($ids) {
+                $query->whereIn('id', $ids)
+                    ->orWhereIn('parent_id', $ids);
+            })->get();
 
             $returnTasks = [];
 
@@ -3695,7 +3705,7 @@ class TaskController extends Controller
                     $attendees[$attendeeIndex]['status'] = 'yes';
                 } else {
                     $attendees[] = [
-                        'role'    => 'viewer',
+                        'role'    => $task->default_permission ?? 'viewer',
                         'status'  => 'yes',
                         'user_id' => $user->id
                     ];
