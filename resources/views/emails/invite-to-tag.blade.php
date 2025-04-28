@@ -1,127 +1,129 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lời Mời Tham Gia Tag</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>Thư mời tham gia Tag</title>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
+
         body {
-            background: linear-gradient(135deg, #f0f4ff, #dfe7fd);
             font-family: 'Poppins', sans-serif;
-        }
-
-        .card {
-            max-width: 600px;
-            margin: 50px auto;
-            border-radius: 15px;
-            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
-            background-color: #ffffff;
-        }
-
-        .card-header {
-            background: linear-gradient(135deg, #007bff, #6a11cb, #bb1ee2);
-            color: white;
-            text-align: center;
-            padding: 25px;
-        }
-
-        .card-header h2 {
-            font-size: 24px;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-
-        .card-header p {
-            font-size: 16px;
-            opacity: 0.9;
-        }
-
-        .list-group-item {
-            border: none;
-            font-size: 16px;
+            background: linear-gradient(135deg, #ff9ebd, #ff69b4);
+            padding: 0;
+            margin: 0;
             display: flex;
+            justify-content: center;
             align-items: center;
-            background: none;
-            padding: 12px;
+            height: 100vh;
         }
 
-        .list-group-item span {
-            font-size: 22px;
-            color: #6a11cb;
+        .email-container {
+            background: #fff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0px 10px 20px rgba(0, 0, 0, 0.15);
+            max-width: 600px;
+            width: 90%;
+            animation: fadeIn 1s ease-in-out;
         }
 
-        .btn-custom {
-            font-size: 16px;
-            padding: 10px 15px;
-            border-radius: 8px;
-            font-weight: bold;
-            background: linear-gradient(135deg, #eece3b, #3ed3c4);
-            border: none;
-            color: white;
-            transition: all 0.3s ease-in-out;
-            display: inline-block;
-            text-decoration: none;
-        }
-
-        .contact-info {
-            font-size: 15px;
-            color: #555;
+        h2 {
+            color: #ff4081;
             text-align: center;
-            padding-bottom: 20px;
+            margin-bottom: 15px;
+            font-weight: 600;
         }
 
-        .contact-info a {
-            color: #007bff;
-            font-weight: bold;
+        .task-details {
+            background: #ffe6ee;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 15px;
+            box-shadow: inset 0px 3px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .task-details ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .task-details li {
+            padding: 10px 0;
+            font-size: 16px;
+            color: #555;
+            border-bottom: 1px dashed #ff69b4;
+        }
+
+        .task-details li:last-child {
+            border-bottom: none;
+        }
+
+        .task-details strong {
+            color: #ff4081;
+        }
+
+        .btn {
+            display: block;
+            text-align: center;
+            padding: 12px;
+            background: linear-gradient(135deg, #ff69b4, #ff4081);
+            color: #fff;
             text-decoration: none;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-size: 16px;
+            font-weight: bold;
+            transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+            box-shadow: 0px 4px 10px rgba(255, 105, 180, 0.4);
         }
 
-        .contact-info a:hover {
-            text-decoration: underline;
+        .btn:hover {
+            background: linear-gradient(135deg, #ff4081, #ff0055);
+            transform: translateY(-3px);
+            box-shadow: 0px 6px 12px rgba(255, 105, 180, 0.6);
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 14px;
+            color: #777;
+            font-weight: 300;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
     </style>
 </head>
+
 <body>
-    <div class="container">
-        <div class="card">
-            <div class="card-header">
-                <h2>Lời Mời Tham Gia Tag</h2>
-                <p>Bạn đã được mời tham gia vào một tag mới!</p>
-            </div>
-            
-            <div class="card-body text-center">
-                <h3 class="mt-3 d-flex justify-content-center" style="font-weight: bold">{{ $tag->name }}</h3>
+    <div class="email-container">
+        <h2>Thư mời tham gia Tag 🎉</h2>
+        <p style="text-align: center;">✨ Bạn được mời tham gia vào một Tag mới ✨</p>
 
-                <div class="list-group mb-4">
-                    @if ($tag->description)
-                    <div class="list-group-item">
-                        <span>📝</span>
-                        <div class="ms-2">
-                            <strong>Mô tả:</strong> {{ $tag->description }}
-                        </div>
-                    </div>
-                    @endif
-
-                    <div class="list-group-item">
-                        <span>🎨</span>
-                        <div class="ms-2">
-                            <strong>Màu sắc:</strong> <span style="color: {{ $tag->color_code }};">{{ $tag->color_code }}</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="d-flex justify-content-center mb-4">
-                    <a href="{{ env('URL_FRONTEND') .'/tag/invite/'. $tag->id }}" class="btn btn-custom">Chấp Nhận Lời Mời</a>
-                </div>
-
-                <div class="contact-info">
-                    <p>Mọi thắc mắc xin vui lòng liên hệ:</p>
-                    <p><strong>{{ $ownerName }}</strong> - <a href="mailto:{{ $ownerEmail }}">{{ $ownerEmail }}</a></p>
-                </div>
-            </div>
+        <div class="task-details">
+            <ul>
+                <li><strong>Người mời:</strong> {{ $ownerName }}</li>
+                <li><strong>Tên Tag:</strong> {{ $tag->name }}</li>
+                <li><strong>Mô tả:</strong> {{ $tag->description ?? 'Không có mô tả' }}</li>
+            </ul>
         </div>
+
+        <a href="{{ $link }}" class="btn">Tham gia ngay</a>
+
+        <p class="footer">Trân trọng,<br><strong>Notibro 🌸</strong></p>
     </div>
 </body>
+
 </html>
