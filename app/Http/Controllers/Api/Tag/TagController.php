@@ -291,7 +291,7 @@ class TagController extends Controller
                 'message' => 'Tag retrieved successfully',
                 'data'    => [
                     'tag'         => $tag,
-                    'invite_link' => "{$this->URL_FRONTEND}/calendar/tag/invite/{$tag->uuid}",
+                    'invite_link' => "{$this->URL_FRONTEND}/calendar/tag/{$tag->uuid}/invite",
                     'owner'       => $owner ? [
                         'user_id'    => $owner->id,
                         'first_name' => $owner->first_name,
@@ -351,7 +351,7 @@ class TagController extends Controller
                 'data'    => [
                     'tag'         => $tag,
                     'invited'     => $isInvited,
-                    'invite_link' => "{$this->URL_FRONTEND}/calendar/tag/invite/{$tag->uuid}",
+                    'invite_link' => "{$this->URL_FRONTEND}/calendar/tag/{$tag->uuid}/invite",
                     'owner'       => $owner ? [
                         'user_id'    => $owner->id,
                         'first_name' => $owner->first_name,
@@ -448,7 +448,7 @@ class TagController extends Controller
                     $userModel->notify(new NotificationEvent(
                         $userModel->id,
                         "Bạn đã được mời tham gia tag: {$tag->name}",
-                        "{$this->URL_FRONTEND}/calendar/tag/invite/{$tag->uuid}",
+                        "{$this->URL_FRONTEND}/calendar/tag/{$tag->uuid}/invite",
                         "invite_to_tag"
                     ));
                 }
@@ -641,14 +641,14 @@ class TagController extends Controller
             $returnTag[] = clone $tag;
             $tasksForRealtime = [];
             $userTaskMap = []; // user_id => [task titles]
-    
+              
             foreach ($tag->tasks as $task) {
                 $tasksForRealtime[] = clone $task;
-    
+
                 $attendees = collect($task->attendees ?? []);
                 $users = collect($task->users ?? [])->map(fn($user) => ['user_id' => $user->id]);
                 $allAttendees = $attendees->merge($users)->unique('user_id');
-    
+
                 foreach ($allAttendees as $attendee) {
                     $uid = $attendee['user_id'];
                     if (!isset($userTaskMap[$uid])) {
@@ -656,15 +656,20 @@ class TagController extends Controller
                     }
                     $userTaskMap[$uid][] = $task->title ?? '';
                 }
-    
-                $task->forceDelete(); 
             }
-    
+
+            $this->sendRealTimeUpdateTasks($tasksForRealtime, 'delete');
+
+            foreach ($tag->tasks as $task) {
+                $task->forceDelete();
+            }
+
             $tagName = $tag->name ?? 'Unnamed Tag';
             $tag->delete();
-    
-            $this->sendRealTimeUpdateTasks($tasksForRealtime, 'delete');
+
+
             $this->sendRealTimeUpdate($returnTag, 'delete');
+    
     
             // Gửi thông báo cho người liên quan
             foreach ($userTaskMap as $uid => $tasks) {
@@ -956,7 +961,9 @@ class TagController extends Controller
 
     protected function sendMail($mailOwner, $emails, $tag)
     {
-        $nameOwner = Auth::user()->name;
+        $user = Auth::user();
+        $nameOwner = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
+
         foreach ($emails as $email) {
             Mail::to($email)->queue(new InviteToTagMail($mailOwner, $nameOwner, $tag));
         }

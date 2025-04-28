@@ -30,6 +30,8 @@ class InviteToTagMail extends Mailable implements ShouldQueue
      */
     public function build()
     {
+        $link = config('app.frontend_url') . '/calendar/tag/' . $this->tag->uuid .'/invite';
+
         return $this->from($this->senderEmail, $this->senderName)
             ->subject('Lời mời tham gia Tag')
             ->view('emails.invite-to-tag')
@@ -37,6 +39,8 @@ class InviteToTagMail extends Mailable implements ShouldQueue
                 'tag'        => $this->tag,
                 'ownerEmail' => $this->senderEmail,
                 'ownerName'  => $this->senderName,
+                'link'       => $link, // <- thêm dòng này
             ]);
     }
+
 }
