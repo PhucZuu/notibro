@@ -173,7 +173,8 @@ class TaskController extends Controller
             ->where('user_id', '=', $user_id)
             ->first();
 
-        $shareTags = Tag::whereJsonContains('shared_user', [['user_id' => $user_id]])
+        $shareTags = Tag::where('user_id', '=', $user_id)
+            ->orWhereJsonContains('shared_user', [['user_id' => $user_id]])
             ->get()
             ->filter(function ($tag) use ($user_id) {
                 return $tag->user_id == $user_id || collect($tag->shared_user)
