@@ -173,7 +173,8 @@ class TaskController extends Controller
             ->where('user_id', '=', $user_id)
             ->first();
 
-        $shareTags = Tag::whereJsonContains('shared_user', [['user_id' => $user_id]])
+        $shareTags = Tag::where('user_id', '=', $user_id)
+            ->orWhereJsonContains('shared_user', [['user_id' => $user_id]])
             ->get()
             ->filter(function ($tag) use ($user_id) {
                 return $tag->user_id == $user_id || collect($tag->shared_user)
@@ -189,32 +190,26 @@ class TaskController extends Controller
 
         $tasks = Task::select('tasks.*', 'tags.name as tag_name', 'tags.color_code as tag_color_code')
             ->leftJoin('tags', 'tasks.tag_id', '=', 'tags.id')
-            ->where(function ($query) use ($user_id) {
-                $query->where('tasks.user_id', $user_id);
-
-                // Task user là attendee nhưng không private
-                $query->orWhere(function ($subQuery) use ($user_id) {
-                    $subQuery->whereRaw("
-                        EXISTS (
-                            SELECT 1 FROM JSON_TABLE(
-                                attendees, '$[*]' COLUMNS (
-                                    user_id INT PATH '$.user_id',
-                                    status VARCHAR(20) PATH '$.status'
-                                )
-                            ) AS jt
-                            WHERE jt.user_id = ?
-                        )
-                        ", [$user_id])
-                        ->where('tasks.is_private', '!=', 1);
-                });
-
-                // Task có tag được share cho user nhưng không private
-                if (!empty($tagIds)) {
-                    $query->orWhere(function ($subQuery) use ($tagIds) {
-                        $subQuery->whereIn('tasks.tag_id', $tagIds)
-                            ->where('tasks.is_private', '!=', 1);
+            ->where(function ($query) use ($user_id, $tagIds) {
+                $query->where('tasks.user_id', $user_id) // (1) Chủ task
+                    ->orWhere(function ($q) use ($user_id) {
+                        $q->whereRaw("
+                    EXISTS (
+                        SELECT 1 FROM JSON_TABLE(
+                            attendees, '$[*]' COLUMNS (
+                                user_id INT PATH '$.user_id',
+                                status VARCHAR(20) PATH '$.status'
+                            )
+                        ) AS jt
+                        WHERE jt.user_id = ?
+                    )
+                ", [$user_id])
+                            ->where('tasks.is_private', '!=', 1); // (2) attendee và không private
+                    })
+                    ->orWhere(function ($q) use ($tagIds) {
+                        $q->whereIn('tasks.tag_id', $tagIds)
+                            ->where('tasks.is_private', '!=', 1); // (3) tag shared và không private
                     });
-                }
             })
             ->get();
 
@@ -232,6 +227,18 @@ class TaskController extends Controller
                     'avatar'     => $tagOwner->avatar,
                 ];
             }
+
+            $taskOwner = User::where('id', '=', $task->user_id)->first();
+
+            $task->taskOwner = [
+                'user_id'    => $taskOwner->id,
+                'first_name' => $taskOwner->first_name,
+                'last_name'  => $taskOwner->last_name,
+                'email'      => $taskOwner->email,
+                'avatar'     => ($taskOwner->avatar && !Str::startsWith($taskOwner->avatar, ['http://', 'https://']))
+                                ? Storage::url($taskOwner->avatar)
+                                : $taskOwner->avatar,
+            ];
 
             $task->rrule = [
                 'freq'              => $task->freq,
@@ -363,7 +370,7 @@ class TaskController extends Controller
         $attendees = collect($task->attendees);
         $attendee = $attendees->firstWhere('user_id', Auth::id());
 
-        $taskOwner = User::where('id', '=', $task->user_id);
+        $taskOwner = User::where('id', '=', $task->user_id)->first();
 
         if (!empty($task->tag_id)) {
             $tag = Tag::where('id', $task->tag_id)->first();
@@ -394,7 +401,7 @@ class TaskController extends Controller
 
                         //Send NOTIFICATION
                         foreach ($uniqueAttendees as $attendee) {
-                            if ($attendee['user_id'] != Auth::id()) {
+                            if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
                                 $user = User::find($attendee['user_id']);
 
                                 $user->notify(new NotificationEvent(
@@ -521,7 +528,7 @@ class TaskController extends Controller
 
                         //Send NOTIFICATION
                         foreach ($uniqueAttendees as $attendee) {
-                            if ($attendee['user_id'] != Auth::id()) {
+                            if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
                                 $user = User::find($attendee['user_id']);
 
                                 $user->notify(new NotificationEvent(
@@ -702,7 +709,7 @@ class TaskController extends Controller
 
                         //Send NOTIFICATION
                         foreach ($uniqueAttendees as $attendee) {
-                            if ($attendee['user_id'] != Auth::id()) {
+                            if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
                                 $user = User::find($attendee['user_id']);
 
                                 $user->notify(new NotificationEvent(
@@ -1002,7 +1009,7 @@ class TaskController extends Controller
 
                         //Send NOTIFICATION
                         foreach ($uniqueAttendees as $attendee) {
-                            if ($attendee['user_id'] != Auth::id()) {
+                            if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
                                 $user = User::find($attendee['user_id']);
 
                                 $user->notify(new NotificationEvent(
@@ -1110,7 +1117,7 @@ class TaskController extends Controller
 
                         // Bước 3: Gửi thông báo cập nhật cho những người trong new_task
                         foreach ($new_task->attendees as $attendee) {
-                            if ($attendee['user_id'] != Auth::id()) {
+                            if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
                                 $user = User::find($attendee['user_id']);
 
                                 $user->notify(new NotificationEvent(
@@ -1215,7 +1222,7 @@ class TaskController extends Controller
         $attendees = collect($task->attendees);
         $attendee = $attendees->firstWhere('user_id', Auth::id());
 
-        $taskOwner = User::where('id', '=', $task->user_id);
+        $taskOwner = User::where('id', '=', $task->user_id)->first();
 
         if (!empty($task->tag_id)) {
             $tag = Tag::where('id', $task->tag_id)->first();
@@ -1248,7 +1255,7 @@ class TaskController extends Controller
 
                         //Send NOTIFICATION
                         foreach ($uniqueAttendees as $attendee) {
-                            if ($attendee['user_id'] != Auth::id()) {
+                            if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
                                 $user = User::find($attendee['user_id']);
 
                                 $user->notify(new NotificationEvent(
@@ -1366,7 +1373,7 @@ class TaskController extends Controller
 
                         //Send NOTIFICATION
                         foreach ($uniqueAttendees as $attendee) {
-                            if ($attendee['user_id'] != Auth::id()) {
+                            if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
                                 $user = User::find($attendee['user_id']);
 
                                 $user->notify(new NotificationEvent(
@@ -1566,7 +1573,7 @@ class TaskController extends Controller
 
                         //Send NOTIFICATION
                         foreach ($uniqueAttendees as $attendee) {
-                            if ($attendee['user_id'] != Auth::id()) {
+                            if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
                                 $user = User::find($attendee['user_id']);
 
                                 $user->notify(new NotificationEvent(
@@ -1723,7 +1730,7 @@ class TaskController extends Controller
 
                         //Send NOTIFICATION
                         foreach ($uniqueAttendees as $attendee) {
-                            if ($attendee['user_id'] != Auth::id()) {
+                            if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
                                 $user = User::find($attendee['user_id']);
 
                                 $user->notify(new NotificationEvent(
@@ -3451,9 +3458,28 @@ class TaskController extends Controller
             $user_id = Auth::user()->id;
         }
 
+        $shareTags = Tag::whereJsonContains('shared_user', [['user_id' => $user_id]])
+            ->get()
+            ->filter(function ($tag) use ($user_id) {
+                return collect($tag->shared_user)->contains(function ($user) use ($user_id) {
+                    return (int) $user['user_id'] === $user_id
+                        && $user['role'] === 'admin'
+                        && $user['status'] === 'yes';
+                });
+            })
+            ->pluck('id')
+            ->toArray();
+
         $tasks = Task::select('tasks.*', 'tags.name as tag_name')
             ->leftJoin('tags', 'tasks.tag_id', '=', 'tags.id')
             ->onlyTrashed()
+            ->where(function ($query) use ($user_id, $shareTags) {
+                $query->where('tasks.user_id', $user_id);
+
+                if (!empty($shareTags)) {
+                    $query->orWhereIn('tasks.tag_id', $shareTags);
+                }
+            })
             ->orderBy('tasks.deleted_at', 'desc')
             ->get();
 
@@ -3559,11 +3585,11 @@ class TaskController extends Controller
         DB::beginTransaction();
 
         try {
-            $allTasks = Task::where('id', $task->id)
-                ->orWhere('parent_id', $task->id)
-                ->orWhere('id', $task->parent_id)
-                ->orWhere('parent_id', $task->parent_id)
-                ->get();
+            $ids = array_filter([$task->id, $task->parent_id]);
+            $allTasks = Task::where(function ($query) use ($ids) {
+                $query->whereIn('id', $ids)
+                    ->orWhereIn('parent_id', $ids);
+            })->get();
 
             $returnTasks = [];
 
@@ -3660,11 +3686,11 @@ class TaskController extends Controller
         DB::beginTransaction();
 
         try {
-            $allTasks = Task::where('id', $task->id)
-                ->orWhere('parent_id', $task->id)
-                ->orWhere('id', $task->parent_id)
-                ->orWhere('parent_id', $task->parent_id)
-                ->get();
+            $ids = array_filter([$task->id, $task->parent_id]);
+            $allTasks = Task::where(function ($query) use ($ids) {
+                $query->whereIn('id', $ids)
+                    ->orWhereIn('parent_id', $ids);
+            })->get();
 
             $returnTasks = [];
 
@@ -3682,7 +3708,7 @@ class TaskController extends Controller
                     $attendees[$attendeeIndex]['status'] = 'yes';
                 } else {
                     $attendees[] = [
-                        'role'    => 'viewer',
+                        'role'    => $task->default_permission ?? 'viewer',
                         'status'  => 'yes',
                         'user_id' => $user->id
                     ];
