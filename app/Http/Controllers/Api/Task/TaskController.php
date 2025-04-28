@@ -2927,59 +2927,63 @@ class TaskController extends Controller
                 $task = Task::create($data);
             }
 
-            $attendees = is_array($task->attendees) ? $task->attendees : json_decode($task->attendees, true);
-            $users = User::whereIn('id', collect($attendees)->pluck('user_id'))->get();
-
-            // create group chat after created tasks
-            app(TaskGroupChatController::class)->createGroup($task->id, $task->user_id);
-
-            if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
-                $userIds = collect($task->attendees)->pluck('user_id');
-                $emailGuests = User::select('email')->whereIn('id', $userIds)->get();
-                $this->sendMail(Auth::user()->email, $emailGuests, $task);
-            }
-
-            foreach ($users as $user) {
-                $user->notify(new NotificationEvent(
-                    $user->id,
-                    "Bạn có 1 lời mời tham gia {$task->type} {$task->title}",
-                    "",
-                    "invite_to_task"
-                    // {$this->URL_FRONTEND}/calendar/event/{$task->uuid}/invite
-                ));
-            }
-
-            if (!empty($data['tag_id']) && $task->type == 'event') {
-                // $tag = Tag::where('id', $data['tag_id'])->first();
-                $users = User::whereIn('id', collect($tag->shared_user)->pluck('user_id'))->get();
-
-                $attendees = $task->attendees ?? [];
-                $existingUserIds = collect($attendees)->pluck('user_id')->toArray();
-
+            if($task->type == 'event') {
+                
+                $attendees = is_array($task->attendees) ? $task->attendees : json_decode($task->attendees, true);
+                $users = User::whereIn('id', collect($attendees)->pluck('user_id'))->get();
+    
+                // create group chat after created tasks
+                app(TaskGroupChatController::class)->createGroup($task->id, $task->user_id);
+    
+                if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
+                    $userIds = collect($task->attendees)->pluck('user_id');
+                    $emailGuests = User::select('email')->whereIn('id', $userIds)->get();
+                    $this->sendMail(Auth::user()->email, $emailGuests, $task);
+                }
+    
                 foreach ($users as $user) {
-                    if (!in_array($user->id, $existingUserIds)) {
-                        $attendees[] = [
-                            'role'      =>  'viewer',
-                            'status'    =>  'yes',
-                            'user_id'   =>  $user->id,
-                        ];
-                    }
-
                     $user->notify(new NotificationEvent(
                         $user->id,
-                        "Vừa có {$task->type} {$task->title} được thêm vào trong {$tag->name}",
+                        "Bạn có 1 lời mời tham gia {$task->type} {$task->title}",
                         "",
-                        "new_task_in_tag"
+                        "invite_to_task"
+                        // {$this->URL_FRONTEND}/calendar/event/{$task->uuid}/invite
                     ));
                 }
+    
+                if (!empty($data['tag_id']) && $task->type == 'event') {
+                    // $tag = Tag::where('id', $data['tag_id'])->first();
+                    $users = User::whereIn('id', collect($tag->shared_user)->pluck('user_id'))->get();
+    
+                    $attendees = $task->attendees ?? [];
+                    $existingUserIds = collect($attendees)->pluck('user_id')->toArray();
+    
+                    foreach ($users as $user) {
+                        if (!in_array($user->id, $existingUserIds)) {
+                            $attendees[] = [
+                                'role'      =>  'viewer',
+                                'status'    =>  'yes',
+                                'user_id'   =>  $user->id,
+                            ];
+                        }
+    
+                        $user->notify(new NotificationEvent(
+                            $user->id,
+                            "Vừa có {$task->type} {$task->title} được thêm vào trong {$tag->name}",
+                            "",
+                            "new_task_in_tag"
+                        ));
+                    }
+                }
+    
+                $task->attendees = $attendees;
+    
+                //Send REALTIME
+                $returnTask[] = $task;
+                
+                $this->sendRealTimeUpdate($returnTask, 'create');
+                
             }
-
-            $task->attendees = $attendees;
-
-            //Send REALTIME
-            $returnTask[] = $task;
-
-            $this->sendRealTimeUpdate($returnTask, 'create');
 
 
             return response()->json([
