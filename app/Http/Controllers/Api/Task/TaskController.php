@@ -131,13 +131,14 @@ class TaskController extends Controller
             ->unique() // Loại bỏ user trùng
             ->values() // Reset key của mảng
             ->toArray();
-
+        Log::info($recipients);
         return $recipients;
     }
 
     public function sendRealTimeUpdate($data, $action)
     {
         $recipients = $this->getRecipients($data);
+        Log::info($recipients);
 
         event(new TaskUpdatedEvent($data, $action, $recipients));
     }
@@ -236,8 +237,8 @@ class TaskController extends Controller
                 'last_name'  => $taskOwner->last_name,
                 'email'      => $taskOwner->email,
                 'avatar'     => ($taskOwner->avatar && !Str::startsWith($taskOwner->avatar, ['http://', 'https://']))
-                                ? Storage::url($taskOwner->avatar)
-                                : $taskOwner->avatar,
+                    ? Storage::url($taskOwner->avatar)
+                    : $taskOwner->avatar,
             ];
 
             $task->rrule = [
@@ -399,49 +400,52 @@ class TaskController extends Controller
                             ->unique('user_id')
                             ->values();
 
-                        //Send NOTIFICATION
-                        foreach ($uniqueAttendees as $attendee) {
-                            if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
-                                $user = User::find($attendee['user_id']);
+                        if ($task->type == 'event') {
+                            //Send NOTIFICATION
+                            foreach ($uniqueAttendees as $attendee) {
+                                if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
+                                    $user = User::find($attendee['user_id']);
 
-                                $user->notify(new NotificationEvent(
-                                    $user->id,
-                                    "Sự kiện {$task->title} vừa mới được cập nhật !",
+                                    $user->notify(new NotificationEvent(
+                                        $user->id,
+                                        "Sự kiện {$task->title} vừa mới được cập nhật !",
+                                        "",
+                                        "update_task"
+                                    ));
+
+                                    if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
+                                        Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'update'));
+                                    }
+                                }
+                            }
+
+                            if ($tagOwner && $tagOwner->id != Auth::id()) {
+                                $tagOwner->notify(new NotificationEvent(
+                                    $tagOwner->id,
+                                    "Sự kiện {$task->title} trong {$tag->name} vừa mới được cập nhật !",
                                     "",
                                     "update_task"
                                 ));
 
                                 if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
-                                    Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'update'));
+                                    Mail::to($tagOwner->email)->queue(new SendNotificationMail($tagOwner, $task, 'update'));
+                                }
+                            }
+
+                            if ($taskOwner->id != Auth::id()) {
+                                $taskOwner->notify(new NotificationEvent(
+                                    $taskOwner->id,
+                                    "Sự kiện {$task->title} của bạn vừa mới được cập nhật !",
+                                    "",
+                                    "update_task"
+                                ));
+
+                                if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
+                                    Mail::to($taskOwner->email)->queue(new SendNotificationMail($taskOwner, $task, 'update'));
                                 }
                             }
                         }
 
-                        if ($tagOwner->id != Auth::id()) {
-                            $tagOwner->notify(new NotificationEvent(
-                                $tagOwner->id,
-                                "Sự kiện {$task->title} trong {$tag->name} vừa mới được cập nhật !",
-                                "",
-                                "update_task"
-                            ));
-
-                            if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
-                                Mail::to($tagOwner->email)->queue(new SendNotificationMail($tagOwner, $task, 'update'));
-                            }
-                        }
-
-                        if ($taskOwner->id != Auth::id()) {
-                            $taskOwner->notify(new NotificationEvent(
-                                $taskOwner->id,
-                                "Sự kiện {$task->title} của bạn vừa mới được cập nhật !",
-                                "",
-                                "update_task"
-                            ));
-
-                            if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
-                                Mail::to($taskOwner->email)->queue(new SendNotificationMail($taskOwner, $task, 'update'));
-                            }
-                        }
 
                         return response()->json([
                             'code'    => 200,
@@ -526,47 +530,49 @@ class TaskController extends Controller
                             ->unique('user_id')
                             ->values();
 
-                        //Send NOTIFICATION
-                        foreach ($uniqueAttendees as $attendee) {
-                            if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
-                                $user = User::find($attendee['user_id']);
+                        if ($task->type == 'event') {
+                            //Send NOTIFICATION
+                            foreach ($uniqueAttendees as $attendee) {
+                                if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
+                                    $user = User::find($attendee['user_id']);
 
-                                $user->notify(new NotificationEvent(
-                                    $user->id,
-                                    "Sự kiện {$task->title} vừa mới được cập nhật !",
+                                    $user->notify(new NotificationEvent(
+                                        $user->id,
+                                        "Sự kiện {$task->title} vừa mới được cập nhật !",
+                                        "",
+                                        "update_task"
+                                    ));
+
+                                    if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
+                                        Mail::to($user->email)->queue(new SendNotificationMail($user, $new_task, 'update'));
+                                    }
+                                }
+                            }
+
+                            if ($tagOwner && $tagOwner->id != Auth::id()) {
+                                $tagOwner->notify(new NotificationEvent(
+                                    $tagOwner->id,
+                                    "Sự kiện {$task->title} trong {$tag->name} vừa mới được cập nhật !",
                                     "",
                                     "update_task"
                                 ));
 
                                 if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
-                                    Mail::to($user->email)->queue(new SendNotificationMail($user, $new_task, 'update'));
+                                    Mail::to($tagOwner->email)->queue(new SendNotificationMail($tagOwner, $task, 'update'));
                                 }
                             }
-                        }
 
-                        if ($tagOwner->id != Auth::id()) {
-                            $tagOwner->notify(new NotificationEvent(
-                                $tagOwner->id,
-                                "Sự kiện {$task->title} trong {$tag->name} vừa mới được cập nhật !",
-                                "",
-                                "update_task"
-                            ));
+                            if ($taskOwner->id != Auth::id()) {
+                                $taskOwner->notify(new NotificationEvent(
+                                    $taskOwner->id,
+                                    "Sự kiện {$task->title} của bạn vừa mới được cập nhật !",
+                                    "",
+                                    "update_task"
+                                ));
 
-                            if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
-                                Mail::to($tagOwner->email)->queue(new SendNotificationMail($tagOwner, $task, 'update'));
-                            }
-                        }
-
-                        if ($taskOwner->id != Auth::id()) {
-                            $taskOwner->notify(new NotificationEvent(
-                                $taskOwner->id,
-                                "Sự kiện {$task->title} của bạn vừa mới được cập nhật !",
-                                "",
-                                "update_task"
-                            ));
-
-                            if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
-                                Mail::to($taskOwner->email)->queue(new SendNotificationMail($taskOwner, $task, 'update'));
+                                if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
+                                    Mail::to($taskOwner->email)->queue(new SendNotificationMail($taskOwner, $task, 'update'));
+                                }
                             }
                         }
 
@@ -707,47 +713,49 @@ class TaskController extends Controller
                             ->unique('user_id')
                             ->values();
 
-                        //Send NOTIFICATION
-                        foreach ($uniqueAttendees as $attendee) {
-                            if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
-                                $user = User::find($attendee['user_id']);
+                        if ($task->type == 'event') {
+                            //Send NOTIFICATION
+                            foreach ($uniqueAttendees as $attendee) {
+                                if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
+                                    $user = User::find($attendee['user_id']);
 
-                                $user->notify(new NotificationEvent(
-                                    $user->id,
-                                    "Sự kiện {$task->title} vừa mới được cập nhật !",
+                                    $user->notify(new NotificationEvent(
+                                        $user->id,
+                                        "Sự kiện {$task->title} vừa mới được cập nhật !",
+                                        "",
+                                        "update_task"
+                                    ));
+                                }
+
+                                if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
+                                    Mail::to($user->email)->queue(new SendNotificationMail($user, $new_task, 'update'));
+                                }
+                            }
+
+                            if ($tagOwner && $tagOwner->id != Auth::id()) {
+                                $tagOwner->notify(new NotificationEvent(
+                                    $tagOwner->id,
+                                    "Sự kiện {$task->title} trong {$tag->name} vừa mới được cập nhật !",
                                     "",
                                     "update_task"
                                 ));
+
+                                if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
+                                    Mail::to($tagOwner->email)->queue(new SendNotificationMail($tagOwner, $task, 'update'));
+                                }
                             }
 
-                            if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
-                                Mail::to($user->email)->queue(new SendNotificationMail($user, $new_task, 'update'));
-                            }
-                        }
+                            if ($taskOwner->id != Auth::id()) {
+                                $taskOwner->notify(new NotificationEvent(
+                                    $taskOwner->id,
+                                    "Sự kiện {$task->title} của bạn vừa mới được cập nhật !",
+                                    "",
+                                    "update_task"
+                                ));
 
-                        if ($tagOwner->id != Auth::id()) {
-                            $tagOwner->notify(new NotificationEvent(
-                                $tagOwner->id,
-                                "Sự kiện {$task->title} trong {$tag->name} vừa mới được cập nhật !",
-                                "",
-                                "update_task"
-                            ));
-
-                            if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
-                                Mail::to($tagOwner->email)->queue(new SendNotificationMail($tagOwner, $task, 'update'));
-                            }
-                        }
-
-                        if ($taskOwner->id != Auth::id()) {
-                            $taskOwner->notify(new NotificationEvent(
-                                $taskOwner->id,
-                                "Sự kiện {$task->title} của bạn vừa mới được cập nhật !",
-                                "",
-                                "update_task"
-                            ));
-
-                            if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
-                                Mail::to($taskOwner->email)->queue(new SendNotificationMail($taskOwner, $task, 'update'));
+                                if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
+                                    Mail::to($taskOwner->email)->queue(new SendNotificationMail($taskOwner, $task, 'update'));
+                                }
                             }
                         }
 
@@ -1007,47 +1015,49 @@ class TaskController extends Controller
                             ->unique('user_id')
                             ->values();
 
+                        if ($task->type == 'event') {
                         //Send NOTIFICATION
-                        foreach ($uniqueAttendees as $attendee) {
-                            if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
-                                $user = User::find($attendee['user_id']);
+                            foreach ($uniqueAttendees as $attendee) {
+                                if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
+                                    $user = User::find($attendee['user_id']);
 
-                                $user->notify(new NotificationEvent(
-                                    $user->id,
-                                    "Sự kiện {$task->title} vừa mới được cập nhật !",
+                                    $user->notify(new NotificationEvent(
+                                        $user->id,
+                                        "Sự kiện {$task->title} vừa mới được cập nhật !",
+                                        "",
+                                        "update_task"
+                                    ));
+
+                                    if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
+                                        Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'update'));
+                                    }
+                                }
+                            }
+
+                            if ($tagOwner && $tagOwner->id != Auth::id()) {
+                                $tagOwner->notify(new NotificationEvent(
+                                    $tagOwner->id,
+                                    "Sự kiện {$task->title} trong {$tag->name} vừa mới được cập nhật !",
                                     "",
                                     "update_task"
                                 ));
 
                                 if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
-                                    Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'update'));
+                                    Mail::to($tagOwner->email)->queue(new SendNotificationMail($tagOwner, $task, 'update'));
                                 }
                             }
-                        }
 
-                        if ($tagOwner->id != Auth::id()) {
-                            $tagOwner->notify(new NotificationEvent(
-                                $tagOwner->id,
-                                "Sự kiện {$task->title} trong {$tag->name} vừa mới được cập nhật !",
-                                "",
-                                "update_task"
-                            ));
+                            if ($taskOwner->id != Auth::id()) {
+                                $taskOwner->notify(new NotificationEvent(
+                                    $taskOwner->id,
+                                    "Sự kiện {$task->title} của bạn vừa mới được cập nhật !",
+                                    "",
+                                    "update_task"
+                                ));
 
-                            if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
-                                Mail::to($tagOwner->email)->queue(new SendNotificationMail($tagOwner, $task, 'update'));
-                            }
-                        }
-
-                        if ($taskOwner->id != Auth::id()) {
-                            $taskOwner->notify(new NotificationEvent(
-                                $taskOwner->id,
-                                "Sự kiện {$task->title} của bạn vừa mới được cập nhật !",
-                                "",
-                                "update_task"
-                            ));
-
-                            if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
-                                Mail::to($taskOwner->email)->queue(new SendNotificationMail($taskOwner, $task, 'update'));
+                                if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
+                                    Mail::to($taskOwner->email)->queue(new SendNotificationMail($taskOwner, $task, 'update'));
+                                }
                             }
                         }
 
@@ -1116,46 +1126,48 @@ class TaskController extends Controller
                         }
 
                         // Bước 3: Gửi thông báo cập nhật cho những người trong new_task
-                        foreach ($new_task->attendees as $attendee) {
-                            if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
-                                $user = User::find($attendee['user_id']);
+                        if ($task->type == 'event') {
+                            foreach ($new_task->attendees as $attendee) {
+                                if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
+                                    $user = User::find($attendee['user_id']);
 
-                                $user->notify(new NotificationEvent(
-                                    $user->id,
-                                    "Sự kiện {$task->title} vừa mới được cập nhật !",
+                                    $user->notify(new NotificationEvent(
+                                        $user->id,
+                                        "Sự kiện {$task->title} vừa mới được cập nhật !",
+                                        "",
+                                        "update_task"
+                                    ));
+
+                                    if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
+                                        Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'update'));
+                                    }
+                                }
+                            }
+
+                            if ($tagOwner && $tagOwner->id != Auth::id()) {
+                                $tagOwner->notify(new NotificationEvent(
+                                    $tagOwner->id,
+                                    "Sự kiện {$task->title} trong {$tag->name} vừa mới được cập nhật !",
                                     "",
                                     "update_task"
                                 ));
 
                                 if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
-                                    Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'update'));
+                                    Mail::to($tagOwner->email)->queue(new SendNotificationMail($tagOwner, $task, 'update'));
                                 }
                             }
-                        }
 
-                        if ($tagOwner->id != Auth::id()) {
-                            $tagOwner->notify(new NotificationEvent(
-                                $tagOwner->id,
-                                "Sự kiện {$task->title} trong {$tag->name} vừa mới được cập nhật !",
-                                "",
-                                "update_task"
-                            ));
+                            if ($taskOwner->id != Auth::id()) {
+                                $taskOwner->notify(new NotificationEvent(
+                                    $taskOwner->id,
+                                    "Sự kiện {$task->title} của bạn vừa mới được cập nhật !",
+                                    "",
+                                    "update_task"
+                                ));
 
-                            if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
-                                Mail::to($tagOwner->email)->queue(new SendNotificationMail($tagOwner, $task, 'update'));
-                            }
-                        }
-
-                        if ($taskOwner->id != Auth::id()) {
-                            $taskOwner->notify(new NotificationEvent(
-                                $taskOwner->id,
-                                "Sự kiện {$task->title} của bạn vừa mới được cập nhật !",
-                                "",
-                                "update_task"
-                            ));
-
-                            if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
-                                Mail::to($taskOwner->email)->queue(new SendNotificationMail($taskOwner, $task, 'update'));
+                                if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
+                                    Mail::to($taskOwner->email)->queue(new SendNotificationMail($taskOwner, $task, 'update'));
+                                }
                             }
                         }
 
@@ -1253,47 +1265,49 @@ class TaskController extends Controller
                             ->unique('user_id')
                             ->values();
 
-                        //Send NOTIFICATION
-                        foreach ($uniqueAttendees as $attendee) {
-                            if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
-                                $user = User::find($attendee['user_id']);
+                        if ($task->type == 'event') {
+                            //Send NOTIFICATION
+                            foreach ($uniqueAttendees as $attendee) {
+                                if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
+                                    $user = User::find($attendee['user_id']);
 
-                                $user->notify(new NotificationEvent(
-                                    $user->id,
-                                    "Sự kiện {$task->title} vừa mới được cập nhật !",
+                                    $user->notify(new NotificationEvent(
+                                        $user->id,
+                                        "Sự kiện {$task->title} vừa mới được cập nhật !",
+                                        "",
+                                        "update_task"
+                                    ));
+
+                                    if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
+                                        Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'update'));
+                                    }
+                                }
+                            }
+
+                            if ($tagOwner && $tagOwner->id != Auth::id()) {
+                                $tagOwner->notify(new NotificationEvent(
+                                    $tagOwner->id,
+                                    "Sự kiện {$task->title} trong {$tag->name} vừa mới được cập nhật !",
                                     "",
                                     "update_task"
                                 ));
 
                                 if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
-                                    Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'update'));
+                                    Mail::to($tagOwner->email)->queue(new SendNotificationMail($tagOwner, $task, 'update'));
                                 }
                             }
-                        }
 
-                        if ($tagOwner->id != Auth::id()) {
-                            $tagOwner->notify(new NotificationEvent(
-                                $tagOwner->id,
-                                "Sự kiện {$task->title} trong {$tag->name} vừa mới được cập nhật !",
-                                "",
-                                "update_task"
-                            ));
+                            if ($taskOwner->id != Auth::id()) {
+                                $taskOwner->notify(new NotificationEvent(
+                                    $taskOwner->id,
+                                    "Sự kiện {$task->title} của bạn vừa mới được cập nhật !",
+                                    "",
+                                    "update_task"
+                                ));
 
-                            if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
-                                Mail::to($tagOwner->email)->queue(new SendNotificationMail($tagOwner, $task, 'update'));
-                            }
-                        }
-
-                        if ($taskOwner->id != Auth::id()) {
-                            $taskOwner->notify(new NotificationEvent(
-                                $taskOwner->id,
-                                "Sự kiện {$task->title} của bạn vừa mới được cập nhật !",
-                                "",
-                                "update_task"
-                            ));
-
-                            if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
-                                Mail::to($taskOwner->email)->queue(new SendNotificationMail($taskOwner, $task, 'update'));
+                                if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
+                                    Mail::to($taskOwner->email)->queue(new SendNotificationMail($taskOwner, $task, 'update'));
+                                }
                             }
                         }
 
@@ -1371,47 +1385,49 @@ class TaskController extends Controller
                             ->unique('user_id')
                             ->values();
 
-                        //Send NOTIFICATION
-                        foreach ($uniqueAttendees as $attendee) {
-                            if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
-                                $user = User::find($attendee['user_id']);
+                        if ($task->type == 'event') {
+                            //Send NOTIFICATION
+                            foreach ($uniqueAttendees as $attendee) {
+                                if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
+                                    $user = User::find($attendee['user_id']);
 
-                                $user->notify(new NotificationEvent(
-                                    $user->id,
-                                    "Sự kiện {$task->title} vừa mới được cập nhật !",
+                                    $user->notify(new NotificationEvent(
+                                        $user->id,
+                                        "Sự kiện {$task->title} vừa mới được cập nhật !",
+                                        "",
+                                        "update_task"
+                                    ));
+
+                                    if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
+                                        Mail::to($user->email)->queue(new SendNotificationMail($user, $new_task, 'update'));
+                                    }
+                                }
+                            }
+
+                            if ($tagOwner && $tagOwner->id != Auth::id()) {
+                                $tagOwner->notify(new NotificationEvent(
+                                    $tagOwner->id,
+                                    "Sự kiện {$task->title} trong {$tag->name} vừa mới được cập nhật !",
                                     "",
                                     "update_task"
                                 ));
 
                                 if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
-                                    Mail::to($user->email)->queue(new SendNotificationMail($user, $new_task, 'update'));
+                                    Mail::to($tagOwner->email)->queue(new SendNotificationMail($tagOwner, $task, 'update'));
                                 }
                             }
-                        }
 
-                        if ($tagOwner->id != Auth::id()) {
-                            $tagOwner->notify(new NotificationEvent(
-                                $tagOwner->id,
-                                "Sự kiện {$task->title} trong {$tag->name} vừa mới được cập nhật !",
-                                "",
-                                "update_task"
-                            ));
+                            if ($taskOwner->id != Auth::id()) {
+                                $taskOwner->notify(new NotificationEvent(
+                                    $taskOwner->id,
+                                    "Sự kiện {$task->title} của bạn vừa mới được cập nhật !",
+                                    "",
+                                    "update_task"
+                                ));
 
-                            if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
-                                Mail::to($tagOwner->email)->queue(new SendNotificationMail($tagOwner, $task, 'update'));
-                            }
-                        }
-
-                        if ($taskOwner->id != Auth::id()) {
-                            $taskOwner->notify(new NotificationEvent(
-                                $taskOwner->id,
-                                "Sự kiện {$task->title} của bạn vừa mới được cập nhật !",
-                                "",
-                                "update_task"
-                            ));
-
-                            if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
-                                Mail::to($taskOwner->email)->queue(new SendNotificationMail($taskOwner, $task, 'update'));
+                                if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
+                                    Mail::to($taskOwner->email)->queue(new SendNotificationMail($taskOwner, $task, 'update'));
+                                }
                             }
                         }
 
@@ -1571,47 +1587,49 @@ class TaskController extends Controller
                             ->unique('user_id')
                             ->values();
 
-                        //Send NOTIFICATION
-                        foreach ($uniqueAttendees as $attendee) {
-                            if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
-                                $user = User::find($attendee['user_id']);
+                        if ($task->type == 'event') {
+                            //Send NOTIFICATION
+                            foreach ($uniqueAttendees as $attendee) {
+                                if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
+                                    $user = User::find($attendee['user_id']);
 
-                                $user->notify(new NotificationEvent(
-                                    $user->id,
-                                    "Sự kiện {$task->title} vừa mới được cập nhật !",
+                                    $user->notify(new NotificationEvent(
+                                        $user->id,
+                                        "Sự kiện {$task->title} vừa mới được cập nhật !",
+                                        "",
+                                        "update_task"
+                                    ));
+
+                                    if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
+                                        Mail::to($user->email)->queue(new SendNotificationMail($user, $new_task, 'update'));
+                                    }
+                                }
+                            }
+
+                            if ($tagOwner && $tagOwner->id != Auth::id()) {
+                                $tagOwner->notify(new NotificationEvent(
+                                    $tagOwner->id,
+                                    "Sự kiện {$task->title} trong {$tag->name} vừa mới được cập nhật !",
                                     "",
                                     "update_task"
                                 ));
 
                                 if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
-                                    Mail::to($user->email)->queue(new SendNotificationMail($user, $new_task, 'update'));
+                                    Mail::to($tagOwner->email)->queue(new SendNotificationMail($tagOwner, $task, 'update'));
                                 }
                             }
-                        }
 
-                        if ($tagOwner->id != Auth::id()) {
-                            $tagOwner->notify(new NotificationEvent(
-                                $tagOwner->id,
-                                "Sự kiện {$task->title} trong {$tag->name} vừa mới được cập nhật !",
-                                "",
-                                "update_task"
-                            ));
+                            if ($taskOwner->id != Auth::id()) {
+                                $taskOwner->notify(new NotificationEvent(
+                                    $taskOwner->id,
+                                    "Sự kiện {$task->title} của bạn vừa mới được cập nhật !",
+                                    "",
+                                    "update_task"
+                                ));
 
-                            if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
-                                Mail::to($tagOwner->email)->queue(new SendNotificationMail($tagOwner, $task, 'update'));
-                            }
-                        }
-
-                        if ($taskOwner->id != Auth::id()) {
-                            $taskOwner->notify(new NotificationEvent(
-                                $taskOwner->id,
-                                "Sự kiện {$task->title} của bạn vừa mới được cập nhật !",
-                                "",
-                                "update_task"
-                            ));
-
-                            if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
-                                Mail::to($taskOwner->email)->queue(new SendNotificationMail($taskOwner, $task, 'update'));
+                                if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
+                                    Mail::to($taskOwner->email)->queue(new SendNotificationMail($taskOwner, $task, 'update'));
+                                }
                             }
                         }
 
@@ -1728,47 +1746,49 @@ class TaskController extends Controller
                             ->unique('user_id')
                             ->values();
 
-                        //Send NOTIFICATION
-                        foreach ($uniqueAttendees as $attendee) {
-                            if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
-                                $user = User::find($attendee['user_id']);
+                        if ($task->type == 'event') {
+                            //Send NOTIFICATION
+                            foreach ($uniqueAttendees as $attendee) {
+                                if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
+                                    $user = User::find($attendee['user_id']);
 
-                                $user->notify(new NotificationEvent(
-                                    $user->id,
-                                    "Sự kiện {$task->title} vừa mới được cập nhật !",
+                                    $user->notify(new NotificationEvent(
+                                        $user->id,
+                                        "Sự kiện {$task->title} vừa mới được cập nhật !",
+                                        "",
+                                        "update_task"
+                                    ));
+
+                                    if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
+                                        Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'update'));
+                                    }
+                                }
+                            }
+
+                            if ($tagOwner && $tagOwner->id != Auth::id()) {
+                                $tagOwner->notify(new NotificationEvent(
+                                    $tagOwner->id,
+                                    "Sự kiện {$task->title} trong {$tag->name} vừa mới được cập nhật !",
                                     "",
                                     "update_task"
                                 ));
 
                                 if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
-                                    Mail::to($user->email)->queue(new SendNotificationMail($user, $task, 'update'));
+                                    Mail::to($tagOwner->email)->queue(new SendNotificationMail($tagOwner, $task, 'update'));
                                 }
                             }
-                        }
 
-                        if ($tagOwner->id != Auth::id()) {
-                            $tagOwner->notify(new NotificationEvent(
-                                $tagOwner->id,
-                                "Sự kiện {$task->title} trong {$tag->name} vừa mới được cập nhật !",
-                                "",
-                                "update_task"
-                            ));
+                            if ($taskOwner->id != Auth::id()) {
+                                $taskOwner->notify(new NotificationEvent(
+                                    $taskOwner->id,
+                                    "Sự kiện {$task->title} của bạn vừa mới được cập nhật !",
+                                    "",
+                                    "update_task"
+                                ));
 
-                            if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
-                                Mail::to($tagOwner->email)->queue(new SendNotificationMail($tagOwner, $task, 'update'));
-                            }
-                        }
-
-                        if ($taskOwner->id != Auth::id()) {
-                            $taskOwner->notify(new NotificationEvent(
-                                $taskOwner->id,
-                                "Sự kiện {$task->title} của bạn vừa mới được cập nhật !",
-                                "",
-                                "update_task"
-                            ));
-
-                            if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
-                                Mail::to($taskOwner->email)->queue(new SendNotificationMail($taskOwner, $task, 'update'));
+                                if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
+                                    Mail::to($taskOwner->email)->queue(new SendNotificationMail($taskOwner, $task, 'update'));
+                                }
                             }
                         }
 
@@ -2927,20 +2947,20 @@ class TaskController extends Controller
                 $task = Task::create($data);
             }
 
-            if($task->type == 'event') {
-                
+            if ($task->type == 'event') {
+
                 $attendees = is_array($task->attendees) ? $task->attendees : json_decode($task->attendees, true);
                 $users = User::whereIn('id', collect($attendees)->pluck('user_id'))->get();
-    
+
                 // create group chat after created tasks
                 app(TaskGroupChatController::class)->createGroup($task->id, $task->user_id);
-    
+
                 if (isset($data['sendMail']) && $data['sendMail'] == 'yes') {
                     $userIds = collect($task->attendees)->pluck('user_id');
                     $emailGuests = User::select('email')->whereIn('id', $userIds)->get();
                     $this->sendMail(Auth::user()->email, $emailGuests, $task);
                 }
-    
+
                 foreach ($users as $user) {
                     $user->notify(new NotificationEvent(
                         $user->id,
@@ -2950,14 +2970,14 @@ class TaskController extends Controller
                         // {$this->URL_FRONTEND}/calendar/event/{$task->uuid}/invite
                     ));
                 }
-    
+
                 if (!empty($data['tag_id']) && $task->type == 'event') {
                     // $tag = Tag::where('id', $data['tag_id'])->first();
                     $users = User::whereIn('id', collect($tag->shared_user)->pluck('user_id'))->get();
-    
+
                     $attendees = $task->attendees ?? [];
                     $existingUserIds = collect($attendees)->pluck('user_id')->toArray();
-    
+
                     foreach ($users as $user) {
                         if (!in_array($user->id, $existingUserIds)) {
                             $attendees[] = [
@@ -2966,7 +2986,7 @@ class TaskController extends Controller
                                 'user_id'   =>  $user->id,
                             ];
                         }
-    
+
                         $user->notify(new NotificationEvent(
                             $user->id,
                             "Vừa có {$task->type} {$task->title} được thêm vào trong {$tag->name}",
@@ -2975,14 +2995,13 @@ class TaskController extends Controller
                         ));
                     }
                 }
-    
+
                 $task->attendees = $attendees;
-    
+
                 //Send REALTIME
                 $returnTask[] = $task;
-                
+
                 $this->sendRealTimeUpdate($returnTask, 'create');
-                
             }
 
 
