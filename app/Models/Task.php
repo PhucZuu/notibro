@@ -111,15 +111,22 @@ class Task extends Model
         ->pluck('user_id') // Lấy user_id
         ->toArray();
 
-        $curTag = Tag::find($this->tag_id);
-        $tagOwner = User::where('id', '=',$curTag->user_id)->first(); 
+        if ($this->tag_id) {
+            $curTag = Tag::find($this->tag_id);
+            $tagOwner = User::where('id', '=',$curTag->user_id)->first(); 
+            $filteredSharedByTag = collect($curTag->shared_user ?? [])
+            ->where('status', 'yes') // Chỉ lấy những shared_user có status = 'yes'
+            ->pluck('user_id') // Lấy user_id
+            ->toArray();
 
-        $filteredSharedByTag = collect($curTag->shared_user ?? [])
-        ->where('status', 'yes') // Chỉ lấy những shared_user có status = 'yes'
-        ->pluck('user_id') // Lấy user_id
-        ->toArray();
+            $data = array_merge([$this->user_id], $filteredAttendees ?? [], [$tagOwner->id] ?? [], $filteredSharedByTag ?? []);
 
-        $data = array_merge([$this->user_id], $filteredAttendees, [$tagOwner->id], $filteredSharedByTag);
+            Log::info('Filtered attendees for real-time: ', $data);
+        } else {
+            $data = array_merge([$this->user_id], $filteredAttendees ?? []);
+        }
+
+        // $data = array_merge([$this->user_id], $filteredAttendees ?? [], [$tagOwner->id] ?? [], $filteredSharedByTag ?? []);
 
         return $data;
     }
