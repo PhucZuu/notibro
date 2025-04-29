@@ -400,10 +400,7 @@ class TagController extends Controller
             $formattedSharedUsers = collect($sharedUsersRaw)->map(function ($user) {
                 return [
                     'user_id'    => $user['user_id'],
-                    'first_name' => $user['first_name'] ?? null,
-                    'last_name'  => $user['last_name'] ?? null,
                     'email'      => $user['email'] ?? null,
-                    'avatar'     => $user['avatar'] ?? null,
                     'status'     => $user['status'] ?? 'pending',
                     'role'       => $user['role'] ?? 'viewer',
                 ];
@@ -530,10 +527,7 @@ class TagController extends Controller
     
                         return [
                             'user_id'    => $userModel->id,
-                            'first_name' => $userModel->first_name,
-                            'last_name'  => $userModel->last_name,
                             'email'      => $userModel->email,
-                            'avatar'     => $userModel->avatar,
                             'status'     => $user['status'] ?? 'pending',
                             'role'       => $user['role'] ?? 'viewer',
                         ];
@@ -547,10 +541,7 @@ class TagController extends Controller
     
                         return [
                             'user_id'    => $userModel->id,
-                            'first_name' => $userModel->first_name,
-                            'last_name'  => $userModel->last_name,
                             'email'      => $userModel->email,
-                            'avatar'     => $userModel->avatar,
                             'status'     => 'pending',
                             'role'       => 'viewer',
                         ];
@@ -958,7 +949,6 @@ class TagController extends Controller
         }
     }
     
-
     protected function sendMail($mailOwner, $emails, $tag)
     {
         $user = Auth::user();
