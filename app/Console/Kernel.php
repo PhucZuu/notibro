@@ -14,6 +14,7 @@ class Kernel extends ConsoleKernel
     {
         $schedule->command('task:send-web-reminder')->everyMinute();
         $schedule->command('task:send-reminder-emails')->everyMinute();
+        $schedule->command('task:send-is-done-reminder-emails')->everyMinute();
     }
 
     /**
