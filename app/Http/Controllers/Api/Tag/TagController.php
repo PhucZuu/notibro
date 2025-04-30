@@ -6,6 +6,7 @@ use App\Events\Tag\TagUpdatedEvetn;
 use App\Events\Task\TaskUpdatedEvent;
 use App\Http\Controllers\Controller;
 use App\Mail\InviteToTagMail;
+use App\Mail\RemoveFromTagMail;
 use App\Mail\SendNotificationMail;
 use Illuminate\Http\Request;
 use App\Models\Tag;
@@ -14,6 +15,8 @@ use App\Notifications\NotificationEvent;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class TagController extends Controller
 {
@@ -23,6 +26,27 @@ class TagController extends Controller
     {
         $this->URL_FRONTEND = config('app.frontend_url');
     }
+
+    protected function formatSharedUsers($sharedUserArray)
+    {
+        return collect($sharedUserArray ?? [])->map(function ($shared) {
+            $user = User::find($shared['user_id']);
+            if ($user && $user->avatar && !Str::startsWith($user->avatar, ['http://', 'https://'])) {
+                $user->avatar = Storage::url($user->avatar);
+            }
+
+            return [
+                'user_id'    => $shared['user_id'],
+                'first_name' => $user?->first_name,
+                'last_name'  => $user?->last_name,
+                'email'      => $user?->email ?? ($shared['email'] ?? null),
+                'avatar'     => $user?->avatar,
+                'status'     => $shared['status'] ?? 'pending',
+                'role'       => $shared['role'] ?? 'viewer',
+            ];
+        })->values();
+    }
+
     public function getRecipients($data)
     {
         Log::info('Xử lý người nhận');
@@ -77,12 +101,15 @@ class TagController extends Controller
             $tagsWithOwnerInfo = $ownedTags->map(function ($tag) use ($userId) {
                 $owner = User::find($tag->user_id);
                 return array_merge($tag->toArray(), [
+                    'shared_user' => $this->formatSharedUsers($tag->shared_user),
                     'owner' => $owner ? [
                         'user_id'    => $owner->id,
                         'first_name' => $owner->first_name,
                         'last_name'  => $owner->last_name,
                         'email'      => $owner->email,
-                        'avatar'     => $owner->avatar,
+                        'avatar'     => $owner->avatar && !Str::startsWith($owner->avatar, ['http://', 'https://'])
+                            ? Storage::url($owner->avatar)
+                            : $owner->avatar,
                     ] : null,
                     'is_owner' => true,
                 ]);
@@ -101,7 +128,8 @@ class TagController extends Controller
                 'message' => 'An error occurred while retrieving owned tags',
             ], 500);
         }
-    }    
+    }
+    
 
     /**
      * Lấy danh sách tag được chia sẻ với người dùng.
@@ -122,12 +150,15 @@ class TagController extends Controller
                 ->map(function ($tag) use ($userId) {
                     $owner = User::find($tag->user_id);
                     return array_merge($tag->toArray(), [
+                        'shared_user' => $this->formatSharedUsers($tag->shared_user),
                         'owner' => $owner ? [
                             'user_id'    => $owner->id,
                             'first_name' => $owner->first_name,
                             'last_name'  => $owner->last_name,
                             'email'      => $owner->email,
-                            'avatar'     => $owner->avatar,
+                            'avatar'     => $owner->avatar && !Str::startsWith($owner->avatar, ['http://', 'https://'])
+                                ? Storage::url($owner->avatar)
+                                : $owner->avatar,
                         ] : null,
                         'is_owner' => $tag->user_id === $userId,
                     ]);
@@ -148,23 +179,27 @@ class TagController extends Controller
         }
     }
     
+    
     public function getMyAndSharedEditorTags()
     {
         try {
             $userId = Auth::id();
     
-            // 1. Các tag do chính mình sở hữu (owned)
+            // 1. Các tag do chính mình sở hữu
             $ownedTags = Tag::where('user_id', $userId)
                 ->get()
-                ->map(function ($tag) use ($userId) {
+                ->map(function ($tag) {
                     $owner = User::find($tag->user_id);
                     return array_merge($tag->toArray(), [
+                        'shared_user' => $this->formatSharedUsers($tag->shared_user),
                         'owner' => $owner ? [
                             'user_id'    => $owner->id,
                             'first_name' => $owner->first_name,
                             'last_name'  => $owner->last_name,
                             'email'      => $owner->email,
-                            'avatar'     => $owner->avatar,
+                            'avatar'     => $owner->avatar && !Str::startsWith($owner->avatar, ['http://', 'https://'])
+                                ? Storage::url($owner->avatar)
+                                : $owner->avatar,
                         ] : null,
                         'is_owner' => true,
                     ]);
@@ -184,17 +219,19 @@ class TagController extends Controller
                 ->map(function ($tag) use ($userId) {
                     $owner = User::find($tag->user_id);
                     return array_merge($tag->toArray(), [
+                        'shared_user' => $this->formatSharedUsers($tag->shared_user),
                         'owner' => $owner ? [
                             'user_id'    => $owner->id,
                             'first_name' => $owner->first_name,
                             'last_name'  => $owner->last_name,
                             'email'      => $owner->email,
-                            'avatar'     => $owner->avatar,
+                            'avatar'     => $owner->avatar && !Str::startsWith($owner->avatar, ['http://', 'https://'])
+                                ? Storage::url($owner->avatar)
+                                : $owner->avatar,
                         ] : null,
                         'is_owner' => false,
                     ]);
-                })
-                ->values();
+                })->values();
     
             return response()->json([
                 'code'    => 200,
@@ -212,7 +249,8 @@ class TagController extends Controller
                 'message' => 'An error occurred while retrieving tags',
             ], 500);
         }
-    }    
+    }
+     
 
     public function getTasksFromSharedTags()
     {
@@ -263,7 +301,6 @@ class TagController extends Controller
     
             $user = Auth::user();
     
-            // Nếu không đăng nhập hoặc không có quyền xem
             if (!$user) {
                 return response()->json([
                     'code' => 401,
@@ -286,6 +323,25 @@ class TagController extends Controller
     
             $owner = User::find($tag->user_id);
     
+            // Sửa shared_user cho đúng
+            $sharedUsers = collect($tag->shared_user ?? [])->map(function ($shared) {
+                $user = User::find($shared['user_id']);
+
+                if ($user->avatar && !Str::startsWith($user->avatar, ['http://', 'https://'])) {
+                    $user->avatar = Storage::url($user->avatar);
+                }
+
+                return [
+                    'user_id' => $shared['user_id'],
+                    'first_name' => $user ? $user->first_name : null,
+                    'last_name' => $user ? $user->last_name : null,
+                    'email' => $user ? $user->email : ($shared['email'] ?? null),
+                    'avatar' => $user->avatar,
+                    'status' => $shared['status'] ?? 'pending',
+                    'role' => $shared['role'] ?? 'viewer',
+                ];
+            })->values(); // <-- reset lại chỉ số index cho đúng
+            Log::info('Shared User Data:', $sharedUsers->toArray());
             return response()->json([
                 'code'    => 200,
                 'message' => 'Tag retrieved successfully',
@@ -297,8 +353,11 @@ class TagController extends Controller
                         'first_name' => $owner->first_name,
                         'last_name'  => $owner->last_name,
                         'email'      => $owner->email,
-                        'avatar'     => $owner->avatar,
+                        'avatar'     => $owner->avatar && !Str::startsWith($owner->avatar, ['http://', 'https://'])
+                            ? Storage::url($owner->avatar)
+                            : $owner->avatar,
                     ] : null,
+                    'shared_user' => $sharedUsers, // <-- thêm vào đúng định dạng
                     'is_owner'    => $isOwner,
                 ],
             ], 200);
@@ -456,7 +515,9 @@ class TagController extends Controller
                 'code'    => 201,
                 'message' => 'Tag created successfully',
                 'data'    => [
-                    'tag'   => $tag,
+                    'tag'   => array_merge($tag->toArray(), [
+                    'shared_user' => $this->formatSharedUsers($tag->shared_user)
+                ]),
                     'owner' => $owner ? [
                         'user_id'    => $owner->id,
                         'first_name' => $owner->first_name,
@@ -508,7 +569,7 @@ class TagController extends Controller
                 ], 403);
             }
     
-            $oldSharedUsers = collect($tag->shared_user ?? [])->pluck('user_id')->toArray();
+            $oldSharedUserIds = collect($tag->shared_user ?? [])->pluck('user_id')->toArray();
             $formattedSharedUsers = $tag->shared_user;
     
             if (($isOwner || $isEditor) && isset($validated['shared_user'])) {
@@ -565,6 +626,7 @@ class TagController extends Controller
                 'method' => $item['method'] ?? 'once',
             ])->filter(fn($r) => $r['type'] && $r['time'])->values()->toArray();
     
+            // Cập nhật tag
             $tag->update([
                 'name'         => $validated['name'],
                 'description'  => $validated['description'],
@@ -573,7 +635,29 @@ class TagController extends Controller
                 'reminder'     => $formattedReminder,
             ]);
     
-            // $tag->syncAttendeesWithTasks($oldSharedUsers);
+            // Xử lý gửi mail và thông báo cho người mới được thêm
+            $newSharedUserIds = collect($formattedSharedUsers)->pluck('user_id')->toArray();
+            $newUserIds = array_diff($newSharedUserIds, $oldSharedUserIds);
+    
+            if (!empty($newUserIds)) {
+                $emails = User::whereIn('id', $newUserIds)->pluck('email')->filter();
+                if ($emails->isNotEmpty()) {
+                    $this->sendMail(Auth::user()->email, $emails, $tag);
+                }
+    
+                foreach ($newUserIds as $newUserId) {
+                    $newUser = User::find($newUserId);
+                    if ($newUser) {
+                        $newUser->notify(new NotificationEvent(
+                            $newUser->id,
+                            "Bạn đã được mời tham gia tag: {$tag->name}",
+                            "{$this->URL_FRONTEND}/calendar/tag/{$tag->uuid}/invite",
+                            "invite_to_tag"
+                        ));
+                    }
+                }
+            }
+    
             $returnTag[] = $tag;
             $this->sendRealTimeUpdate($returnTag, 'update');
     
@@ -582,7 +666,9 @@ class TagController extends Controller
                 'code'    => 200,
                 'message' => 'Tag updated successfully',
                 'data'    => [
-                    'tag'   => $tag,
+                    'tag'   => array_merge($tag->toArray(), [
+                        'shared_user' => $this->formatSharedUsers($tag->shared_user)
+                    ]),
                     'owner' => $owner ? [
                         'user_id'    => $owner->id,
                         'first_name' => $owner->first_name,
@@ -883,7 +969,7 @@ class TagController extends Controller
                 ], 404);
             }
     
-            // Xoá user khỏi shared_user
+            // 1. Xóa user khỏi shared_user
             $newSharedUsers = $sharedUsers
                 ->reject(fn($user) => $user['user_id'] == $userIdToRemove)
                 ->values()
@@ -893,8 +979,8 @@ class TagController extends Controller
     
             $tasksUpdated = [];
     
+            // 2. Nếu cần thì xóa khỏi attendees trong task
             if (!$keepInTasks) {
-                // Nếu yêu cầu xóa user khỏi cả task
                 foreach ($tag->tasks as $task) {
                     $attendees = collect($task->attendees ?? [])
                         ->reject(fn($attendee) => $attendee['user_id'] == $userIdToRemove)
@@ -902,14 +988,15 @@ class TagController extends Controller
                         ->toArray();
     
                     $task->update(['attendees' => $attendees]);
-    
                     $tasksUpdated[] = $task;
                 }
             }
     
+            // 3. Gửi thông báo và email
             $removedUser = User::find($userIdToRemove);
+            $owner = User::find($tag->user_id);
     
-            if ($removedUser) {
+            if ($removedUser && $owner) {
                 $taskNames = collect($tasksUpdated)->pluck('title')->filter()->values()->toArray();
                 $taskListStr = implode(', ', $taskNames);
     
@@ -925,12 +1012,20 @@ class TagController extends Controller
                     "",
                     "removed_from_tag"
                 ));
+    
+                // Gửi email
+                $ownerFullName = trim(($owner->first_name ?? '') . ' ' . ($owner->last_name ?? ''));
+                Mail::to($removedUser->email)->queue(new RemoveFromTagMail(
+                    env('MAIL_USERNAME'), // Sender email
+                    $ownerFullName,        // Sender name
+                    $tag,
+                    $keepInTasks
+                ));
             }
     
-            // Gửi realtime update cho tag
+            // 4. Gửi realtime update
             $this->sendRealTimeUpdate([$tag], 'update');
     
-            // Gửi realtime update cho các task bị chỉnh sửa attendees
             if (!empty($tasksUpdated)) {
                 $this->sendRealTimeUpdateTasks($tasksUpdated, 'update');
             }
