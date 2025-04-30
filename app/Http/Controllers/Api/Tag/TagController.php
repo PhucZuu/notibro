@@ -167,7 +167,7 @@ class TagController extends Controller
             return response()->json([
                 'code'    => 200,
                 'message' => 'Retrieve shared tags successfully',
-                'data'    => $sharedTags->isEmpty() ? [] : $sharedTags
+                'data'    => $sharedTags->isEmpty() ? [] : $sharedTags->values()->all() //đang trả về object -> thêm values() để reset lại chỉ số index
             ], 200);
         } catch (\Exception $e) {
             Log::error($e->getMessage());
