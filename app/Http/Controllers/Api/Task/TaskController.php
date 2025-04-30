@@ -1016,7 +1016,7 @@ class TaskController extends Controller
                             ->values();
 
                         if ($task->type == 'event') {
-                        //Send NOTIFICATION
+                            //Send NOTIFICATION
                             foreach ($uniqueAttendees as $attendee) {
                                 if ($attendee['user_id'] != Auth::id() && $attendee['status'] == 'yes') {
                                     $user = User::find($attendee['user_id']);
@@ -2820,38 +2820,60 @@ class TaskController extends Controller
 
         $user_id = Auth::id();
 
-        $tasks = Task::where('is_all_day', '!=', 1)
-            ->when($not_check_id, function ($query) use ($not_check_id) {
-                $query->where('id', '!=', $not_check_id);
-            })
-            ->where(function ($query) use ($data) {
-                // Lấy các task có thể trùng giờ
-                $query->where(function ($q) use ($data) {
-                    $q->where('start_time', '<', $data['end_time'])  // task bắt đầu trước khi event mới kết thúc
-                        ->where('end_time', '>', $data['start_time']); // task kết thúc sau khi event mới bắt đầu
-                })
-                    // Hoặc là task lặp lại mà thời gian lặp vẫn còn hiệu lực
-                    ->orWhere(function ($q) use ($data) {
-                        $q->where('is_repeat', true)
-                            ->where(function ($subQuery) use ($data) {
-                                $subQuery->where('until', '>', $data['start_time'])
-                                    ->orWhereNull('until');
-                            });
+        $shareTags = Tag::where('user_id', '=', $user_id)
+            ->orWhereJsonContains('shared_user', [['user_id' => $user_id]])
+            ->get()
+            ->filter(function ($tag) use ($user_id) {
+                return $tag->user_id == $user_id || collect($tag->shared_user)
+                    ->contains(function ($user) use ($user_id) {
+                        return (int) $user['user_id'] === $user_id
+                            && in_array($user['role'], ['editor', 'viewer', 'admin'])
+                            && $user['status'] === 'yes';
                     });
             })
-            ->where(function ($query) use ($user_id) {
+            ->values();
+
+        $tagIds = $shareTags->pluck('id')->toArray();
+
+        // Lấy các task hợp lệ, không all-day, có thể trùng giờ, và user có quyền truy cập
+        $tasks = Task::select('tasks.*', 'tags.name as tag_name', 'tags.color_code as tag_color_code')
+            ->leftJoin('tags', 'tasks.tag_id', '=', 'tags.id')
+            ->where('tasks.is_all_day', '!=', 1)
+            ->when($not_check_id, function ($query) use ($not_check_id) {
+                $query->where('tasks.id', '!=', $not_check_id);
+            })
+            ->where(function ($query) use ($data) {
+                $query->where(function ($q) use ($data) {
+                    $q->where('tasks.start_time', '<', $data['end_time'])
+                        ->where('tasks.end_time', '>', $data['start_time']);
+                })->orWhere(function ($q) use ($data) {
+                    $q->where('tasks.is_repeat', true)
+                        ->where(function ($subQuery) use ($data) {
+                            $subQuery->where('tasks.until', '>', $data['start_time'])
+                                ->orWhereNull('tasks.until');
+                        });
+                });
+            })
+            ->where(function ($query) use ($user_id, $tagIds) {
                 $query->where('tasks.user_id', $user_id)
-                    ->orWhereRaw("
-                        EXISTS (
-                            SELECT 1 FROM JSON_TABLE(
-                                attendees, '$[*]' COLUMNS (
-                                    user_id INT PATH '$.user_id',
-                                    status VARCHAR(20) PATH '$.status'
-                                )
-                            ) AS jt
-                            WHERE jt.user_id = ?
-                        )
-                    ", [$user_id]);
+                    ->orWhere(function ($q) use ($user_id) {
+                        $q->whereRaw("
+                    EXISTS (
+                        SELECT 1 FROM JSON_TABLE(
+                            tasks.attendees, '$[*]' COLUMNS (
+                                user_id INT PATH '$.user_id',
+                                status VARCHAR(20) PATH '$.status'
+                            )
+                        ) AS jt
+                        WHERE jt.user_id = ?
+                    )
+                ", [$user_id])
+                            ->where('tasks.is_private', '!=', 1);
+                    })
+                    ->orWhere(function ($q) use ($tagIds) {
+                        $q->whereIn('tasks.tag_id', $tagIds)
+                            ->where('tasks.is_private', '!=', 1);
+                    });
             })
             ->get();
 
@@ -3856,20 +3878,44 @@ class TaskController extends Controller
         $end        = $request->query('end');
         $location   = $request->query('location');
 
-        $query = Task::select('*')
-            ->where(function ($query) use ($user_id) {
-                $query->where('user_id', $user_id)
-                    ->orWhereRaw("
-                EXISTS (
-                    SELECT 1 FROM JSON_TABLE(
-                        attendees, '$[*]' COLUMNS (
-                            user_id INT PATH '$.user_id',
-                            status VARCHAR(20) PATH '$.status'
-                        )
-                    ) AS jt
-                    WHERE jt.user_id = ?
-                )
-            ", [$user_id]);
+        // Lấy tất cả tag được quyền truy cập
+        $shareTags = Tag::where('user_id', '=', $user_id)
+            ->orWhereJsonContains('shared_user', [['user_id' => $user_id]])
+            ->get()
+            ->filter(function ($tag) use ($user_id) {
+                return $tag->user_id == $user_id || collect($tag->shared_user)
+                    ->contains(function ($user) use ($user_id) {
+                        return (int) $user['user_id'] === $user_id
+                            && in_array($user['role'], ['editor', 'viewer', 'admin'])
+                            && $user['status'] === 'yes';
+                    });
+            })
+            ->values();
+
+        $tagIds = $shareTags->pluck('id')->toArray();
+
+        $query = Task::select('tasks.*', 'tags.name as tag_name', 'tags.color_code as tag_color_code')
+            ->leftJoin('tags', 'tasks.tag_id', '=', 'tags.id')
+            ->where(function ($query) use ($user_id, $tagIds) {
+                $query->where('tasks.user_id', $user_id) // (1) Chủ task
+                    ->orWhere(function ($q) use ($user_id) {
+                        $q->whereRaw("
+                    EXISTS (
+                        SELECT 1 FROM JSON_TABLE(
+                            attendees, '$[*]' COLUMNS (
+                                user_id INT PATH '$.user_id',
+                                status VARCHAR(20) PATH '$.status'
+                            )
+                        ) AS jt
+                        WHERE jt.user_id = ?
+                    )
+                ", [$user_id])
+                            ->where('tasks.is_private', '!=', 1); // (2) attendee, không private
+                    })
+                    ->orWhere(function ($q) use ($tagIds) {
+                        $q->whereIn('tasks.tag_id', $tagIds)
+                            ->where('tasks.is_private', '!=', 1); // (3) shared tag, không private
+                    });
             });
 
         if (!empty($title)) {
@@ -3951,15 +3997,19 @@ class TaskController extends Controller
                 $task->start_time = $occurrence->copy()->tz('UTC');
                 $task->end_time = $occurrence->copy()->addSeconds($duration)->tz('UTC');
 
+                if ($task->start_time->greaterThan(Carbon::parse("$end 00:00:00"))) {
+                    continue;
+                }
+
                 $task->rrule = [
-                    'freq'              => $task->freq,
-                    'interval'          => $task->interval,
-                    'until'             => $task->until,
-                    'count'             => $task->count,
-                    'byweekday'         => $task->byweekday,
-                    'bymonthday'        => $task->bymonthday,
-                    'bymonth'           => $task->bymonth,
-                    'bysetpos'          => $task->bysetpos,
+                    'freq'       => $task->freq,
+                    'interval'   => $task->interval,
+                    'until'      => $task->until,
+                    'count'      => $task->count,
+                    'byweekday'  => $task->byweekday,
+                    'bymonthday' => $task->bymonthday,
+                    'bymonth'    => $task->bymonth,
+                    'bysetpos'   => $task->bysetpos,
                 ];
 
                 // unset(
@@ -3973,7 +4023,6 @@ class TaskController extends Controller
                 //     $task->bysetpos
                 // );
 
-                // Thêm vào danh sách các task đã mở rộng
                 $expandedTasks[] = clone $task;
             }
         }
