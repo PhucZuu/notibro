@@ -3952,7 +3952,29 @@ class TaskController extends Controller
                 $task->tag_name = $tag->name;
                 $task->tag_id = $tag->id;
                 $task->tag_color_code = $tag->color_code;
+
+                $tagOwner = User::where('id', '=', $tag->user_id)->first();
+
+                $task->tagOwner = [
+                    'user_id'    => $tagOwner->id,
+                    'first_name' => $tagOwner->first_name,
+                    'last_name'  => $tagOwner->last_name,
+                    'email'      => $tagOwner->email,
+                    'avatar'     => $tagOwner->avatar,
+                ];
             }
+
+            $taskOwner = User::where('id', '=', $task->user_id)->first();
+
+            $task->taskOwner = [
+                'user_id'    => $taskOwner->id,
+                'first_name' => $taskOwner->first_name,
+                'last_name'  => $taskOwner->last_name,
+                'email'      => $taskOwner->email,
+                'avatar'     => ($taskOwner->avatar && !Str::startsWith($taskOwner->avatar, ['http://', 'https://']))
+                    ? Storage::url($taskOwner->avatar)
+                    : $taskOwner->avatar,
+            ];
 
             if ($task->attendees) {
                 foreach ($task->attendees as $attendee) {
