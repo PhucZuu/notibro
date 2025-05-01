@@ -1512,7 +1512,10 @@ class TaskController extends Controller
                                 $allAttendees = array_merge($allAttendees, $relatedTask->attendees ?? []);
 
                                 // Cập nhật maxUntil nếu cần
-                                if ($relatedTask->until && (!$maxUntil || Carbon::parse($relatedTask->until)->gt($maxUntil))) {
+                                if (
+                                    is_null($relatedTask->until) ||
+                                    (!is_null($maxUntil) && Carbon::parse($relatedTask->until)->gt($maxUntil))
+                                ) {
                                     $maxUntil = $relatedTask->until;
                                 }
 
@@ -2973,24 +2976,26 @@ class TaskController extends Controller
                     $attendees = $task->attendees ?? [];
                     $existingUserIds = collect($attendees)->pluck('user_id')->toArray();
 
-                    $sharedUser = collect($tag->shared_user)->firstWhere('user_id', $user->id);
-                    if ($sharedUser && $sharedUser['status'] === 'new') {
-                        // Nếu user chưa có trong danh sách attendees thì thêm vào
-                        if (!in_array($user->id, $existingUserIds)) {
-                            $attendees[] = [
-                                'role'      =>  'viewer',
-                                'status'    =>  'yes',
-                                'user_id'   =>  $user->id,
-                            ];
+                    foreach ($users as $user) {
+                        $sharedUser = collect($tag->shared_user)->firstWhere('user_id', $user->id);
+                        if ($sharedUser && $sharedUser['status'] === 'yes') {
+                            // Nếu user chưa có trong danh sách attendees thì thêm vào
+                            if (!in_array($user->id, $existingUserIds)) {
+                                $attendees[] = [
+                                    'role'      =>  'viewer',
+                                    'status'    =>  'yes',
+                                    'user_id'   =>  $user->id,
+                                ];
+                            }
+    
+                            // Gửi thông báo cho user này
+                            $user->notify(new NotificationEvent(
+                                $user->id,
+                                "Vừa có {$task->type} {$task->title} được thêm vào trong {$tag->name}",
+                                "",
+                                "new_task_in_tag"
+                            ));
                         }
-
-                        // Gửi thông báo cho user này
-                        $user->notify(new NotificationEvent(
-                            $user->id,
-                            "Vừa có {$task->type} {$task->title} được thêm vào trong {$tag->name}",
-                            "",
-                            "new_task_in_tag"
-                        ));
                     }
                 }
 
