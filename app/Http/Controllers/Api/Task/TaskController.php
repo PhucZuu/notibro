@@ -1475,6 +1475,15 @@ class TaskController extends Controller
 
                         // Tạo task mới
                         $new_task = Task::create($preNewTask->toArray());
+                        // Nếu thời gian start mới vượt quá until hiện tại → tách thành task lặp riêng chỉ cho ngày đó
+                        if ($latestTask->until && $data['start_time']->gt($latestTask->until)) {
+                            $new_task->is_repeat = true; // hoặc false nếu bạn muốn nó không lặp
+                            $new_task->count = null;
+                            $new_task->until = $data['start_time']->copy();
+                            $new_task->exclude_time = [];
+                            $new_task->save();
+                        }
+
 
                         // Cập nhật until cho task gốc (giới hạn task cũ đến trước ngày cập nhật)
                         $task->until = $data['start_time']->isSameDay($data['updated_date'])
