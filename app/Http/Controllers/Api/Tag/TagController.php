@@ -403,12 +403,17 @@ class TagController extends Controller
             }
     
             $owner = User::find($tag->user_id);
+            $ownerAvatar = $owner && $owner->avatar && !Str::startsWith($owner->avatar, ['http://', 'https://'])
+                ? Storage::url($owner->avatar)
+                : ($owner->avatar ?? null);
     
             return response()->json([
                 'code'    => 200,
                 'message' => 'Tag details retrieved successfully',
                 'data'    => [
-                    'tag'         => $tag,
+                    'tag'         => array_merge($tag->toArray(), [
+                        'shared_user' => $this->formatSharedUsers($tag->shared_user)
+                    ]),
                     'invited'     => $isInvited,
                     'invite_link' => "{$this->URL_FRONTEND}/calendar/tag/{$tag->uuid}/invite",
                     'owner'       => $owner ? [
@@ -416,20 +421,25 @@ class TagController extends Controller
                         'first_name' => $owner->first_name,
                         'last_name'  => $owner->last_name,
                         'email'      => $owner->email,
-                        'avatar'     => $owner->avatar,
+                        'avatar'     => $ownerAvatar,
                     ] : null,
-                    'is_owner' => $tag->user_id === $userId,
+                    'is_owner'    => $tag->user_id === $userId,
                 ],
             ], 200);
         } catch (\Exception $e) {
-            Log::error($e->getMessage());
+            Log::error('Error in showOne:', [
+                'message' => $e->getMessage(),
+                'line'    => $e->getLine(),
+                'file'    => $e->getFile(),
+            ]);
     
             return response()->json([
                 'code'    => 500,
                 'message' => 'An error occurred while retrieving the tag details',
             ], 500);
         }
-    }    
+    }
+    
    
     public function store(Request $request)
     {
@@ -992,32 +1002,36 @@ class TagController extends Controller
                 }
             }
     
-            // 3. Gửi thông báo và email
+            // 3. Gửi thông báo và email nếu người bị xóa đã chấp nhận tham gia
             $removedUser = User::find($userIdToRemove);
             $owner = User::find($tag->user_id);
-    
-            if ($removedUser && $owner) {
+
+            $wasAccepted = $sharedUsers
+                ->firstWhere('user_id', $userIdToRemove)['status'] ?? null;
+
+            if ($removedUser && $owner && $wasAccepted === 'yes') {
                 $taskNames = collect($tasksUpdated)->pluck('title')->filter()->values()->toArray();
                 $taskListStr = implode(', ', $taskNames);
-    
+
                 $message = $keepInTasks
                     ? "Bạn đã bị xóa khỏi tag: {$tag->name}"
                     : (empty($taskListStr)
                         ? "Bạn đã bị xóa khỏi tag: {$tag->name}"
                         : "Bạn đã bị xóa khỏi tag: {$tag->name} và khỏi các task: {$taskListStr}");
-    
+
+                // Gửi thông báo
                 $removedUser->notify(new NotificationEvent(
                     $removedUser->id,
                     $message,
                     "",
                     "removed_from_tag"
                 ));
-    
+
                 // Gửi email
                 $ownerFullName = trim(($owner->first_name ?? '') . ' ' . ($owner->last_name ?? ''));
                 Mail::to($removedUser->email)->queue(new RemoveFromTagMail(
-                    env('MAIL_USERNAME'), // Sender email
-                    $ownerFullName,        // Sender name
+                    env('MAIL_USERNAME'),
+                    $ownerFullName,
                     $tag,
                     $keepInTasks
                 ));
