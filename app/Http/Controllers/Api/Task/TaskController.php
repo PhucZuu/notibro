@@ -1449,68 +1449,45 @@ class TaskController extends Controller
                 case 'EDIT_1B':
                     try {
                         $preNewTask = $task->replicate();
-
                         $preNewTask->start_time = $data['start_time'];
                         $preNewTask->end_time = $data['end_time'];
+                        unset($preNewTask->uuid);
 
+                        // Tìm tất cả task cùng chuỗi lặp
                         $childTasks = Task::where('parent_id', $task->parent_id)
                             ->orWhere('parent_id', $task->id)
                             ->where('is_repeat', 1)
                             ->get();
 
-                        $latestTask = $childTasks->sort(function ($a, $b) {
-                            if (is_null($a->until) && is_null($b->until)) return 0;
-                            if (is_null($a->until)) return -1;
-                            if (is_null($b->until)) return 1;
-                            return strtotime($b->until) <=> strtotime($a->until);
-                        })->first();
+                        // Xác định task có until mới nhất
+                        $latestTask = $childTasks->sortByDesc(function ($t) {
+                            return $t->until ? strtotime($t->until) : 0;
+                        })->first() ?? $task;
 
-                        // Nếu không có task con nào thì fallback về chính $task
-                        $latestTask = $latestTask ?: $task;
-
-                        // Chuẩn hóa về Carbon
+                        // Chuẩn hóa lại kiểu dữ liệu Carbon
                         $latestTask->until = $latestTask->until ? Carbon::parse($latestTask->until) : null;
                         $task->until = $task->until ? Carbon::parse($task->until) : null;
 
-                        // Nếu latestTask không có until nhưng có count, thì tính until từ count
+                        // Nếu không có until nhưng có count thì tính lại until
                         if (!$latestTask->until && $latestTask->count) {
                             $latestTask->until = $this->calculateUntilFromCount($latestTask);
                         }
 
-                        // Logic gán until
-                        if (is_null($latestTask->until)) {
-                            $preNewTask->until = null;
-                        } elseif (
-                            $data['start_time']->greaterThanOrEqualTo($latestTask->until) ||
-                            $data['start_time']->greaterThanOrEqualTo($task->until)
-                        ) {
-                            $preNewTask->until = $data['start_time'];
-                        }
-
-                        unset($preNewTask->uuid);
-
-                        //Add new task for following change
+                        // Tạo task mới
                         $new_task = Task::create($preNewTask->toArray());
-                        Log::info($new_task);
 
-                        if ($data['start_time']->isSameDay($data['updated_date'])) {
-                            $task->until = Carbon::parse($data['updated_date'])->setTime(0, 0, 0);
-                        } else {
-                            $task->until = Carbon::parse($data['updated_date'])->subDay();
-                        }
-
+                        // Cập nhật until cho task gốc (giới hạn task cũ đến trước ngày cập nhật)
+                        $task->until = $data['start_time']->isSameDay($data['updated_date'])
+                            ? Carbon::parse($data['updated_date'])->startOfDay()
+                            : Carbon::parse($data['updated_date'])->subDay();
                         $task->save();
 
-                        //Send REALTIME
                         $returnTaskUpdate[] = $task;
 
-                        // $this->sendRealTimeUpdate($returnTaskUpdate, 'update');
-
-                        // Delete all task that have parent_id = $task->id and start_time > $ta
+                        // Xử lý các task liên quan sau thời điểm `until` cũ
                         $relatedTasks = Task::where(function ($query) use ($task) {
                             $query->where('parent_id', $task->id);
-                            // Kiểm tra nếu parent_id của task hiện tại không phải là null  
-                            if ($task->parent_id !== null) {
+                            if (!is_null($task->parent_id)) {
                                 $query->orWhere('parent_id', $task->parent_id);
                             }
                         })
@@ -1518,65 +1495,61 @@ class TaskController extends Controller
                             ->where('id', '!=', $new_task->id)
                             ->get();
 
-                        //Send REALTIME
-                        // $returnTaskDel = $relatedTasks;
-
+                        // Gom dữ liệu từ các task lặp lại
                         $allExcludeTimes = $new_task->exclude_time ?? [];
-
                         $allAttendees = $new_task->attendees ?? [];
-
                         $maxUntil = $new_task->until;
 
                         foreach ($relatedTasks as $relatedTask) {
-                            $updatedStartTime = Carbon::parse($relatedTask->start_time)->setTime($data['start_time']->hour, $data['start_time']->minute, $data['start_time']->second);
-                            $updatedEndTime = Carbon::parse($relatedTask->end_time)->setTime($data['end_time']->hour, $data['end_time']->minute, $data['end_time']->second);
+                            $updatedStartTime = Carbon::parse($relatedTask->start_time)
+                                ->setTimeFrom($data['start_time']);
+                            $updatedEndTime = Carbon::parse($relatedTask->end_time)
+                                ->setTimeFrom($data['end_time']);
 
                             if ($relatedTask->is_repeat) {
-
-                                $relatedExcludeTimes = $relatedTask->exclude_time ?? [];
-                                $allExcludeTimes = array_merge($allExcludeTimes, $relatedExcludeTimes);
-
-                                //Add all attendees to new task
+                                // Gộp exclude_time và attendees
+                                $allExcludeTimes = array_merge($allExcludeTimes, $relatedTask->exclude_time ?? []);
                                 $allAttendees = array_merge($allAttendees, $relatedTask->attendees ?? []);
-                                $allAttendees = array_values(array_reduce($allAttendees, function ($carry, $attendee) {
-                                    $carry[$attendee['user_id']] = $attendee; // Ghi đè để giữ bản ghi cuối cùng
-                                    return $carry;
-                                }, []));
 
-                                if ($relatedTask->until && (!$maxUntil || Carbon::parse($relatedTask->until)->greaterThan(Carbon::parse($maxUntil)))) {
+                                // Cập nhật maxUntil nếu cần
+                                if ($relatedTask->until && (!$maxUntil || Carbon::parse($relatedTask->until)->gt($maxUntil))) {
                                     $maxUntil = $relatedTask->until;
                                 }
 
                                 $relatedTask->forceDelete();
                             } else {
+                                // Nếu không phải task lặp → cập nhật lại thời gian
                                 $relatedTask->update([
-                                    'start_time'    => $updatedStartTime,
-                                    'end_time'      => $updatedEndTime,
-                                    'is_all_day'    => $data['is_all_day'] ?? $relatedTask->is_all_day,
+                                    'start_time' => $updatedStartTime,
+                                    'end_time' => $updatedEndTime,
+                                    'is_all_day' => $data['is_all_day'] ?? $relatedTask->is_all_day,
                                 ]);
 
                                 $returnTaskUpdate[] = $relatedTask;
                             }
                         }
 
-                        if (!$returnTaskUpdate) {
-                            $this->sendRealTimeUpdate($returnTaskUpdate, 'update');
-                        }
+                        // Gộp attendees theo `user_id` để tránh trùng
+                        $allAttendees = array_values(array_reduce($allAttendees, function ($carry, $attendee) {
+                            $carry[$attendee['user_id']] = $attendee;
+                            return $carry;
+                        }, []));
 
-                        app(UploadFileService::class)->duplicateFile($task->id, $new_task->id);
-                        // app(TaskGroupChatController::class)->createGroup($new_task->id, $new_task->user_id);
-
-                        $allExcludeTimes = array_unique($allExcludeTimes);
-                        $new_task->exclude_time = array_values($allExcludeTimes);
-
+                        // Gán thông tin cuối cùng vào task mới
+                        $new_task->exclude_time = array_values(array_unique($allExcludeTimes));
+                        $new_task->attendees = $allAttendees;
                         $new_task->until = $maxUntil;
-
                         $new_task->parent_id = $task->parent_id ?? $task->id;
                         $new_task->save();
 
-                        //Send REALTIME
+                        // Xử lý file và realtime
+                        app(UploadFileService::class)->duplicateFile($task->id, $new_task->id);
+                        // app(TaskGroupChatController::class)->createGroup($new_task->id, $new_task->user_id);
+
                         $returnTask[] = $new_task;
 
+                        // Gửi realtime update
+                        $this->sendRealTimeUpdate($returnTaskUpdate, 'update');
                         $this->sendRealTimeUpdate($returnTask, 'create');
 
                         $new_task->attendees = $new_task->attendees ?? [];
@@ -3000,7 +2973,9 @@ class TaskController extends Controller
                     $attendees = $task->attendees ?? [];
                     $existingUserIds = collect($attendees)->pluck('user_id')->toArray();
 
-                    foreach ($users as $user) {
+                    $sharedUser = collect($tag->shared_user)->firstWhere('user_id', $user->id);
+                    if ($sharedUser && $sharedUser['status'] === 'new') {
+                        // Nếu user chưa có trong danh sách attendees thì thêm vào
                         if (!in_array($user->id, $existingUserIds)) {
                             $attendees[] = [
                                 'role'      =>  'viewer',
@@ -3009,6 +2984,7 @@ class TaskController extends Controller
                             ];
                         }
 
+                        // Gửi thông báo cho user này
                         $user->notify(new NotificationEvent(
                             $user->id,
                             "Vừa có {$task->type} {$task->title} được thêm vào trong {$tag->name}",
@@ -4019,7 +3995,11 @@ class TaskController extends Controller
                 $task->start_time = $occurrence->copy()->tz('UTC');
                 $task->end_time = $occurrence->copy()->addSeconds($duration)->tz('UTC');
 
-                if ($task->start_time->greaterThan(Carbon::parse("$end 00:00:00"))) {
+                if ($start && $task->start_time->lessThan(Carbon::parse("$start 00:00:00"))) {
+                    continue;
+                }
+
+                if ($end && $task->start_time->greaterThan(Carbon::parse("$end 00:00:00"))) {
                     continue;
                 }
 
