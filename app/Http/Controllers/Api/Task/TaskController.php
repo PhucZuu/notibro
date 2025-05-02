@@ -695,7 +695,13 @@ class TaskController extends Controller
                         $allExcludeTimes = array_unique($allExcludeTimes);
                         $new_task->exclude_time = array_values($allExcludeTimes);
 
-                        $new_task->until = $maxUntil;
+                        // Kiểm tra có thay đổi until không
+                        if (isset($request->hasChangeUntil) && $request->hasChangeUntil) {
+                            $new_task->until = isset($data['until']) ? Carbon::parse($data['until'])->setTimezone('UTC') : null;
+                        } else {
+                            $new_task->until = $maxUntil;
+                        }
+
                         $new_task->attendees = $allAttendees;
                         $new_task->parent_id = $task->parent_id ?? $task->id;
                         $new_task->save();
