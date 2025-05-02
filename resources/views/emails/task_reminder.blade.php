@@ -116,7 +116,7 @@
             @php
                 use Carbon\Carbon;
                 $timezone = $task->timezone_code;
-                $formattedStartTime = Carbon::parse($occurrenceTime ?? $task->start_time)
+                $formattedStartTime = Carbon::parse($task->start_time)
                     ->setTimezone($timezone)
                     ->format('H:i d/m/Y');
             @endphp
