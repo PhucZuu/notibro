@@ -2,6 +2,7 @@
 
 namespace App\Notifications;
 
+use Carbon\Carbon;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Bus\Queueable;
@@ -67,8 +68,10 @@ class TaskNotification extends Notification implements ShouldBroadcast
     {
         Log::info('🔔 Đang gửi thông báo đến Pusher', ['user_id' => $notifiable->id]);
 
+        $formatedStartTime = Carbon::parse($this->task->start_time, )->setTimezone($this->task->timezone_code)->format('H:i d/m/Y');
+        Log::info('Formatted start time: ', ['formatted_start_time' => $formatedStartTime]);
         return new BroadcastMessage ([
-            'message'       => "Event' {$this->task->title}.' is coming up at {$this->task->start_time}",
+            'message'       => "{$this->task->type} {$this->task->title} is coming up at {$formatedStartTime}",
             'task_id'       => $this->task->id,
             'start_time'    => $this->task->start_time,
             'user_id'       => $notifiable->id,
