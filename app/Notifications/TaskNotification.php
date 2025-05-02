@@ -21,13 +21,16 @@ class TaskNotification extends Notification implements ShouldBroadcast
     protected $task;
     protected $userID;
 
+    protected $notifiTime;
+
     /**
      * Create a new notification instance.
      */
-    public function __construct($task, $userID)
+    public function __construct($task, $userID, $notifiTime )
     {
         $this->task = $task;
         $this->userID = $userID;
+        $this->notifiTime = $notifiTime;
     }
 
     /**
@@ -67,11 +70,14 @@ class TaskNotification extends Notification implements ShouldBroadcast
     public function toBroadcast(object $notifiable): BroadcastMessage 
     {
         Log::info('🔔 Đang gửi thông báo đến Pusher', ['user_id' => $notifiable->id]);
+        if ($this->task->type == 'task') {
+            $type = 'Việc cần làm';
+        } else if ($this->task->type == 'event') {
+            $type = 'Sự kiện';
+        }
 
-        $formatedStartTime = Carbon::parse($this->task->start_time, )->setTimezone($this->task->timezone_code)->format('H:i d/m/Y');
-        Log::info('Formatted start time: ', ['formatted_start_time' => $formatedStartTime]);
         return new BroadcastMessage ([
-            'message'       => "{$this->task->type} {$this->task->title} is coming up at {$formatedStartTime}",
+            'message'       => "{$type} {$this->task->title} sẽ diễn ra vào {$this->notifiTime}!",
             'task_id'       => $this->task->id,
             'start_time'    => $this->task->start_time,
             'user_id'       => $notifiable->id,

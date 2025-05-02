@@ -52,8 +52,12 @@ class TaskWebReminderService
                                     continue;
                                 }
 
+                                $startTime = Carbon::parse($task->start_time)->format('H:i');
+                                $combinedDateTime = $nextOccurrence->toDateString() . ' ' . $startTime;
+                                $notifiTime = Carbon::createFromFormat('Y-m-d H:i', $combinedDateTime, 'UTC')
+                                                    ->setTimezone($task->timezone_code);
                                 //Send notification
-                                $user->notify(new TaskNotification($task, $user->id));
+                                $user->notify(new TaskNotification($task, $user->id, $notifiTime));
                                 Log::info("Task {$task->id} đã thông báo đến user {$user->id}, bỏ qua... ->Cache key: {$cacheKey}<-");
 
                                 //Set cache to prevent duplicate notification

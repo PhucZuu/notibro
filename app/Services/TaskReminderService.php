@@ -83,9 +83,14 @@ class TaskReminderService
             return;
         }
 
+        $startTime = Carbon::parse($task->start_time)->format('H:i:s');
+        $combinedDateTime = $reminderTime->toDateString() . ' ' . $startTime;
+        $notifiTime = Carbon::createFromFormat('Y-m-d H:i:s', $combinedDateTime, 'UTC')
+                            ->setTimezone($task->timezone_code);
+
         // Gửi email
         try {
-            Mail::to($user->email)->queue(new TaskReminderMail($user, $task, $reminderTime));
+            Mail::to($user->email)->queue(new TaskReminderMail($user, $task, $notifiTime));
             Log::info("Đã gửi email nhắc nhở task {$task->id} đến user {$user->id}");
             Cache::put($cacheKey, true, now()->addHours(24));
         } catch (\Exception $e) {
