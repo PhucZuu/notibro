@@ -579,12 +579,38 @@ class TagController extends Controller
                 ], 403);
             }
     
+            // ❌ Kiểm tra tên tag đã tồn tại với người tạo tag
+            $ownerTagConflict = Tag::where('user_id', $tag->user_id)
+                ->where('name', $validated['name'])
+                ->where('id', '!=', $tag->id)
+                ->exists();
+    
+            if ($ownerTagConflict) {
+                return response()->json([
+                    'code' => 409,
+                    'message' => 'The owner already has a tag with this name',
+                ], 409);
+            }
+    
+            // ❌ Nếu không phải chủ, kiểm tra có trùng tên tag người sửa đang sở hữu
+            if (!$isOwner) {
+                $userTagConflict = Tag::where('user_id', $userId)
+                    ->where('name', $validated['name'])
+                    ->exists();
+    
+                if ($userTagConflict) {
+                    return response()->json([
+                        'code' => 409,
+                        'message' => 'You already have a tag with this name',
+                    ], 409);
+                }
+            }
+    
             $oldSharedUserIds = collect($tag->shared_user ?? [])->pluck('user_id')->toArray();
             $formattedSharedUsers = $tag->shared_user;
     
-            if (($isOwner || $isEditor) && isset($validated['shared_user'])) {
+            if (isset($validated['shared_user'])) {
                 $sharedUsersRaw = is_string($validated['shared_user']) ? json_decode($validated['shared_user'], true) : $validated['shared_user'];
-    
                 if (!is_array($sharedUsersRaw)) {
                     return response()->json(['code' => 400, 'message' => 'Invalid shared_user JSON'], 400);
                 }
@@ -597,27 +623,25 @@ class TagController extends Controller
                         if (!$userModel) return null;
     
                         return [
-                            'user_id'    => $userModel->id,
-                            'email'      => $userModel->email,
-                            'status'     => $user['status'] ?? 'pending',
-                            'role'       => $user['role'] ?? 'viewer',
+                            'user_id' => $userModel->id,
+                            'email'   => $userModel->email,
+                            'status'  => $user['status'] ?? 'pending',
+                            'role'    => $user['role'] ?? 'viewer',
                         ];
                     })->filter()->values()->toArray();
                 } else {
                     $newUsers = collect($sharedUsersRaw)->filter(fn($user) => !$existingUsers->contains('user_id', $user['user_id']));
-    
                     $newFormattedUsers = $newUsers->map(function ($user) {
                         $userModel = User::find($user['user_id']);
                         if (!$userModel) return null;
     
                         return [
-                            'user_id'    => $userModel->id,
-                            'email'      => $userModel->email,
-                            'status'     => 'pending',
-                            'role'       => 'viewer',
+                            'user_id' => $userModel->id,
+                            'email'   => $userModel->email,
+                            'status'  => 'pending',
+                            'role'    => 'viewer',
                         ];
                     })->filter()->values();
-    
                     $formattedSharedUsers = $existingUsers->merge($newFormattedUsers)->values()->toArray();
                 }
             }
@@ -636,7 +660,6 @@ class TagController extends Controller
                 'method' => $item['method'] ?? 'once',
             ])->filter(fn($r) => $r['type'] && $r['time'])->values()->toArray();
     
-            // Cập nhật tag
             $tag->update([
                 'name'         => $validated['name'],
                 'description'  => $validated['description'],
@@ -645,7 +668,6 @@ class TagController extends Controller
                 'reminder'     => $formattedReminder,
             ]);
     
-            // Xử lý gửi mail và thông báo cho người mới được thêm
             $newSharedUserIds = collect($formattedSharedUsers)->pluck('user_id')->toArray();
             $newUserIds = array_diff($newSharedUserIds, $oldSharedUserIds);
     
@@ -703,6 +725,7 @@ class TagController extends Controller
             ], 500);
         }
     }
+    
     
     public function destroy($id)
     {
