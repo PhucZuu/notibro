@@ -958,6 +958,24 @@ class TagController extends Controller
             if (!$sharedUsers->firstWhere('user_id', $userId)) {
                 return response()->json(['code' => 403, 'message' => 'You are not part of this tag'], 403);
             }
+
+            // Chuyển các task của người tạo cho chủ sở hữu tag
+            $tasksCreatedByUser = Task::where('user_id', $userId)->where('tag_id', $tag->id)->get();
+            foreach ($tasksCreatedByUser as $task) {
+                // Loại bỏ chủ tag nếu chủ tham gia vào task
+                $filteredAttendees = collect($task->attendees)
+                ->filter(function ($attendee) use ($tag) {
+                    return $attendee['user_id'] != $tag->user_id;
+                })
+                ->values()
+                ->toArray();
+
+                // Cập nhật task với người tạo là chủ tag
+                $task->update([
+                    'attendees' => $filteredAttendees,
+                    'user_id' => $tag->user_id,
+                ]);
+            }
     
             // 1. Xóa user khỏi shared_user
             $newSharedUsers = $sharedUsers
