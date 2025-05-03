@@ -204,8 +204,8 @@ class TaskController extends Controller
                         ) AS jt
                         WHERE jt.user_id = ?
                     )
-                ", [$user_id])
-                            ->where('tasks.is_private', '!=', 1); // (2) attendee và không private
+                ", [$user_id]);
+                        //    ->where('tasks.is_private', '!=', 1); // (2) attendee và không private
                     })
                     ->orWhere(function ($q) use ($tagIds) {
                         $q->whereIn('tasks.tag_id', $tagIds)
