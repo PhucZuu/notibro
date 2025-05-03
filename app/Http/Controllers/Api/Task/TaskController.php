@@ -3609,12 +3609,12 @@ class TaskController extends Controller
             ]);
         }
 
-        if ($task->is_private == 1) {
-            return response()->json([
-                'code' => 403,
-                'message' => 'Can not accpet invite this event',
-            ]);
-        }
+        // if ($task->is_private == 1) {
+        //     return response()->json([
+        //         'code' => 403,
+        //         'message' => 'Can not accpet invite this event',
+        //     ]);
+        // }
 
         if ($user->id == $task->user_id) {
             return response()->json([
@@ -3636,9 +3636,9 @@ class TaskController extends Controller
 
             foreach ($allTasks as $relatedTask) {
                 // Bỏ qua nếu task là riêng tư
-                if ($relatedTask->is_private == 1) {
-                    continue;
-                }
+                // if ($relatedTask->is_private == 1) {
+                //     continue;
+                // }
 
                 $attendees = is_array($relatedTask->attendees) ? $relatedTask->attendees : [];
 
