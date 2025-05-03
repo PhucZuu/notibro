@@ -10,6 +10,7 @@ use App\Mail\RemoveFromTagMail;
 use App\Mail\SendNotificationMail;
 use Illuminate\Http\Request;
 use App\Models\Tag;
+use App\Models\Task;
 use App\Models\User;
 use App\Notifications\NotificationEvent;
 use Illuminate\Support\Facades\Auth;
@@ -579,7 +580,7 @@ class TagController extends Controller
                 ], 403);
             }
     
-            // ❌ Kiểm tra tên tag đã tồn tại với người tạo tag
+            // Chống trùng tên với tag của chủ sở hữu
             $ownerTagConflict = Tag::where('user_id', $tag->user_id)
                 ->where('name', $validated['name'])
                 ->where('id', '!=', $tag->id)
@@ -592,10 +593,11 @@ class TagController extends Controller
                 ], 409);
             }
     
-            // ❌ Nếu không phải chủ, kiểm tra có trùng tên tag người sửa đang sở hữu
+            // Nếu không phải chủ sở hữu, không được đặt trùng tên tag chính mình đã có
             if (!$isOwner) {
                 $userTagConflict = Tag::where('user_id', $userId)
                     ->where('name', $validated['name'])
+                    ->where('id', '!=', $tag->id)
                     ->exists();
     
                 if ($userTagConflict) {
@@ -667,10 +669,19 @@ class TagController extends Controller
                 'shared_user'  => $formattedSharedUsers,
                 'reminder'     => $formattedReminder,
             ]);
+
+            // 📦 Lấy tất cả các task đang dùng tag này
+            $tasksInTag = Task::where('tag_id', $tag->id)->get();
+
+            // 📤 Gửi realtime cập nhật cho các task này
+            if ($tasksInTag->isNotEmpty()) {
+                $this->sendRealTimeUpdateTasks($tasksInTag, 'update');
+            }
     
             $newSharedUserIds = collect($formattedSharedUsers)->pluck('user_id')->toArray();
             $newUserIds = array_diff($newSharedUserIds, $oldSharedUserIds);
     
+            // Gửi mail & thông báo cho người mới được mời
             if (!empty($newUserIds)) {
                 $emails = User::whereIn('id', $newUserIds)->pluck('email')->filter();
                 if ($emails->isNotEmpty()) {
@@ -692,6 +703,36 @@ class TagController extends Controller
     
             $returnTag[] = $tag;
             $this->sendRealTimeUpdate($returnTag, 'update');
+    
+            // 🔔 Gửi thông báo nếu người chỉnh sửa là editor
+            if (!$isOwner) {
+                $owner = User::find($tag->user_id);
+                $editor = Auth::user();
+                $fullName = trim(($editor->first_name ?? '') . ' ' . ($editor->last_name ?? ''));
+                if ($owner && $owner->id !== $editor->id) {
+                    $owner->notify(new NotificationEvent(
+                        $owner->id,
+                        "{$fullName} vừa chỉnh sửa tag: {$tag->name}",
+                        "",
+                        "tag_updated_by_editor"
+                    ));
+                }
+            }
+    
+            // 🔔 Gửi thông báo cho các shared user đã chấp nhận
+            foreach ($formattedSharedUsers as $user) {
+                if ($user['user_id'] !== $userId && $user['status'] === 'yes') {
+                    $sharedUser = User::find($user['user_id']);
+                    if ($sharedUser) {
+                        $sharedUser->notify(new NotificationEvent(
+                            $sharedUser->id,
+                            "Tag {$tag->name} vừa được cập nhật",
+                            "",
+                            "tag_updated"
+                        ));
+                    }
+                }
+            }
     
             $owner = User::find($tag->user_id);
             return response()->json([
