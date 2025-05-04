@@ -1460,10 +1460,12 @@ class TaskController extends Controller
                         unset($preNewTask->uuid);
 
                         // Tìm tất cả task cùng chuỗi lặp
-                        $childTasks = Task::where('parent_id', $task->parent_id)
-                            ->orWhere('parent_id', $task->id)
-                            ->where('is_repeat', 1)
-                            ->get();
+                        $childTasks = Task::where(function ($query) use ($task) {
+                            $query->whereIn('parent_id', [$task->id, $task->parent_id])
+                                  ->orWhereIn('id', [$task->id, $task->parent_id]);
+                        })
+                        ->where('is_repeat', 1)
+                        ->get();
 
                         // Xác định task có until mới nhất
                         $latestTask = $childTasks->sortByDesc(function ($t) {
@@ -1482,7 +1484,7 @@ class TaskController extends Controller
                         // Tạo task mới
                         $new_task = Task::create($preNewTask->toArray());
                         // Nếu thời gian start mới vượt quá until hiện tại → tách thành task lặp riêng chỉ cho ngày đó
-                        if ($latestTask->until && $data['start_time']->gt($latestTask->until)) {
+                        if ($preNewTask->until != null && $latestTask->until && $data['start_time']->gt($latestTask->until)) {
                             $new_task->is_repeat = true; // hoặc false nếu bạn muốn nó không lặp
                             $new_task->count = null;
                             $new_task->until = $data['start_time']->copy();
