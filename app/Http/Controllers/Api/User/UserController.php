@@ -246,8 +246,15 @@ class UserController extends Controller
             'last_name'  => ['required', 'max:255'],
             'gender'     => ['required', Rule::in(['male', 'female'])],
             'address'    => ['nullable', 'max:255'],
-            'phone'      => ['nullable', 'sometimes', 'regex:/^0[0-9]{9}$/'],
+            'phone'      => ['nullable'],
         ]);
+
+        if(isset($info['phone']) && !preg_match('/^0[0-9]{9}$/', $info['phone'])) {
+            return response()->json([
+                'code'    => 422,
+                'message' => 'Phone number is invalid',
+            ], 422);
+        }
 
         $user = User::find(auth()->id());
 
