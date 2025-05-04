@@ -60,6 +60,7 @@ class TagController extends Controller
 
         return $recipients;
     }
+
     public function sendRealTimeUpdate($data, $action)
     {   
         Log::info('Xử lý gửi đi');
@@ -85,10 +86,10 @@ class TagController extends Controller
     }
     
 
-    public function sendRealTimeUpdateTasks($data, $action)
+    public function sendRealTimeUpdateTasks($data, $action, $userIdsOverride = null)
     {
-        $recipientsTasks = $this->getRecipientsTasks($data);
-
+        $recipientsTasks = $userIdsOverride ?? $this->getRecipientsTasks($data);
+    
         event(new TaskUpdatedEvent($data, $action, $recipientsTasks));
     }
 
@@ -514,7 +515,7 @@ class TagController extends Controller
                 if ($userModel) {
                     $userModel->notify(new NotificationEvent(
                         $userModel->id,
-                        "Bạn đã được mời tham gia tag: {$tag->name}",
+                        "Bạn đã được mời tham gia thẻ: {$tag->name}",
                         "{$this->URL_FRONTEND}/calendar/tag/{$tag->uuid}/invite",
                         "invite_to_tag"
                     ));
@@ -693,7 +694,7 @@ class TagController extends Controller
                     if ($newUser) {
                         $newUser->notify(new NotificationEvent(
                             $newUser->id,
-                            "Bạn đã được mời tham gia tag: {$tag->name}",
+                            "Bạn đã được mời tham gia thẻ: {$tag->name}",
                             "{$this->URL_FRONTEND}/calendar/tag/{$tag->uuid}/invite",
                             "invite_to_tag"
                         ));
@@ -712,7 +713,7 @@ class TagController extends Controller
                 if ($owner && $owner->id !== $editor->id) {
                     $owner->notify(new NotificationEvent(
                         $owner->id,
-                        "{$fullName} vừa chỉnh sửa tag: {$tag->name}",
+                        "{$fullName} vừa chỉnh sửa thẻ: {$tag->name}",
                         "",
                         "tag_updated_by_editor"
                     ));
@@ -726,7 +727,7 @@ class TagController extends Controller
                     if ($sharedUser) {
                         $sharedUser->notify(new NotificationEvent(
                             $sharedUser->id,
-                            "Tag {$tag->name} vừa được cập nhật",
+                            "Thẻ {$tag->name} vừa được cập nhật",
                             "",
                             "tag_updated"
                         ));
@@ -766,7 +767,6 @@ class TagController extends Controller
             ], 500);
         }
     }
-    
     
     public function destroy($id)
     {
@@ -828,7 +828,7 @@ class TagController extends Controller
                     $user = User::find($uid);
                     if ($user) {
                         $taskList = implode(', ', $tasks);
-                        $message = "Tag '{$tagName}' đã bị xóa, các task liên quan: {$taskList}.";
+                        $message = "Thẻ '{$tagName}' đã bị xóa, các sự kiện liên quan {$taskList}.";
     
                         $user->notify(new NotificationEvent(
                             $user->id,
@@ -890,7 +890,7 @@ class TagController extends Controller
         if ($owner) {
             $owner->notify(new NotificationEvent(
                 $owner->id,
-                "{$fullName} đã chấp nhận lời mời vào tag: {$tag->name}",
+                "{$fullName} đã chấp nhận lời mời vào thẻ: {$tag->name}",
                 "",
                 "accept_tag_invite"
             ));
@@ -926,7 +926,7 @@ class TagController extends Controller
         if ($owner && $currentUser) {
             $owner->notify(new NotificationEvent(
                 $owner->id,
-                "{$fullName} đã từ chối lời mời vào tag: {$tag->name}",
+                "{$fullName} đã từ chối lời mời vào thẻ: {$tag->name}",
                 "",
                 "decline_tag_invite"
             ));
@@ -945,6 +945,11 @@ class TagController extends Controller
             $currentUser = Auth::user();
             $tag = Tag::find($id);
     
+            Log::info("🔁 [leaveTag] Bắt đầu xử lý leave tag", [
+                'user_id' => $userId,
+                'tag_id' => $id
+            ]);
+    
             if (!$tag) {
                 return response()->json(['code' => 404, 'message' => 'Tag not found'], 404);
             }
@@ -954,37 +959,55 @@ class TagController extends Controller
             }
     
             $sharedUsers = collect($tag->shared_user ?? []);
-    
             if (!$sharedUsers->firstWhere('user_id', $userId)) {
                 return response()->json(['code' => 403, 'message' => 'You are not part of this tag'], 403);
             }
-
-            // Chuyển các task của người tạo cho chủ sở hữu tag
-            $tasksCreatedByUser = Task::where('user_id', $userId)->where('tag_id', $tag->id)->get();
+    
+            // 👉 Ghi nhớ các task mà người rời sẽ bị mất quyền sở hữu (trước khi chuyển)
+            $tasksCreatedByUser = Task::where('user_id', $userId)
+                ->where('tag_id', $tag->id)
+                ->get();
+            $tasksToRemoveFromLeaver = $tasksCreatedByUser->pluck('id');
+    
+            Log::info("✏️ [leaveTag] Chuyển quyền các task do user tạo", [
+                'task_ids' => $tasksToRemoveFromLeaver,
+                'new_owner_id' => $tag->user_id
+            ]);
+    
             foreach ($tasksCreatedByUser as $task) {
-                // Loại bỏ chủ tag nếu chủ tham gia vào task
                 $filteredAttendees = collect($task->attendees)
-                ->filter(function ($attendee) use ($tag) {
-                    return $attendee['user_id'] != $tag->user_id;
-                })
-                ->values()
-                ->toArray();
-
-                // Cập nhật task với người tạo là chủ tag
+                    ->filter(fn($attendee) => $attendee['user_id'] != $tag->user_id)
+                    ->values()
+                    ->toArray();
+    
                 $task->update([
                     'attendees' => $filteredAttendees,
                     'user_id' => $tag->user_id,
                 ]);
             }
+
+            if ($tasksCreatedByUser->isNotEmpty()) {
+                Log::info("📡 [leaveTag] Gửi realtime task cho chủ sở hữu sau khi chuyển quyền", [
+                    'new_owner_id' => $tag->user_id,
+                    'task_ids'     => $tasksCreatedByUser->pluck('id'),
+                ]);
+            
+                $this->sendRealTimeUpdateTasks($tasksCreatedByUser, 'update', [$tag->user_id]);
+            }
     
-            // 1. Xóa user khỏi shared_user
+            // 🧹 Xóa user khỏi shared_user
             $newSharedUsers = $sharedUsers
                 ->reject(fn($user) => $user['user_id'] == $userId)
                 ->values()
                 ->toArray();
+    
             $tag->update(['shared_user' => $newSharedUsers]);
     
-            // 2. Xóa user khỏi attendees của các task mà họ thực sự tham gia
+            Log::info("🧹 [leaveTag] Đã xóa user khỏi shared_user", [
+                'remaining_shared_users' => $newSharedUsers
+            ]);
+    
+            // 📤 Xóa user khỏi attendees của các task còn lại
             $tasksLeft = [];
             foreach ($tag->tasks as $task) {
                 $attendees = collect($task->attendees ?? []);
@@ -998,41 +1021,75 @@ class TagController extends Controller
                 }
             }
     
-            // 3. Gửi thông báo cho chủ sở hữu
+            Log::info("📤 [leaveTag] Danh sách task đã xóa user khỏi attendees", [
+                'task_ids' => collect($tasksLeft)->pluck('id')
+            ]);
+    
+            // 📣 Gửi thông báo cho chủ tag
             $owner = User::find($tag->user_id);
             if ($owner) {
                 $fullName = trim(($currentUser->first_name ?? '') . ' ' . ($currentUser->last_name ?? ''));
-    
                 $taskNames = collect($tasksLeft)->pluck('title')->filter()->values()->toArray();
                 $taskNamesStr = !empty($taskNames) ? ' và các task: ' . implode(', ', $taskNames) : '';
     
+                Log::info("📣 [leaveTag] Gửi thông báo đến chủ sở hữu", [
+                    'owner_id' => $owner->id,
+                    'from_user_id' => $currentUser->id
+                ]);
+    
                 $owner->notify(new NotificationEvent(
                     $owner->id,
-                    "{$fullName} đã rời khỏi tag: {$tag->name} và các task liên quan: {$taskNamesStr}",
+                    "{$fullName} đã rời khỏi thẻ: {$tag->name}{$taskNamesStr}",
                     "",
                     "leave_tag"
                 ));
             }
     
-            // 4. Gửi realtime
+            // 📡 Gửi realtime update tag cho tất cả
+            Log::info("📡 [leaveTag] Gửi realtime cập nhật tag", [
+                'tag_id' => $tag->id
+            ]);
+            $this->sendRealTimeUpdate([$tag], 'update');
+    
+            // 📡 Gửi realtime update task nếu có chỉnh attendees
             if (!empty($tasksLeft)) {
+                Log::info("📡 [leaveTag] Gửi realtime cập nhật các task (attendees thay đổi)", [
+                    'task_ids' => collect($tasksLeft)->pluck('id')
+                ]);
                 $this->sendRealTimeUpdateTasks($tasksLeft, 'update');
             }
-            $this->sendRealTimeUpdate([$tag], 'update');
+    
+            // 📡 Gửi realtime delete các task người rời bị mất quyền (vì bị chuyển chủ)
+            if ($tasksToRemoveFromLeaver->isNotEmpty()) {
+                $tasksLost = Task::whereIn('id', $tasksToRemoveFromLeaver)->get();
+    
+                Log::info("📡 [leaveTag] Gửi realtime riêng cho người rời khỏi tag", [
+                    'user_id' => $userId,
+                    'lost_task_ids' => $tasksToRemoveFromLeaver
+                ]);
+    
+                $this->sendRealTimeUpdateTasks($tasksLost, 'delete', [$userId]);
+  
+            }
     
             return response()->json([
                 'code' => 200,
                 'message' => 'Successfully left the tag and removed from related tasks',
             ], 200);
+    
         } catch (\Exception $e) {
-            Log::error($e->getMessage());
+            Log::error('❌ [leaveTag] Exception: ' . $e->getMessage(), [
+                'line' => $e->getLine(),
+                'file' => $e->getFile()
+            ]);
     
             return response()->json([
                 'code' => 500,
                 'message' => 'An error occurred while leaving the tag',
             ], 500);
         }
-    }
+    }    
+    
 
     public function removeUserFromTag(Request $request, $tagId, $userIdToRemove)
     {
@@ -1096,10 +1153,10 @@ class TagController extends Controller
                 $taskListStr = implode(', ', $taskNames);
 
                 $message = $keepInTasks
-                    ? "Bạn đã bị xóa khỏi tag: {$tag->name}"
+                    ? "Bạn đã bị xóa khỏi thẻ: {$tag->name}"
                     : (empty($taskListStr)
-                        ? "Bạn đã bị xóa khỏi tag: {$tag->name}"
-                        : "Bạn đã bị xóa khỏi tag: {$tag->name} và khỏi các task: {$taskListStr}");
+                        ? "Bạn đã bị xóa khỏi thẻ: {$tag->name}"
+                        : "Bạn đã bị xóa khỏi thẻ: {$tag->name} và khỏi các sự kiện: {$taskListStr}");
 
                 // Gửi thông báo
                 $removedUser->notify(new NotificationEvent(
