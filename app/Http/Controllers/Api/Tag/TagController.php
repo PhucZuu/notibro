@@ -1123,12 +1123,31 @@ class TagController extends Controller
                 ->reject(fn($user) => $user['user_id'] == $userIdToRemove)
                 ->values()
                 ->toArray();
-    
             $tag->update(['shared_user' => $newSharedUsers]);
     
             $tasksUpdated = [];
     
-            // 2. Nếu cần thì xóa khỏi attendees trong task
+            // 2. Chuyển quyền task mà user bị xóa đã tạo sang chủ tag
+            $tasksCreatedByUser = Task::where('user_id', $userIdToRemove)
+                ->where('tag_id', $tag->id)
+                ->get();
+    
+            foreach ($tasksCreatedByUser as $task) {
+                // Xóa chủ tag khỏi attendees nếu có
+                $filteredAttendees = collect($task->attendees ?? [])
+                    ->filter(fn($attendee) => $attendee['user_id'] != $tag->user_id)
+                    ->values()
+                    ->toArray();
+    
+                $task->update([
+                    'attendees' => $filteredAttendees,
+                    'user_id' => $tag->user_id,
+                ]);
+    
+                $tasksUpdated[] = $task;
+            }
+    
+            // 3. Nếu cần thì xóa khỏi attendees trong task
             if (!$keepInTasks) {
                 foreach ($tag->tasks as $task) {
                     $attendees = collect($task->attendees ?? [])
@@ -1141,23 +1160,23 @@ class TagController extends Controller
                 }
             }
     
-            // 3. Gửi thông báo và email nếu người bị xóa đã chấp nhận tham gia
+            // 4. Gửi thông báo và email nếu người bị xóa đã chấp nhận
             $removedUser = User::find($userIdToRemove);
             $owner = User::find($tag->user_id);
-
+    
             $wasAccepted = $sharedUsers
                 ->firstWhere('user_id', $userIdToRemove)['status'] ?? null;
-
+    
             if ($removedUser && $owner && $wasAccepted === 'yes') {
                 $taskNames = collect($tasksUpdated)->pluck('title')->filter()->values()->toArray();
                 $taskListStr = implode(', ', $taskNames);
-
+    
                 $message = $keepInTasks
                     ? "Bạn đã bị xóa khỏi thẻ: {$tag->name}"
                     : (empty($taskListStr)
                         ? "Bạn đã bị xóa khỏi thẻ: {$tag->name}"
                         : "Bạn đã bị xóa khỏi thẻ: {$tag->name} và khỏi các sự kiện: {$taskListStr}");
-
+    
                 // Gửi thông báo
                 $removedUser->notify(new NotificationEvent(
                     $removedUser->id,
@@ -1165,7 +1184,7 @@ class TagController extends Controller
                     "",
                     "removed_from_tag"
                 ));
-
+    
                 // Gửi email
                 $ownerFullName = trim(($owner->first_name ?? '') . ' ' . ($owner->last_name ?? ''));
                 Mail::to($removedUser->email)->queue(new RemoveFromTagMail(
@@ -1176,7 +1195,7 @@ class TagController extends Controller
                 ));
             }
     
-            // 4. Gửi realtime update
+            // 5. Gửi realtime update
             $this->sendRealTimeUpdate([$tag], 'update');
     
             if (!empty($tasksUpdated)) {
@@ -1196,6 +1215,7 @@ class TagController extends Controller
             ], 500);
         }
     }
+    
     
     protected function sendMail($mailOwner, $emails, $tag)
     {
